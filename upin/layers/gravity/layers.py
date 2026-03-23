@@ -46,23 +46,55 @@ class QuantumGravityGradiometerLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            base_lat = getattr(self, '_sim_lat', 13.0827)
-            base_lon = getattr(self, '_sim_lon', 80.2707)
-            noise_m = 100.0
-            lat = base_lat + np.random.normal(0, noise_m / 111_000)
-            lon = base_lon + np.random.normal(0, noise_m / 111_000)
-            pos = Position(latitude=lat, longitude=lon, altitude=0,
-                           accuracy_m=noise_m, timestamp=time.time())
-            return LayerReading(
-                layer_id=self.layer_id, position=pos,
-                self_confidence=0.6,
-                raw_data={
-                    "gradient_eotvos": 3000 + np.random.normal(0, 10),
-                    "underground_anomaly": False,
-                    "tunnel_detected": False,
-                },
-            )
+            if self.world is not None:
+                return self._read_from_world()
+            return self._read_fallback()
         raise NotImplementedError
+
+    def _read_from_world(self) -> LayerReading:
+        """Gravity gradient map matching via SimulationWorld."""
+        measured = self.world.get_gravity(self.world.true_lat, self.world.true_lon)
+        grid = self.world.gravity_at_grid()
+
+        best_lat, best_lon, best_diff = 0.0, 0.0, float('inf')
+        for (lat_i, lon_i), anomaly in grid.items():
+            diff = abs(anomaly - measured["anomaly_mgal"])
+            if diff < best_diff:
+                best_diff = diff
+                best_lat, best_lon = lat_i / 100.0, lon_i / 100.0
+
+        noise_m = 100.0
+        pos = Position(latitude=best_lat, longitude=best_lon, altitude=0,
+                       accuracy_m=noise_m, timestamp=time.time())
+        return LayerReading(
+            layer_id=self.layer_id, position=pos,
+            self_confidence=0.6,
+            raw_data={
+                "gradient_eotvos": measured["gradient_eotvos"],
+                "underground_anomaly": False,
+                "tunnel_detected": False,
+                "map_match_residual_mgal": best_diff,
+            },
+        )
+
+    def _read_fallback(self) -> LayerReading:
+        """Old simulated approach using base position + noise."""
+        base_lat = getattr(self, '_sim_lat', 13.0827)
+        base_lon = getattr(self, '_sim_lon', 80.2707)
+        noise_m = 100.0
+        lat = base_lat + np.random.normal(0, noise_m / 111_000)
+        lon = base_lon + np.random.normal(0, noise_m / 111_000)
+        pos = Position(latitude=lat, longitude=lon, altitude=0,
+                       accuracy_m=noise_m, timestamp=time.time())
+        return LayerReading(
+            layer_id=self.layer_id, position=pos,
+            self_confidence=0.6,
+            raw_data={
+                "gradient_eotvos": 3000 + np.random.normal(0, 10),
+                "underground_anomaly": False,
+                "tunnel_detected": False,
+            },
+        )
 
     def set_simulated_position(self, lat: float, lon: float, alt: float = 10.0):
         self._sim_lat = lat
@@ -98,20 +130,51 @@ class QuantumDualGravimeterLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            base_lat = getattr(self, '_sim_lat', 13.0827)
-            base_lon = getattr(self, '_sim_lon', 80.2707)
-            noise_m = 80.0
-            lat = base_lat + np.random.normal(0, noise_m / 111_000)
-            lon = base_lon + np.random.normal(0, noise_m / 111_000)
-            pos = Position(latitude=lat, longitude=lon, altitude=0,
-                           accuracy_m=noise_m, timestamp=time.time())
-            return LayerReading(
-                layer_id=self.layer_id, position=pos,
-                self_confidence=0.6,
-                raw_data={"gravity_mgal": 980000 + np.random.normal(0, 5),
-                          "map_match_confidence": 0.7},
-            )
+            if self.world is not None:
+                return self._read_from_world()
+            return self._read_fallback()
         raise NotImplementedError
+
+    def _read_from_world(self) -> LayerReading:
+        """Gravity anomaly (mGal) map matching via SimulationWorld."""
+        measured = self.world.get_gravity(self.world.true_lat, self.world.true_lon)
+        grid = self.world.gravity_at_grid()
+
+        best_lat, best_lon, best_diff = 0.0, 0.0, float('inf')
+        for (lat_i, lon_i), anomaly in grid.items():
+            diff = abs(anomaly - measured["anomaly_mgal"])
+            if diff < best_diff:
+                best_diff = diff
+                best_lat, best_lon = lat_i / 100.0, lon_i / 100.0
+
+        noise_m = 80.0
+        pos = Position(latitude=best_lat, longitude=best_lon, altitude=0,
+                       accuracy_m=noise_m, timestamp=time.time())
+        return LayerReading(
+            layer_id=self.layer_id, position=pos,
+            self_confidence=0.6,
+            raw_data={
+                "gravity_mgal": measured["g_ms2"] * 1e5,
+                "map_match_confidence": 0.7,
+                "map_match_residual_mgal": best_diff,
+            },
+        )
+
+    def _read_fallback(self) -> LayerReading:
+        """Old simulated approach using base position + noise."""
+        base_lat = getattr(self, '_sim_lat', 13.0827)
+        base_lon = getattr(self, '_sim_lon', 80.2707)
+        noise_m = 80.0
+        lat = base_lat + np.random.normal(0, noise_m / 111_000)
+        lon = base_lon + np.random.normal(0, noise_m / 111_000)
+        pos = Position(latitude=lat, longitude=lon, altitude=0,
+                       accuracy_m=noise_m, timestamp=time.time())
+        return LayerReading(
+            layer_id=self.layer_id, position=pos,
+            self_confidence=0.6,
+            raw_data={"gravity_mgal": 980000 + np.random.normal(0, 5),
+                      "map_match_confidence": 0.7},
+        )
 
     def set_simulated_position(self, lat: float, lon: float, alt: float = 10.0):
         self._sim_lat = lat

@@ -116,13 +116,21 @@ class ExtendedKalmanFilter:
 
 
 class AnomalyDetector:
-    """ML-based anomaly detection for cross-layer disagreement.
+    """ML-based anomaly detection using Mahalanobis distance.
 
-    Augments the EKF with statistical analysis to detect:
-    - Sudden position jumps (spoofing)
-    - Gradual drift (slow spoofing)
-    - Layer cluster divergence (multi-vector attack)
+    Each layer independently computes its own coordinate. This detector
+    compares every layer's position against the consensus using the
+    Mahalanobis distance — which accounts for each layer's expected
+    accuracy (covariance) so that a 200m magnetic reading isn't flagged
+    as an outlier while a 50m GPS offset is.
+
+    Detection methods:
+    - Mahalanobis distance: statistically rigorous multi-dimensional outlier test
+    - MAD fallback: Median Absolute Deviation for robust 1D outlier detection
+    - Drift tracking: gradual spoofing detection over time
     """
+
+    MAHALANOBIS_THRESHOLD = 3.0  # Chi-squared 99.7% for 3 DOF ≈ 3.0 sigma
 
     def __init__(self, history_size: int = 200):
         self._history: list[dict] = []
@@ -133,53 +141,115 @@ class AnomalyDetector:
         self,
         readings: list[LayerReading],
         consensus: tuple[float, float, float],
+        layer_accuracies: Optional[dict[str, float]] = None,
     ) -> dict:
-        """Analyse readings for anomalies.
+        """Analyse readings for anomalies using Mahalanobis distance.
+
+        Each layer reports its position and its expected accuracy.
+        The Mahalanobis distance tells us: "Given this layer's accuracy,
+        how many standard deviations is it from consensus?"
+
+        If a GPS layer (accuracy 5m) reports a position 50m from consensus,
+        that's 10 sigma — definite spoofing.
+        If a magnetic layer (accuracy 200m) reports 150m from consensus,
+        that's 0.75 sigma — perfectly normal.
 
         Returns dict with:
-            - outlier_ids: list of layer_ids that are outliers
+            - outlier_ids: list of layer_ids that are Mahalanobis outliers
+            - mahalanobis_distances: dict of layer_id -> distance
             - attack_type: None, 'spoofing', 'jamming', 'gradual_drift'
             - anomaly_score: 0.0 (normal) to 1.0 (definite attack)
         """
         if not readings:
-            return {"outlier_ids": [], "attack_type": None, "anomaly_score": 0.0}
+            return {"outlier_ids": [], "mahalanobis_distances": {},
+                    "attack_type": None, "anomaly_score": 0.0}
 
-        deviations = []
+        layer_accuracies = layer_accuracies or {}
+        mahal_distances: dict[str, float] = {}
+        position_deviations: list[tuple[str, float]] = []
+
         for r in readings:
             if r.position is None or not r.is_valid:
                 continue
-            dev = self._deviation_m(r.position.as_array(), consensus)
-            deviations.append((r.layer_id, dev))
 
-        if not deviations:
-            return {"outlier_ids": [], "attack_type": None, "anomaly_score": 0.0}
+            pos = r.position.as_array()
+            accuracy_m = r.position.accuracy_m or 50.0
+            # Override with known accuracy if provided
+            if r.layer_id in layer_accuracies:
+                accuracy_m = layer_accuracies[r.layer_id]
 
-        devs = np.array([d[1] for d in deviations])
-        median_dev = np.median(devs)
-        mad = np.median(np.abs(devs - median_dev))  # Median Absolute Deviation
+            # Compute deviation in metres
+            dev_m = self._deviation_m(pos, consensus)
+            position_deviations.append((r.layer_id, dev_m))
+
+            # ── Mahalanobis distance ──
+            # Convert position difference to local NED frame (metres)
+            dlat_m = (pos[0] - consensus[0]) * 111_000
+            dlon_m = ((pos[1] - consensus[1]) * 111_000 *
+                      np.cos(np.radians(consensus[0])))
+            dalt_m = pos[2] - consensus[2]
+
+            # Covariance matrix: diagonal with layer's claimed accuracy
+            # Different layers have different accuracy in each axis
+            sigma_h = accuracy_m  # horizontal sigma
+            sigma_v = accuracy_m * 2.0  # vertical typically worse
+
+            diff = np.array([dlat_m, dlon_m, dalt_m])
+            cov = np.diag([sigma_h ** 2, sigma_h ** 2, sigma_v ** 2])
+
+            try:
+                cov_inv = np.linalg.inv(cov)
+                d_mahal = float(np.sqrt(diff @ cov_inv @ diff))
+            except np.linalg.LinAlgError:
+                d_mahal = dev_m / max(accuracy_m, 1.0)
+
+            mahal_distances[r.layer_id] = d_mahal
+
+        if not position_deviations:
+            return {"outlier_ids": [], "mahalanobis_distances": {},
+                    "attack_type": None, "anomaly_score": 0.0}
+
+        # ── Identify outliers via Mahalanobis threshold ──
+        outlier_ids = [
+            lid for lid, d in mahal_distances.items()
+            if d > self.MAHALANOBIS_THRESHOLD
+        ]
+
+        # ── Also run MAD as backup (catches coordinated attacks) ──
+        devs = np.array([d[1] for d in position_deviations])
+        median_dev = float(np.median(devs))
+        mad = float(np.median(np.abs(devs - median_dev)))
         if mad < 1.0:
             mad = 1.0
-
-        # Outliers: deviation > 3 * MAD from median
-        outlier_ids = []
-        for layer_id, dev in deviations:
-            if abs(dev - median_dev) > 3 * mad:
+        for layer_id, dev in position_deviations:
+            if (abs(dev - median_dev) > 3 * mad and
+                    layer_id not in outlier_ids):
                 outlier_ids.append(layer_id)
 
-        # Determine attack type
+        # ── Determine attack type ──
         attack_type = None
-        anomaly_score = len(outlier_ids) / max(len(deviations), 1)
+        anomaly_score = 0.0
 
         if outlier_ids:
+            # Anomaly score: proportion of layers that are outliers,
+            # weighted by how far they are from threshold
+            max_mahal = max(mahal_distances.get(lid, 0) for lid in outlier_ids)
+            anomaly_score = min(1.0, max_mahal / (self.MAHALANOBIS_THRESHOLD * 3))
+
             # Check if outliers are satellite layers (spoofing indicator)
             sat_prefixes = ("gps", "navic", "leo", "gnss")
             sat_outliers = [o for o in outlier_ids
                            if any(o.lower().startswith(p) for p in sat_prefixes)]
-            if sat_outliers and len(outlier_ids) <= len(sat_outliers) + 1:
+            non_sat_outliers = [o for o in outlier_ids if o not in sat_outliers]
+
+            if sat_outliers and len(non_sat_outliers) <= 1:
                 attack_type = "spoofing"
                 anomaly_score = min(1.0, anomaly_score * 2)
+            elif len(outlier_ids) > len(position_deviations) * 0.5:
+                attack_type = "multi_vector"
+                anomaly_score = min(1.0, anomaly_score * 1.5)
 
-        # Check for gradual drift
+        # ── Track history for gradual drift detection ──
         self._history.append({"median_dev": median_dev, "time": time.time()})
         if len(self._history) > self._history_size:
             self._history = self._history[-self._history_size:]
@@ -187,17 +257,19 @@ class AnomalyDetector:
         if len(self._history) >= 50 and attack_type is None:
             recent = [h["median_dev"] for h in self._history[-50:]]
             drift_rate = (recent[-1] - recent[0]) / 50
-            if drift_rate > 0.5:  # 0.5m per cycle drift
+            if drift_rate > 0.5:
                 attack_type = "gradual_drift"
                 anomaly_score = min(1.0, drift_rate / 2.0)
 
         return {
             "outlier_ids": outlier_ids,
+            "mahalanobis_distances": mahal_distances,
             "attack_type": attack_type,
             "anomaly_score": anomaly_score,
         }
 
     def _deviation_m(self, pos: tuple, consensus: tuple) -> float:
+        """Haversine + vertical distance in metres."""
         lat1, lon1 = np.radians(pos[0]), np.radians(pos[1])
         lat2, lon2 = np.radians(consensus[0]), np.radians(consensus[1])
         dlat, dlon = lat2 - lat1, lon2 - lon1
@@ -208,12 +280,176 @@ class AnomalyDetector:
         return float(np.sqrt(horiz**2 + vert**2))
 
 
+class ResilientReferenceTracker:
+    """UPIN Internal Reference Tracker — the unjammable fallback.
+
+    Maintains an independent position estimate using ONLY internal/
+    unjammable sensors: INS, quantum clock, gravity, magnetic,
+    muon, Schumann resonance, and pulsar navigation.
+
+    These sensors use physical principles that CANNOT be jammed:
+    - Inertial: measures acceleration directly (no external signal)
+    - Magnetic: Earth's field (can't be faked at scale)
+    - Gravity: gravitational field (impossible to spoof)
+    - Muon: cosmic rays (no terrestrial jamming possible)
+    - Schumann: Earth's resonance (would need to stop thunderstorms)
+    - Pulsar: neutron stars (unjammable by definition)
+
+    When all external signals (GPS, NavIC, LEO, cell, WiFi, eLORAN)
+    are jammed, this tracker keeps position. When signals return,
+    it cross-validates the returning signals against its own estimate
+    to detect if they're being spoofed.
+    """
+
+    # Layer IDs that are unjammable (use no external signals)
+    UNJAMMABLE_LAYERS = {
+        "ins_l3",       # Inertial — internal accelerometers
+        "baro_l11",     # Barometric — atmospheric pressure
+        "magano_l6",    # Magnetic anomaly
+        "dualqmag_l17", # Quantum magnetometer
+        "magmap_l23",   # Magnetic map matching
+        "nvdiamond_l30",# NV diamond magnetometer
+        "bicoord_l44",  # Bicoordinate magnetic+chemical
+        "gravgrad_l28a",# Gravity gradiometer
+        "gravimeter_l28b",  # Dual gravimeter
+        "muon_l40",     # Cosmic ray muon
+        "pulsar_l29b",  # Pulsar timing
+        "xnav_l29",     # X-ray pulsar
+        "schumann_l59", # Schumann resonance
+        "terrain_l5",   # Terrain matching (uses camera, not RF)
+        "vslam_l31",    # Visual SLAM (camera-based)
+        "lidar_l33",    # LiDAR SLAM
+        "qclock_l27",   # Quantum clock
+        "nmrgyro_l57",  # NMR gyroscope
+        "serfgyro_l58", # SERF gyroscope
+    }
+
+    def __init__(self):
+        self._ref_lat: float = 0.0
+        self._ref_lon: float = 0.0
+        self._ref_alt: float = 0.0
+        self._ref_heading: float = 0.0
+        self._initialized = False
+        self._all_jammed = False
+        self._unjammable_count = 0
+        self._reference_confidence = 0.0
+
+    def update(
+        self,
+        readings: list[LayerReading],
+        consensus: tuple[float, float, float],
+    ) -> dict:
+        """Update the reference tracker from unjammable layer readings.
+
+        Computes an independent position estimate using ONLY layers
+        that cannot be externally jammed. Then compares this reference
+        against the full consensus to detect whether returning signals
+        are trustworthy.
+
+        Returns:
+            - ref_position: (lat, lon, alt) from unjammable layers only
+            - ref_confidence: 0-100% based on number of unjammable layers
+            - all_external_jammed: True if all jammable layers have failed
+            - consensus_trusted: True if consensus matches unjammable ref
+            - deviation_m: distance between reference and consensus
+        """
+        # Extract readings from unjammable layers only
+        unjammable_readings = [
+            r for r in readings
+            if r.layer_id in self.UNJAMMABLE_LAYERS
+            and r.position is not None and r.is_valid
+        ]
+
+        # Count jammable layers that are working
+        jammable_active = sum(
+            1 for r in readings
+            if r.layer_id not in self.UNJAMMABLE_LAYERS
+            and r.is_valid
+        )
+
+        self._all_jammed = (jammable_active == 0)
+        self._unjammable_count = len(unjammable_readings)
+
+        if not unjammable_readings:
+            return {
+                "ref_position": consensus,
+                "ref_confidence": 0.0,
+                "all_external_jammed": self._all_jammed,
+                "consensus_trusted": True,
+                "deviation_m": 0.0,
+            }
+
+        # Compute weighted average position from unjammable layers
+        total_w = 0.0
+        lat_sum = lon_sum = alt_sum = 0.0
+        for r in unjammable_readings:
+            w = 1.0 / max(r.position.accuracy_m, 1.0) ** 2
+            lat_sum += r.position.latitude * w
+            lon_sum += r.position.longitude * w
+            alt_sum += (r.position.altitude or 0) * w
+            total_w += w
+
+        if total_w > 0:
+            self._ref_lat = lat_sum / total_w
+            self._ref_lon = lon_sum / total_w
+            self._ref_alt = alt_sum / total_w
+        self._initialized = True
+
+        # Reference confidence based on how many unjammable layers agree
+        self._reference_confidence = min(
+            100.0, self._unjammable_count * 6.0  # ~17 layers = 100%
+        )
+
+        # Compare reference position against consensus
+        from math import radians, sin, cos, sqrt, atan2
+        lat1, lon1 = radians(self._ref_lat), radians(self._ref_lon)
+        lat2, lon2 = radians(consensus[0]), radians(consensus[1])
+        dlat, dlon = lat2 - lat1, lon2 - lon1
+        a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+        deviation_m = 6_371_000 * 2 * atan2(sqrt(a), sqrt(1-a))
+
+        # If external signals are returning after jamming, check if
+        # the consensus is being spoofed (deviates from unjammable ref)
+        consensus_trusted = True
+        if self._all_jammed:
+            # Everything jammed — use reference tracker position only
+            consensus_trusted = False
+        elif deviation_m > 100.0 and self._reference_confidence > 50.0:
+            # Consensus deviates significantly from unjammable reference
+            # Possible spoofing of returning signals
+            consensus_trusted = False
+
+        return {
+            "ref_position": (self._ref_lat, self._ref_lon, self._ref_alt),
+            "ref_confidence": self._reference_confidence,
+            "unjammable_layers": self._unjammable_count,
+            "all_external_jammed": self._all_jammed,
+            "consensus_trusted": consensus_trusted,
+            "deviation_m": deviation_m,
+        }
+
+    @property
+    def position(self) -> tuple[float, float, float]:
+        return (self._ref_lat, self._ref_lon, self._ref_alt)
+
+    @property
+    def is_active(self) -> bool:
+        return self._initialized and self._unjammable_count > 0
+
+
 class FusionEngine:
     """The UPIN AI Fusion Engine.
 
     This is the core of the present invention. It orchestrates all
     positioning layers, threat layers, and produces the unified
     NavigationOutput with confidence score at each cycle.
+
+    Architecture:
+    - 60 independent layer AGENTS each compute their own coordinates
+    - Mahalanobis distance compares all positions statistically
+    - Resilient Reference Tracker maintains position from unjammable layers
+    - When external signals fail, the reference tracker takes over
+    - When signals return, it cross-validates them against the reference
 
     Usage:
         engine = FusionEngine()
@@ -248,6 +484,7 @@ class FusionEngine:
             agreement_threshold_m=agreement_threshold_m,
             min_layers_for_full_trust=10,
         )
+        self._reference_tracker = ResilientReferenceTracker()
 
         # State
         self._cycle_count = 0
@@ -335,8 +572,15 @@ class FusionEngine:
 
         consensus = self._ekf.position
 
-        # ── STEP 3: CANCEL ERRORS (anomaly detection + weight adjustment) ──
-        anomaly = self._anomaly_detector.analyze(readings, consensus)
+        # ── STEP 3: CANCEL ERRORS (Mahalanobis anomaly detection) ──
+        # Build per-layer accuracy map for Mahalanobis distance
+        layer_accuracies = {}
+        for r in readings:
+            if r.position is not None and r.is_valid:
+                layer_accuracies[r.layer_id] = r.position.accuracy_m or 50.0
+        anomaly = self._anomaly_detector.analyze(
+            readings, consensus, layer_accuracies
+        )
         self._adjust_weights(anomaly)
 
         # ── STEP 4: OUTPUT (confidence scoring + threat detection) ──
@@ -389,6 +633,47 @@ class FusionEngine:
             ))
             if threat_level.value < ThreatLevel.HIGH.value:
                 threat_level = ThreatLevel.HIGH
+
+        # ── STEP 5: RESILIENT REFERENCE TRACKER ──
+        # Update the unjammable reference tracker independently
+        ref_status = self._reference_tracker.update(readings, consensus)
+
+        # If all external signals are jammed, use the reference tracker
+        if ref_status["all_external_jammed"] and ref_status["ref_confidence"] > 30:
+            consensus = ref_status["ref_position"]
+            logger.warning(
+                "ALL EXTERNAL SIGNALS JAMMED — using unjammable reference "
+                f"tracker ({ref_status['unjammable_layers']} internal layers, "
+                f"{ref_status['ref_confidence']:.0f}% confidence)"
+            )
+            threats.append(ThreatAlert(
+                threat_id="TOTAL_JAMMING",
+                threat_type="TOTAL_SIGNAL_DENIAL",
+                level=ThreatLevel.CRITICAL,
+                description=(
+                    f"All external signals jammed. Position maintained by "
+                    f"{ref_status['unjammable_layers']} unjammable internal "
+                    f"layers (INS, magnetic, gravity, muon, pulsar, etc.)"
+                ),
+                source_layer="reference_tracker",
+                confidence=ref_status["ref_confidence"],
+            ))
+            if threat_level.value < ThreatLevel.CRITICAL.value:
+                threat_level = ThreatLevel.CRITICAL
+
+        # If consensus deviates from reference, signals may be spoofed
+        elif not ref_status["consensus_trusted"]:
+            threats.append(ThreatAlert(
+                threat_id="REF_DISAGREE",
+                threat_type="CONSENSUS_SPOOFING_SUSPECTED",
+                level=ThreatLevel.HIGH,
+                description=(
+                    f"Returning signals deviate {ref_status['deviation_m']:.0f}m "
+                    f"from unjammable reference tracker. Possible post-jam spoofing."
+                ),
+                source_layer="reference_tracker",
+                confidence=ref_status["ref_confidence"],
+            ))
 
         # Build layer diagnostics
         diagnostics = self._build_diagnostics(readings, anomaly)
@@ -450,12 +735,39 @@ class FusionEngine:
         return readings
 
     def _process_measurements(self, readings: list[LayerReading]) -> None:
-        """STEP 2: Feed measurements into the EKF."""
+        """STEP 2: Feed measurements into the EKF.
+
+        Each layer agent has independently computed its own coordinates.
+        Before feeding into the EKF, we sanity-check: if a layer's
+        position is absurdly far from the current state (>50km when
+        the layer claims <1km accuracy), it's rejected. This prevents
+        a single bad computation from corrupting the fused state.
+        """
         for r in readings:
             if r.position is None or not r.is_valid:
                 continue
 
             pos = r.position.as_array()
+
+            # Skip altitude-only readings (lat=0, lon=0)
+            if abs(pos[0]) < 0.001 and abs(pos[1]) < 0.001:
+                continue
+
+            # Sanity check: reject positions absurdly far from current state
+            if self._ekf._initialized:
+                dlat_m = abs(pos[0] - self._ekf.x[0]) * 111_000
+                dlon_m = (abs(pos[1] - self._ekf.x[1]) * 111_000 *
+                          np.cos(np.radians(self._ekf.x[0])))
+                dist_m = np.sqrt(dlat_m ** 2 + dlon_m ** 2)
+                # If claimed accuracy is X but deviation is >100*X, reject
+                max_allowed = max(r.position.accuracy_m * 100, 10_000)
+                if dist_m > max_allowed:
+                    logger.debug(
+                        f"Layer {r.layer_id} rejected: {dist_m:.0f}m from "
+                        f"state (max {max_allowed:.0f}m)"
+                    )
+                    continue
+
             z = np.array([pos[0], pos[1], pos[2]])
 
             # Measurement matrix: we observe lat, lon, alt directly
@@ -519,19 +831,21 @@ class FusionEngine:
     def _build_diagnostics(
         self, readings: list[LayerReading], anomaly: dict
     ) -> list[LayerDiagnostic]:
-        """Build per-layer diagnostic information."""
+        """Build per-layer diagnostic information with Mahalanobis distances."""
+        mahal = anomaly.get("mahalanobis_distances", {})
         diagnostics = []
         for layer_id, layer in self._nav_layers.items():
             reading = next((r for r in readings if r.layer_id == layer_id), None)
+            is_outlier = layer_id in anomaly.get("outlier_ids", [])
             diagnostics.append(LayerDiagnostic(
                 layer_id=layer_id,
                 layer_name=layer.name,
                 is_active=layer.status.is_active,
-                is_trusted=layer_id not in anomaly.get("outlier_ids", []),
+                is_trusted=not is_outlier,
                 current_weight=self._layer_weights.get(layer_id, 0.0),
                 reliability_coefficient=self._layer_reliabilities.get(layer_id, 1.0),
                 last_position=reading.position if reading else None,
-                spoofing_suspected=layer_id in anomaly.get("outlier_ids", []),
+                spoofing_suspected=is_outlier,
             ))
         return diagnostics
 
@@ -605,8 +919,25 @@ class FusionEngine:
                 f"  Threat level:     {o.threat_level.name}",
                 f"  Active threats:   {len(o.threat_alerts)}",
             ])
+        # Resilient reference tracker status
+        ref = self._reference_tracker
+        if ref.is_active:
+            lines.extend([
+                f"  ─────────────────────────────────────────────",
+                f"  REFERENCE TRACKER (UNJAMMABLE):",
+                f"  Ref position:     {ref.position[0]:.6f}°N, "
+                f"{ref.position[1]:.6f}°E",
+                f"  Ref confidence:   {ref._reference_confidence:.0f}%",
+                f"  Unjammable layers:{ref._unjammable_count}",
+                f"  All jammed:       {ref._all_jammed}",
+            ])
         lines.append("═══════════════════════════════════════════════")
         return "\n".join(lines)
+
+    @property
+    def reference_tracker(self) -> ResilientReferenceTracker:
+        """Access the unjammable reference tracker."""
+        return self._reference_tracker
 
     # ── Extended Kalman Filter property (for direct access) ──
     ExtendedKalmanFilter = ExtendedKalmanFilter

@@ -8,6 +8,7 @@ Layer 22: Radius Containment and Convergence Lock [N]
 
 from __future__ import annotations
 
+import math
 import time
 import numpy as np
 
@@ -55,25 +56,74 @@ class HumanBeaconNetworkLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            base_lat = getattr(self, '_sim_lat', 13.0827)
-            base_lon = getattr(self, '_sim_lon', 80.2707)
-            # Simulate 5 nearby beacons
-            n_beacons = 5
-            noise_m = 30.0
-            lat = base_lat + np.random.normal(0, noise_m / 111_000)
-            lon = base_lon + np.random.normal(0, noise_m / 111_000)
-            pos = Position(latitude=lat, longitude=lon, altitude=0,
-                           accuracy_m=noise_m, timestamp=time.time())
-            return LayerReading(
-                layer_id=self.layer_id, position=pos,
-                self_confidence=0.6,
-                raw_data={
-                    "beacons_active": n_beacons,
-                    "encrypted": True,
-                    "civilian_traffic_blend": True,
-                },
-            )
+            if self.world is not None:
+                return self._read_from_world()
+            return self._read_fallback()
         raise NotImplementedError
+
+    def _read_from_world(self) -> LayerReading:
+        """Trilaterate from simulated nearby beacon device positions.
+
+        Generates beacons around the true position and trilaterates
+        using inverse-distance weighted centroid (same algorithm as
+        PassiveAcousticLayer but for RF beacons).
+        """
+        n_beacons = 5
+        noise_m = 30.0
+
+        # Simulate beacons scattered around true position
+        beacon_lats = []
+        beacon_lons = []
+        weights = []
+        for _ in range(n_beacons):
+            # Each beacon is 50-300m away from true position
+            dist_m = np.random.uniform(50, 300)
+            bearing = np.random.uniform(0, 2 * math.pi)
+            b_lat = self.world.true_lat + (dist_m * math.sin(bearing)) / 111_000.0
+            b_lon = self.world.true_lon + (dist_m * math.cos(bearing)) / (
+                111_000.0 * math.cos(math.radians(self.world.true_lat))
+            )
+            beacon_lats.append(b_lat)
+            beacon_lons.append(b_lon)
+            # Weight inversely proportional to distance
+            w = 1.0 / max(dist_m, 1.0)
+            weights.append(w)
+
+        total_w = sum(weights)
+        lat = sum(w * la for w, la in zip(weights, beacon_lats)) / total_w
+        lon = sum(w * lo for w, lo in zip(weights, beacon_lons)) / total_w
+
+        pos = Position(latitude=lat, longitude=lon, altitude=0,
+                       accuracy_m=noise_m, timestamp=time.time())
+        return LayerReading(
+            layer_id=self.layer_id, position=pos,
+            self_confidence=0.6,
+            raw_data={
+                "beacons_active": n_beacons,
+                "encrypted": True,
+                "civilian_traffic_blend": True,
+            },
+        )
+
+    def _read_fallback(self) -> LayerReading:
+        """Old simulated approach using base position + noise."""
+        base_lat = getattr(self, '_sim_lat', 13.0827)
+        base_lon = getattr(self, '_sim_lon', 80.2707)
+        n_beacons = 5
+        noise_m = 30.0
+        lat = base_lat + np.random.normal(0, noise_m / 111_000)
+        lon = base_lon + np.random.normal(0, noise_m / 111_000)
+        pos = Position(latitude=lat, longitude=lon, altitude=0,
+                       accuracy_m=noise_m, timestamp=time.time())
+        return LayerReading(
+            layer_id=self.layer_id, position=pos,
+            self_confidence=0.6,
+            raw_data={
+                "beacons_active": n_beacons,
+                "encrypted": True,
+                "civilian_traffic_blend": True,
+            },
+        )
 
     def set_simulated_position(self, lat: float, lon: float, alt: float = 10.0):
         self._sim_lat = lat
@@ -116,8 +166,14 @@ class CrowdsourcedSpoofingMapLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
+            # Environment-only layer — no position computation
             current_lat = getattr(self, '_sim_lat', 13.0827)
             current_lon = getattr(self, '_sim_lon', 80.2707)
+
+            # Use world true position if available for hotspot proximity check
+            if self.world is not None:
+                current_lat = self.world.true_lat
+                current_lon = self.world.true_lon
 
             # Check proximity to known hotspots
             nearby_hotspots = []
@@ -187,26 +243,70 @@ class RadiusContainmentLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            base_lat = getattr(self, '_sim_lat', 13.0827)
-            base_lon = getattr(self, '_sim_lon', 80.2707)
-            # With enough perimeter devices, achieve cm accuracy
-            n_devices = max(6, len(self._perimeter_devices))
-            noise_m = max(0.01, 10.0 / n_devices)  # Improves with more devices
-            lat = base_lat + np.random.normal(0, noise_m / 111_000)
-            lon = base_lon + np.random.normal(0, noise_m / 111_000)
-            pos = Position(latitude=lat, longitude=lon, altitude=0,
-                           accuracy_m=noise_m, timestamp=time.time())
-            return LayerReading(
-                layer_id=self.layer_id, position=pos,
-                self_confidence=min(0.95, 0.5 + n_devices * 0.05),
-                raw_data={
-                    "perimeter_devices": n_devices,
-                    "perimeter_radius_m": 500,
-                    "convergence_accuracy_m": noise_m,
-                    "lock_achieved": n_devices >= 6,
-                },
-            )
+            if self.world is not None:
+                return self._read_from_world()
+            return self._read_fallback()
         raise NotImplementedError
+
+    def _read_from_world(self) -> LayerReading:
+        """Multi-device perimeter convergence for cm-level position.
+
+        Simulates perimeter devices around the true position and
+        computes centroid convergence.  More devices = tighter accuracy.
+        """
+        n_devices = max(6, len(self._perimeter_devices))
+        noise_m = max(0.01, 10.0 / n_devices)  # Improves with more devices
+
+        # Generate perimeter devices around true position
+        device_lats = []
+        device_lons = []
+        perimeter_radius_m = 500.0
+        for i in range(n_devices):
+            angle = 2.0 * math.pi * i / n_devices
+            d_lat = self.world.true_lat + (perimeter_radius_m * math.sin(angle)) / 111_000.0
+            d_lon = self.world.true_lon + (perimeter_radius_m * math.cos(angle)) / (
+                111_000.0 * math.cos(math.radians(self.world.true_lat))
+            )
+            device_lats.append(d_lat)
+            device_lons.append(d_lon)
+
+        # Centroid of perimeter devices converges to true position
+        lat = np.mean(device_lats) + np.random.normal(0, noise_m / 111_000)
+        lon = np.mean(device_lons) + np.random.normal(0, noise_m / 111_000)
+
+        pos = Position(latitude=lat, longitude=lon, altitude=0,
+                       accuracy_m=noise_m, timestamp=time.time())
+        return LayerReading(
+            layer_id=self.layer_id, position=pos,
+            self_confidence=min(0.95, 0.5 + n_devices * 0.05),
+            raw_data={
+                "perimeter_devices": n_devices,
+                "perimeter_radius_m": perimeter_radius_m,
+                "convergence_accuracy_m": noise_m,
+                "lock_achieved": n_devices >= 6,
+            },
+        )
+
+    def _read_fallback(self) -> LayerReading:
+        """Old simulated approach using base position + noise."""
+        base_lat = getattr(self, '_sim_lat', 13.0827)
+        base_lon = getattr(self, '_sim_lon', 80.2707)
+        n_devices = max(6, len(self._perimeter_devices))
+        noise_m = max(0.01, 10.0 / n_devices)  # Improves with more devices
+        lat = base_lat + np.random.normal(0, noise_m / 111_000)
+        lon = base_lon + np.random.normal(0, noise_m / 111_000)
+        pos = Position(latitude=lat, longitude=lon, altitude=0,
+                       accuracy_m=noise_m, timestamp=time.time())
+        return LayerReading(
+            layer_id=self.layer_id, position=pos,
+            self_confidence=min(0.95, 0.5 + n_devices * 0.05),
+            raw_data={
+                "perimeter_devices": n_devices,
+                "perimeter_radius_m": 500,
+                "convergence_accuracy_m": noise_m,
+                "lock_achieved": n_devices >= 6,
+            },
+        )
 
     def set_simulated_position(self, lat: float, lon: float, alt: float = 10.0):
         self._sim_lat = lat

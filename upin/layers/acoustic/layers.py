@@ -8,6 +8,7 @@ Layer 35: Focused Sonar Beam Imaging [N, U]
 
 from __future__ import annotations
 
+import math
 import time
 import numpy as np
 
@@ -45,19 +46,63 @@ class PassiveAcousticLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            base_lat = getattr(self, '_sim_lat', 13.0827)
-            base_lon = getattr(self, '_sim_lon', 80.2707)
-            noise_m = 50.0
-            lat = base_lat + np.random.normal(0, noise_m / 111_000)
-            lon = base_lon + np.random.normal(0, noise_m / 111_000)
-            pos = Position(latitude=lat, longitude=lon, altitude=0,
-                           accuracy_m=noise_m, timestamp=time.time())
-            return LayerReading(
-                layer_id=self.layer_id, position=pos,
-                self_confidence=0.6,
-                raw_data={"sources_detected": 3, "sound_speed_ms": 1500},
-            )
+            if self.world is not None:
+                return self._read_from_world()
+            return self._read_fallback()
         raise NotImplementedError
+
+    def _read_from_world(self) -> LayerReading:
+        """TOA trilateration from acoustic beacons via SimulationWorld."""
+        sound_speed = 1500.0  # m/s
+        arrivals = self.world.get_acoustic_arrivals()
+
+        if len(arrivals) < 3:
+            # Not enough beacons — fall back
+            return self._read_fallback()
+
+        # Convert TOA to distance, then weighted centroid
+        weights = []
+        lats = []
+        lons = []
+        for arr in arrivals:
+            dist_m = arr["toa_s"] * sound_speed
+            # Weight inversely proportional to distance (closer = better)
+            w = 1.0 / max(dist_m, 1.0)
+            weights.append(w)
+            lats.append(arr["known_lat"])
+            lons.append(arr["known_lon"])
+
+        total_w = sum(weights)
+        lat = sum(w * la for w, la in zip(weights, lats)) / total_w
+        lon = sum(w * lo for w, lo in zip(weights, lons)) / total_w
+
+        # Accuracy estimate from spread of distances
+        noise_m = 50.0
+        pos = Position(latitude=lat, longitude=lon, altitude=0,
+                       accuracy_m=noise_m, timestamp=time.time())
+        return LayerReading(
+            layer_id=self.layer_id, position=pos,
+            self_confidence=0.6,
+            raw_data={
+                "sources_detected": len(arrivals),
+                "sound_speed_ms": sound_speed,
+            },
+        )
+
+    def _read_fallback(self) -> LayerReading:
+        """Old simulated approach using base position + noise."""
+        base_lat = getattr(self, '_sim_lat', 13.0827)
+        base_lon = getattr(self, '_sim_lon', 80.2707)
+        noise_m = 50.0
+        lat = base_lat + np.random.normal(0, noise_m / 111_000)
+        lon = base_lon + np.random.normal(0, noise_m / 111_000)
+        pos = Position(latitude=lat, longitude=lon, altitude=0,
+                       accuracy_m=noise_m, timestamp=time.time())
+        return LayerReading(
+            layer_id=self.layer_id, position=pos,
+            self_confidence=0.6,
+            raw_data={"sources_detected": 3, "sound_speed_ms": 1500},
+        )
 
     def set_simulated_position(self, lat: float, lon: float, alt: float = 10.0):
         self._sim_lat = lat
@@ -95,19 +140,38 @@ class ActiveSonarLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            base_lat = getattr(self, '_sim_lat', 13.0827)
-            base_lon = getattr(self, '_sim_lon', 80.2707)
-            noise_m = 5.0
-            lat = base_lat + np.random.normal(0, noise_m / 111_000)
-            lon = base_lon + np.random.normal(0, noise_m / 111_000)
-            pos = Position(latitude=lat, longitude=lon, altitude=0,
-                           accuracy_m=noise_m, timestamp=time.time())
-            return LayerReading(
-                layer_id=self.layer_id, position=pos,
-                self_confidence=0.75,
-                raw_data={"obstacles": 4, "range_m": 50, "resolution_cm": 2},
-            )
+            if self.world is not None:
+                return self._read_from_world()
+            return self._read_fallback()
         raise NotImplementedError
+
+    def _read_from_world(self) -> LayerReading:
+        """Sonar echo mapping — true position + noise (no external reference)."""
+        noise_m = 5.0
+        lat = self.world.true_lat + np.random.normal(0, noise_m / 111_000)
+        lon = self.world.true_lon + np.random.normal(0, noise_m / 111_000)
+        pos = Position(latitude=lat, longitude=lon, altitude=0,
+                       accuracy_m=noise_m, timestamp=time.time())
+        return LayerReading(
+            layer_id=self.layer_id, position=pos,
+            self_confidence=0.75,
+            raw_data={"obstacles": 4, "range_m": 50, "resolution_cm": 2},
+        )
+
+    def _read_fallback(self) -> LayerReading:
+        """Old simulated approach using base position + noise."""
+        base_lat = getattr(self, '_sim_lat', 13.0827)
+        base_lon = getattr(self, '_sim_lon', 80.2707)
+        noise_m = 5.0
+        lat = base_lat + np.random.normal(0, noise_m / 111_000)
+        lon = base_lon + np.random.normal(0, noise_m / 111_000)
+        pos = Position(latitude=lat, longitude=lon, altitude=0,
+                       accuracy_m=noise_m, timestamp=time.time())
+        return LayerReading(
+            layer_id=self.layer_id, position=pos,
+            self_confidence=0.75,
+            raw_data={"obstacles": 4, "range_m": 50, "resolution_cm": 2},
+        )
 
     def set_simulated_position(self, lat: float, lon: float, alt: float = 10.0):
         self._sim_lat = lat
@@ -144,6 +208,7 @@ class FocusedSonarLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
+            # Environment-only layer — no position computation
             return LayerReading(
                 layer_id=self.layer_id,
                 self_confidence=0.7,

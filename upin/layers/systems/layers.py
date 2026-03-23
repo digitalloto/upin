@@ -9,6 +9,7 @@ Layer 16: RF Signal Anomaly Detection [N]
 
 from __future__ import annotations
 
+import math
 import time
 import numpy as np
 from typing import Optional, Any
@@ -67,17 +68,43 @@ class AntennaStabilisationLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            return LayerReading(
-                layer_id=self.layer_id,
-                heading=self._current_pointing % 360,
-                self_confidence=0.7,
-                raw_data={
-                    "pointing_deg": self._current_pointing,
-                    "datalink_active": self._datalink_active,
-                    "auto_corrected": True,
-                },
-            )
+            if self.world is not None:
+                return self._read_from_world()
+            return self._read_fallback()
         raise NotImplementedError
+
+    def _read_from_world(self) -> LayerReading:
+        """Heading from antenna pointing system via SimulationWorld.
+
+        Uses world.true_heading as the reference for antenna pointing
+        with small noise representing mechanical/electronic jitter.
+        """
+        noise_deg = 0.5
+        heading = (self.world.true_heading + np.random.normal(0, noise_deg)) % 360.0
+        self._current_pointing = heading
+        return LayerReading(
+            layer_id=self.layer_id,
+            heading=heading,
+            self_confidence=0.7,
+            raw_data={
+                "pointing_deg": heading,
+                "datalink_active": self._datalink_active,
+                "auto_corrected": True,
+            },
+        )
+
+    def _read_fallback(self) -> LayerReading:
+        """Old simulated approach using current pointing state."""
+        return LayerReading(
+            layer_id=self.layer_id,
+            heading=self._current_pointing % 360,
+            self_confidence=0.7,
+            raw_data={
+                "pointing_deg": self._current_pointing,
+                "datalink_active": self._datalink_active,
+                "auto_corrected": True,
+            },
+        )
 
     def set_simulated_position(self, lat: float, lon: float, alt: float = 10.0):
         pass
@@ -135,6 +162,7 @@ class CascadePreventionLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
+            # System monitoring layer — no position computation
             return LayerReading(
                 layer_id=self.layer_id,
                 self_confidence=0.9,
@@ -184,30 +212,76 @@ class SwarmRelativePositionLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            base_lat = getattr(self, '_sim_lat', 13.0827)
-            base_lon = getattr(self, '_sim_lon', 80.2707)
-            # Average position from peers for cross-validation
-            if self._peer_positions:
-                avg_lat = np.mean([p.latitude for p in self._peer_positions.values()])
-                avg_lon = np.mean([p.longitude for p in self._peer_positions.values()])
-            else:
-                avg_lat = base_lat
-                avg_lon = base_lon
-
-            noise_m = 5.0
-            lat = avg_lat + np.random.normal(0, noise_m / 111_000)
-            lon = avg_lon + np.random.normal(0, noise_m / 111_000)
-            pos = Position(latitude=lat, longitude=lon, altitude=0,
-                           accuracy_m=noise_m, timestamp=time.time())
-            return LayerReading(
-                layer_id=self.layer_id, position=pos,
-                self_confidence=0.7,
-                raw_data={
-                    "peers_tracked": len(self._peer_positions),
-                    "formation_coherent": True,
-                },
-            )
+            if self.world is not None:
+                return self._read_from_world()
+            return self._read_fallback()
         raise NotImplementedError
+
+    def _read_from_world(self) -> LayerReading:
+        """Position from swarm peer averaging via SimulationWorld.
+
+        Simulates swarm peers around the true position and averages
+        their positions to derive a fused estimate.  When real peers
+        are registered, they are used instead.
+        """
+        noise_m = 5.0
+
+        if self._peer_positions:
+            # Use real registered peers
+            avg_lat = np.mean([p.latitude for p in self._peer_positions.values()])
+            avg_lon = np.mean([p.longitude for p in self._peer_positions.values()])
+        else:
+            # Simulate swarm peers around true position
+            n_peers = 4
+            peer_lats = []
+            peer_lons = []
+            for _ in range(n_peers):
+                peer_noise = 20.0  # Each peer has ~20m uncertainty
+                p_lat = self.world.true_lat + np.random.normal(0, peer_noise / 111_000)
+                p_lon = self.world.true_lon + np.random.normal(0, peer_noise / 111_000)
+                peer_lats.append(p_lat)
+                peer_lons.append(p_lon)
+            avg_lat = np.mean(peer_lats)
+            avg_lon = np.mean(peer_lons)
+
+        lat = avg_lat + np.random.normal(0, noise_m / 111_000)
+        lon = avg_lon + np.random.normal(0, noise_m / 111_000)
+        pos = Position(latitude=lat, longitude=lon, altitude=0,
+                       accuracy_m=noise_m, timestamp=time.time())
+        return LayerReading(
+            layer_id=self.layer_id, position=pos,
+            self_confidence=0.7,
+            raw_data={
+                "peers_tracked": len(self._peer_positions) or 4,
+                "formation_coherent": True,
+            },
+        )
+
+    def _read_fallback(self) -> LayerReading:
+        """Old simulated approach using base position or peer average + noise."""
+        base_lat = getattr(self, '_sim_lat', 13.0827)
+        base_lon = getattr(self, '_sim_lon', 80.2707)
+        # Average position from peers for cross-validation
+        if self._peer_positions:
+            avg_lat = np.mean([p.latitude for p in self._peer_positions.values()])
+            avg_lon = np.mean([p.longitude for p in self._peer_positions.values()])
+        else:
+            avg_lat = base_lat
+            avg_lon = base_lon
+
+        noise_m = 5.0
+        lat = avg_lat + np.random.normal(0, noise_m / 111_000)
+        lon = avg_lon + np.random.normal(0, noise_m / 111_000)
+        pos = Position(latitude=lat, longitude=lon, altitude=0,
+                       accuracy_m=noise_m, timestamp=time.time())
+        return LayerReading(
+            layer_id=self.layer_id, position=pos,
+            self_confidence=0.7,
+            raw_data={
+                "peers_tracked": len(self._peer_positions),
+                "formation_coherent": True,
+            },
+        )
 
     def set_simulated_position(self, lat: float, lon: float, alt: float = 10.0):
         self._sim_lat = lat
@@ -246,6 +320,7 @@ class RFAnomalyDetectionLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
+            # RF monitoring layer — no position computation
             # Simulate RF environment monitoring
             snr = self._baseline_snr + np.random.normal(0, 2)
             self._snr_history.append(snr)

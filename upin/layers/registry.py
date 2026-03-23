@@ -223,10 +223,18 @@ class LayerRegistry:
 
 def create_all_layers(sim_lat: float = 13.0827,
                       sim_lon: float = 80.2707,
-                      sim_alt: float = 10.0) -> list[NavigationLayer]:
-    """Convenience: create all 60 layers with simulated position set."""
+                      sim_alt: float = 10.0,
+                      world=None) -> list[NavigationLayer]:
+    """Convenience: create all 60 layers with simulated position set.
+
+    If a SimulationWorld is provided, each layer will use it for
+    physics-based independent coordinate computation. Otherwise
+    falls back to simple noise-on-position simulation.
+    """
     registry = LayerRegistry()
     layers = registry.create_all()
     for layer in layers:
         layer.set_simulated_position(sim_lat, sim_lon, sim_alt)
+        if world is not None:
+            layer.set_world(world)
     return layers

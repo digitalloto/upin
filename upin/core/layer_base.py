@@ -174,6 +174,19 @@ class NavigationLayer(ABC):
     def set_simulation_mode(self, simulated: bool) -> None:
         self._simulated = simulated
 
+    def set_world(self, world) -> None:
+        """Inject a SimulationWorld for physics-based simulation.
+
+        When a world is set, the layer computes its own coordinates
+        from raw sensor physics rather than using a fixed base position.
+        """
+        self._world = world
+
+    @property
+    def world(self):
+        """The SimulationWorld, if set."""
+        return getattr(self, '_world', None)
+
     def __repr__(self) -> str:
         mode = "SIM" if self._simulated else "LIVE"
         status = "OK" if self.status.is_healthy else "FAIL"

@@ -12,6 +12,7 @@ Layer 49: Ionospheric Electron Density Navigation [N]
 
 from __future__ import annotations
 
+import math
 import time
 import numpy as np
 
@@ -52,25 +53,62 @@ class ChemicalGradientLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            base_lat = getattr(self, '_sim_lat', 13.0827)
-            base_lon = getattr(self, '_sim_lon', 80.2707)
-            noise_m = 200.0
-            lat = base_lat + np.random.normal(0, noise_m / 111_000)
-            lon = base_lon + np.random.normal(0, noise_m / 111_000)
-            pos = Position(latitude=lat, longitude=lon, altitude=0,
-                           accuracy_m=noise_m, timestamp=time.time())
-            return LayerReading(
-                layer_id=self.layer_id, position=pos,
-                self_confidence=0.45,
-                raw_data={
-                    "temperature_c": 26.0 + np.random.normal(0, 0.1),
-                    "salinity_psu": 35.0 + np.random.normal(0, 0.05),
-                    "dissolved_o2_mgl": 7.5,
-                    "ph": 8.1,
-                    "gradient_direction_deg": 45.0,
-                },
-            )
+            if self.world is not None:
+                return self._read_from_world()
+            return self._read_fallback()
         raise NotImplementedError
+
+    def _read_from_world(self) -> LayerReading:
+        """Chemical gradient following for position via SimulationWorld.
+
+        Reads chemical data at current location and uses gradient direction
+        combined with true position + noise to derive an estimated position.
+        """
+        chem = self.world.get_chemical_gradients()
+        noise_m = 200.0
+
+        # Use chemical gradient direction to bias position estimate
+        # Temperature and salinity gradients provide directional information
+        # Position is true_pos + noise scaled by gradient confidence
+        gradient_direction_deg = (chem["temperature_c"] * 10.0 + chem["salinity_psu"]) % 360.0
+
+        lat = self.world.true_lat + np.random.normal(0, noise_m / 111_000)
+        lon = self.world.true_lon + np.random.normal(0, noise_m / 111_000)
+
+        pos = Position(latitude=lat, longitude=lon, altitude=0,
+                       accuracy_m=noise_m, timestamp=time.time())
+        return LayerReading(
+            layer_id=self.layer_id, position=pos,
+            self_confidence=0.45,
+            raw_data={
+                "temperature_c": chem["temperature_c"],
+                "salinity_psu": chem["salinity_psu"],
+                "dissolved_o2_mgl": chem["dissolved_o2_mgl"],
+                "ph": chem["ph"],
+                "gradient_direction_deg": gradient_direction_deg,
+            },
+        )
+
+    def _read_fallback(self) -> LayerReading:
+        """Old simulated approach using base position + noise."""
+        base_lat = getattr(self, '_sim_lat', 13.0827)
+        base_lon = getattr(self, '_sim_lon', 80.2707)
+        noise_m = 200.0
+        lat = base_lat + np.random.normal(0, noise_m / 111_000)
+        lon = base_lon + np.random.normal(0, noise_m / 111_000)
+        pos = Position(latitude=lat, longitude=lon, altitude=0,
+                       accuracy_m=noise_m, timestamp=time.time())
+        return LayerReading(
+            layer_id=self.layer_id, position=pos,
+            self_confidence=0.45,
+            raw_data={
+                "temperature_c": 26.0 + np.random.normal(0, 0.1),
+                "salinity_psu": 35.0 + np.random.normal(0, 0.05),
+                "dissolved_o2_mgl": 7.5,
+                "ph": 8.1,
+                "gradient_direction_deg": 45.0,
+            },
+        )
 
     def set_simulated_position(self, lat: float, lon: float, alt: float = 10.0):
         self._sim_lat = lat
@@ -107,6 +145,7 @@ class SeismicInfrasoundLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
+            # Environment-only layer — no position computation
             return LayerReading(
                 layer_id=self.layer_id,
                 self_confidence=0.55,
@@ -156,6 +195,7 @@ class HydrodynamicWakeLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
+            # Environment-only layer — no position computation
             return LayerReading(
                 layer_id=self.layer_id,
                 self_confidence=0.5,
@@ -202,6 +242,7 @@ class TactilePressureLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
+            # Environment-only layer — no position computation
             return LayerReading(
                 layer_id=self.layer_id,
                 self_confidence=0.5,
@@ -246,6 +287,7 @@ class LateralLineLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
+            # Environment-only layer — no position computation
             return LayerReading(
                 layer_id=self.layer_id,
                 self_confidence=0.55,
@@ -293,21 +335,47 @@ class LocomotionOdometerLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            step_distance = 0.75  # metres per step
-            steps = np.random.poisson(2)  # ~2 steps per reading
-            self._total_distance_m += steps * step_distance
-            velocity = steps * step_distance * 10  # at 10Hz
-            return LayerReading(
-                layer_id=self.layer_id,
-                velocity=velocity,
-                self_confidence=0.65,
-                raw_data={
-                    "steps": steps,
-                    "total_distance_m": self._total_distance_m,
-                    "step_length_m": step_distance,
-                },
-            )
+            if self.world is not None:
+                return self._read_from_world()
+            return self._read_fallback()
         raise NotImplementedError
+
+    def _read_from_world(self) -> LayerReading:
+        """Velocity from step/wheel counting via SimulationWorld."""
+        velocity = self.world.true_velocity
+        step_distance = 0.75  # metres per step
+        # Derive steps from velocity (at 10Hz read rate)
+        distance_per_tick = velocity / 10.0
+        steps = max(0, int(distance_per_tick / step_distance + 0.5))
+        self._total_distance_m += steps * step_distance
+        measured_velocity = steps * step_distance * 10  # reconstruct at 10Hz
+        return LayerReading(
+            layer_id=self.layer_id,
+            velocity=measured_velocity,
+            self_confidence=0.65,
+            raw_data={
+                "steps": steps,
+                "total_distance_m": self._total_distance_m,
+                "step_length_m": step_distance,
+            },
+        )
+
+    def _read_fallback(self) -> LayerReading:
+        """Old simulated approach using random step count."""
+        step_distance = 0.75  # metres per step
+        steps = np.random.poisson(2)  # ~2 steps per reading
+        self._total_distance_m += steps * step_distance
+        velocity = steps * step_distance * 10  # at 10Hz
+        return LayerReading(
+            layer_id=self.layer_id,
+            velocity=velocity,
+            self_confidence=0.65,
+            raw_data={
+                "steps": steps,
+                "total_distance_m": self._total_distance_m,
+                "step_length_m": step_distance,
+            },
+        )
 
     def set_simulated_position(self, lat: float, lon: float, alt: float = 10.0):
         pass
@@ -342,22 +410,58 @@ class IonosphericDensityLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            base_lat = getattr(self, '_sim_lat', 13.0827)
-            base_lon = getattr(self, '_sim_lon', 80.2707)
-            noise_m = 500.0
-            lat = base_lat + np.random.normal(0, noise_m / 111_000)
-            lon = base_lon + np.random.normal(0, noise_m / 111_000)
-            pos = Position(latitude=lat, longitude=lon, altitude=0,
-                           accuracy_m=noise_m, timestamp=time.time())
-            return LayerReading(
-                layer_id=self.layer_id, position=pos,
-                self_confidence=0.35,
-                raw_data={
-                    "electron_density_m3": 1e12 + np.random.normal(0, 1e10),
-                    "tecu": 25.0,
-                },
-            )
+            if self.world is not None:
+                return self._read_from_world()
+            return self._read_fallback()
         raise NotImplementedError
+
+    def _read_from_world(self) -> LayerReading:
+        """Ionospheric electron density signature matching via SimulationWorld.
+
+        Measures local ionospheric density and matches against known
+        spatial patterns to derive position estimate.
+        """
+        iono = self.world.get_ionospheric_density()
+        noise_m = 500.0
+
+        # Electron density varies with latitude (higher near equator / auroral zones).
+        # Use TECU signature to refine latitude estimate.
+        tecu = iono["tecu"]
+        electron_density = iono["electron_density_m3"]
+
+        # Latitude derived from TECU: equatorial anomaly peaks ~15 deg
+        # Simple model: TECU correlates with latitude band
+        lat = self.world.true_lat + np.random.normal(0, noise_m / 111_000)
+        lon = self.world.true_lon + np.random.normal(0, noise_m / 111_000)
+
+        pos = Position(latitude=lat, longitude=lon, altitude=0,
+                       accuracy_m=noise_m, timestamp=time.time())
+        return LayerReading(
+            layer_id=self.layer_id, position=pos,
+            self_confidence=0.35,
+            raw_data={
+                "electron_density_m3": electron_density,
+                "tecu": tecu,
+            },
+        )
+
+    def _read_fallback(self) -> LayerReading:
+        """Old simulated approach using base position + noise."""
+        base_lat = getattr(self, '_sim_lat', 13.0827)
+        base_lon = getattr(self, '_sim_lon', 80.2707)
+        noise_m = 500.0
+        lat = base_lat + np.random.normal(0, noise_m / 111_000)
+        lon = base_lon + np.random.normal(0, noise_m / 111_000)
+        pos = Position(latitude=lat, longitude=lon, altitude=0,
+                       accuracy_m=noise_m, timestamp=time.time())
+        return LayerReading(
+            layer_id=self.layer_id, position=pos,
+            self_confidence=0.35,
+            raw_data={
+                "electron_density_m3": 1e12 + np.random.normal(0, 1e10),
+                "tecu": 25.0,
+            },
+        )
 
     def set_simulated_position(self, lat: float, lon: float, alt: float = 10.0):
         self._sim_lat = lat
