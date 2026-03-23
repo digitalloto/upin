@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "upin"
+version = "0.1.0"
+description = "Universal Positioning Intelligence Network - Multi-Layer Sensor Fusion with Real-Time Confidence Scoring"
+requires-python = ">=3.10"
+license = {text = "Proprietary"}
+authors = [
+    {name = "Abheet Prem Manghnani", email = "savelives@aimcrs.com"},
+]
+dependencies = [
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+]
+full = [
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
+    "filterpy>=1.4.5",
+    "networkx>=3.0",
+]
+
+[project.scripts]
+upin-demo = "upin.simulation.demo:main"
+
+[tool.setuptools.packages.find]
+include = ["upin*"]
