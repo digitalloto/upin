@@ -636,3 +636,149 @@ class CommercialSOOPLayer(NavigationLayer):
     def set_simulated_position(self, lat: float, lon: float, alt: float = 10.0):
         self._sim_lat = lat
         self._sim_lon = lon
+
+
+class UWBPositioningLayer(NavigationLayer):
+    """Ultra-Wideband short-range precision positioning.
+
+    Uses time-of-flight between UWB anchors for centimetre-level accuracy.
+    Bio-inspired by bat echolocation timing precision.
+    """
+
+    def __init__(self):
+        super().__init__(
+            layer_id="uwb_d06",
+            layer_number=61,
+            name="UWB Precision Positioning",
+            group=LayerGroup.D_RF_TERRESTRIAL,
+            capabilities=[LayerCapability.POSITION],
+            bio_inspiration="Bat echolocation timing",
+            description="Ultra-wideband time-of-flight centimetre positioning",
+        )
+        self._range_noise_m = 0.05
+
+    def initialize(self) -> bool:
+        self.status.is_active = True
+        self.status.is_healthy = True
+        return True
+
+    def get_accuracy_rating(self) -> float:
+        return 0.97
+
+    def read(self) -> LayerReading:
+        import math as _math
+        noise_m = 0.15
+
+        if self.world is not None:
+            true_lat = self.world.true_lat
+            true_lon = self.world.true_lon
+            anchor_offsets = [(0.0001, 0), (0, 0.0001), (-0.0001, 0.0001)]
+            ranges = []
+            for dlat_off, dlon_off in anchor_offsets:
+                alat = true_lat + dlat_off
+                alon = true_lon + dlon_off
+                dlat = (true_lat - alat) * 111000
+                dlon = (true_lon - alon) * 111000 * _math.cos(_math.radians(true_lat))
+                true_range = _math.sqrt(dlat**2 + dlon**2)
+                measured = true_range + np.random.normal(0, self._range_noise_m)
+                ranges.append(max(0.01, measured))
+            est_lat = true_lat + np.random.normal(0, 0.000001)
+            est_lon = true_lon + np.random.normal(0, 0.000001)
+            pos = Position(
+                latitude=est_lat, longitude=est_lon, altitude=0,
+                accuracy_m=noise_m, timestamp=time.time(),
+            )
+            return LayerReading(
+                layer_id=self.layer_id, position=pos,
+                self_confidence=0.97,
+                raw_data={"ranges_m": ranges, "anchor_count": len(anchor_offsets)},
+            )
+
+        if self._simulated:
+            base_lat = getattr(self, "_sim_lat", 13.0827)
+            base_lon = getattr(self, "_sim_lon", 80.2707)
+            lat = base_lat + np.random.normal(0, noise_m / 111_000)
+            lon = base_lon + np.random.normal(0, noise_m / 111_000)
+            pos = Position(
+                latitude=lat, longitude=lon, altitude=0,
+                accuracy_m=noise_m, timestamp=time.time(),
+            )
+            return LayerReading(
+                layer_id=self.layer_id, position=pos,
+                self_confidence=0.97,
+                raw_data={"ranges_m": [11.1, 11.1, 15.7], "anchor_count": 3},
+            )
+        raise NotImplementedError("Live UWB requires hardware anchors")
+
+    def set_simulated_position(self, lat: float, lon: float, alt: float = 10.0):
+        self._sim_lat = lat
+        self._sim_lon = lon
+
+
+class LoRaWANNodeLayer(NavigationLayer):
+    """Long-Range Wide Area Network positioning via signal triangulation.
+
+    Operates in rural and border terrain with no cellular coverage.
+    Bio-inspired by migratory bird magnetic-plus-landmark navigation.
+    """
+
+    def __init__(self):
+        super().__init__(
+            layer_id="lora_d07",
+            layer_number=62,
+            name="LoRaWAN Node Triangulation",
+            group=LayerGroup.D_RF_TERRESTRIAL,
+            capabilities=[LayerCapability.POSITION],
+            bio_inspiration="Migratory bird landmark navigation",
+            description="Long-range RF triangulation for GPS-denied rural terrain",
+        )
+        self._rssi_noise_db = 4.0
+
+    def initialize(self) -> bool:
+        self.status.is_active = True
+        self.status.is_healthy = True
+        return True
+
+    def get_accuracy_rating(self) -> float:
+        return 0.45
+
+    def read(self) -> LayerReading:
+        noise_m = 30.0
+
+        if self.world is not None:
+            true_lat = self.world.true_lat
+            true_lon = self.world.true_lon
+            rssi_offset = np.random.normal(0, self._rssi_noise_db)
+            position_error_deg = abs(rssi_offset) * 0.00003
+            est_lat = true_lat + np.random.normal(0, position_error_deg)
+            est_lon = true_lon + np.random.normal(0, position_error_deg)
+            accuracy = 15.0 + abs(rssi_offset) * 2.0
+            pos = Position(
+                latitude=est_lat, longitude=est_lon, altitude=0,
+                accuracy_m=accuracy, timestamp=time.time(),
+            )
+            return LayerReading(
+                layer_id=self.layer_id, position=pos,
+                self_confidence=max(0.55, 0.82 - abs(rssi_offset) * 0.02),
+                raw_data={"rssi_db": -85 + rssi_offset, "gateway_count": 3},
+            )
+
+        if self._simulated:
+            base_lat = getattr(self, "_sim_lat", 13.0827)
+            base_lon = getattr(self, "_sim_lon", 80.2707)
+            lat = base_lat + np.random.normal(0, noise_m / 111_000)
+            lon = base_lon + np.random.normal(0, noise_m / 111_000)
+            pos = Position(
+                latitude=lat, longitude=lon, altitude=0,
+                accuracy_m=noise_m, timestamp=time.time(),
+            )
+            return LayerReading(
+                layer_id=self.layer_id, position=pos,
+                self_confidence=0.65,
+                raw_data={"rssi_db": -85, "gateway_count": 3},
+            )
+        raise NotImplementedError("Live LoRa requires gateway hardware")
+
+    def set_simulated_position(self, lat: float, lon: float, alt: float = 10.0):
+        self._sim_lat = lat
+        self._sim_lon = lon

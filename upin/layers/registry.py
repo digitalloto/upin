@@ -19,7 +19,7 @@ from upin.layers.satellite.layers import (
 from upin.layers.inertial.layers import (
     INSDeadReckoningLayer, BarometricAltitudeLayer, DopplerVelocityLayer,
     LaserDopplerLayer, QuantumAtomicClockLayer, OpticFlowLayer,
-    NMRGyroscopeLayer, SERFGyroscopeLayer,
+    NMRGyroscopeLayer, SERFGyroscopeLayer, RadarAltimeterLayer, DepthPressureSensorLayer,
 )
 # Group C — Magnetic & Quantum
 from upin.layers.magnetic.layers import (
@@ -30,7 +30,7 @@ from upin.layers.magnetic.layers import (
 # Group D — RF & Terrestrial
 from upin.layers.rf.layers import (
     GroundEmitterLayer, WiFiMilitaryNavLayer, CellTowerHostileLayer,
-    ELORANLayer, CommercialSOOPLayer,
+    ELORANLayer, CommercialSOOPLayer, UWBPositioningLayer, LoRaWANNodeLayer,
 )
 # Group E — Optical & Vision
 from upin.layers.optical.layers import (
@@ -87,6 +87,8 @@ ALL_LAYER_CLASSES: dict[str, type[NavigationLayer]] = {
     "opticflow_l43": OpticFlowLayer,
     "nmrgyro_l57": NMRGyroscopeLayer,
     "serfgyro_l58": SERFGyroscopeLayer,
+    "radaralt_b09": RadarAltimeterLayer,
+    "depthpres_b10": DepthPressureSensorLayer,
     # Group C — Magnetic & Quantum (6)
     "magano_l6": MagneticAnomalyLayer,
     "dualqmag_l17": DualQuantumMagnetometerLayer,
@@ -100,6 +102,8 @@ ALL_LAYER_CLASSES: dict[str, type[NavigationLayer]] = {
     "celltower_l9": CellTowerHostileLayer,
     "eloran_l41": ELORANLayer,
     "soop_l42": CommercialSOOPLayer,
+    "uwb_d06": UWBPositioningLayer,
+    "lora_d07": LoRaWANNodeLayer,
     # Group E — Optical & Vision (9)
     "startrack_l4": StarTrackingLayer,
     "terrain_l5": TerrainMatchingLayer,

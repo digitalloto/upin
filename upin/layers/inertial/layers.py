@@ -785,3 +785,138 @@ class SERFGyroscopeLayer(NavigationLayer):
 
     def set_simulated_position(self, lat: float, lon: float, alt: float = 10.0):
         self._sim_heading = 45.0
+
+
+class RadarAltimeterLayer(NavigationLayer):
+    """Radar ground-return altimeter for aerial platforms.
+
+    Measures true height above terrain using pulse return timing.
+    Bio-inspired by barn owl hunting — precise height from sound return.
+    """
+
+    def __init__(self):
+        super().__init__(
+            layer_id="radar_alt_b09",
+            layer_number=63,
+            name="Radar Altimeter",
+            group=LayerGroup.B_INERTIAL_TIMING,
+            capabilities=[LayerCapability.ALTITUDE],
+            bio_inspiration="Barn owl hunting height estimation",
+            description="Radar pulse return altitude for aerial platforms",
+        )
+        self._altitude_noise_m = 0.5
+
+    def initialize(self) -> bool:
+        self.status.is_active = True
+        self.status.is_healthy = True
+        return True
+
+    def get_accuracy_rating(self) -> float:
+        return 0.90
+
+    def read(self) -> LayerReading:
+        if self.world is not None:
+            true_lat = self.world.true_lat
+            true_lon = self.world.true_lon
+            true_alt = getattr(self.world, "true_alt", 100.0)
+            measured_alt = true_alt + np.random.normal(0, self._altitude_noise_m)
+            pos = Position(
+                latitude=true_lat, longitude=true_lon,
+                altitude=measured_alt,
+                accuracy_m=self._altitude_noise_m * 2, timestamp=time.time(),
+            )
+            return LayerReading(
+                layer_id=self.layer_id, position=pos,
+                self_confidence=0.96,
+                raw_data={"altitude_m": measured_alt, "terrain_clearance_m": measured_alt},
+            )
+
+        if self._simulated:
+            base_lat = getattr(self, "_sim_lat", 13.0827)
+            base_lon = getattr(self, "_sim_lon", 80.2707)
+            base_alt = getattr(self, "_sim_alt", 100.0)
+            measured_alt = base_alt + np.random.normal(0, self._altitude_noise_m)
+            pos = Position(
+                latitude=base_lat, longitude=base_lon,
+                altitude=measured_alt,
+                accuracy_m=self._altitude_noise_m * 2, timestamp=time.time(),
+            )
+            return LayerReading(
+                layer_id=self.layer_id, position=pos,
+                self_confidence=0.96,
+                raw_data={"altitude_m": measured_alt, "terrain_clearance_m": measured_alt},
+            )
+        raise NotImplementedError("Live radar altimeter requires RF hardware")
+
+    def set_simulated_position(self, lat: float, lon: float, alt: float = 10.0):
+        self._sim_lat = lat
+        self._sim_lon = lon
+        self._sim_alt = alt
+
+
+class DepthPressureSensorLayer(NavigationLayer):
+    """Underwater depth positioning via hydrostatic pressure measurement.
+
+    Gives submarines precise depth without any active emission.
+    Bio-inspired by sperm whale deep-dive pressure adaptation.
+    """
+
+    def __init__(self):
+        super().__init__(
+            layer_id="depth_pressure_b10",
+            layer_number=64,
+            name="Depth Pressure Sensor",
+            group=LayerGroup.B_INERTIAL_TIMING,
+            capabilities=[LayerCapability.ALTITUDE],
+            is_underwater=True,
+            bio_inspiration="Sperm whale deep-dive pressure sensing",
+            description="Passive hydrostatic pressure depth for submerged platforms",
+        )
+        self._pressure_noise_kpa = 0.2
+
+    def initialize(self) -> bool:
+        self.status.is_active = True
+        self.status.is_healthy = True
+        return True
+
+    def get_accuracy_rating(self) -> float:
+        return 0.92
+
+    def read(self) -> LayerReading:
+        if self.world is not None:
+            true_lat = self.world.true_lat
+            true_lon = self.world.true_lon
+            depth_m = getattr(self.world, "depth_m", 0.0)
+            pressure_kpa = 101.325 + (depth_m * 9.81)
+            measured_pressure = pressure_kpa + np.random.normal(0, self._pressure_noise_kpa)
+            depth_from_pressure = (measured_pressure - 101.325) / 9.81
+            depth_error_m = abs(depth_from_pressure - depth_m)
+            pos = Position(
+                latitude=true_lat, longitude=true_lon, altitude=-depth_from_pressure,
+                accuracy_m=max(0.1, depth_error_m), timestamp=time.time(),
+            )
+            return LayerReading(
+                layer_id=self.layer_id, position=pos,
+                self_confidence=0.98,
+                raw_data={"pressure_kpa": measured_pressure, "depth_m": depth_from_pressure},
+            )
+
+        if self._simulated:
+            base_lat = getattr(self, "_sim_lat", 13.0827)
+            base_lon = getattr(self, "_sim_lon", 80.2707)
+            measured_pressure = 101.325 + np.random.normal(0, self._pressure_noise_kpa)
+            depth_from_pressure = (measured_pressure - 101.325) / 9.81
+            pos = Position(
+                latitude=base_lat, longitude=base_lon, altitude=-depth_from_pressure,
+                accuracy_m=0.1, timestamp=time.time(),
+            )
+            return LayerReading(
+                layer_id=self.layer_id, position=pos,
+                self_confidence=0.98,
+                raw_data={"pressure_kpa": measured_pressure, "depth_m": depth_from_pressure},
+            )
+        raise NotImplementedError("Live depth sensor requires pressure transducer")
+
+    def set_simulated_position(self, lat: float, lon: float, alt: float = 10.0):
+        self._sim_lat = lat
+        self._sim_lon = lon
