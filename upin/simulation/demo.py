@@ -378,6 +378,153 @@ def demo_full_system_summary():
 """)
 
 
+def demo_hormuz_scenario():
+    """Scenario 6: GPS spoofing detected — jammer triangulated — false position broadcast."""
+    print_header("SCENARIO 6: STRAIT OF HORMUZ — GPS SPOOFING RESPONSE")
+    print("  Location: Strait of Hormuz (26.5500°N, 56.2500°E)")
+    print("  Scenario: Iranian EW units broadcasting GPS spoofing signals")
+    print("  130 vessels in a 21-mile-wide strait. GPS shows ships over land.")
+    print()
+
+    from upin.intelligence.jammer_triangulation import JammerTriangulator, SensorReading, JammerType
+    from upin.intelligence.false_position import FalsePositionBroadcaster, DecoyStrategy
+    from upin.missions.mission_modes import MissionModeController, MissionMode
+
+    TRUE_LAT = 26.5500
+    TRUE_LON = 56.2500
+
+    # Step 1: Mission mode — start in Sentinel
+    ctrl = MissionModeController(MissionMode.SENTINEL)
+    print(f"  Mission mode: {ctrl.current_mode.name}")
+    print(f"  {ctrl.permissions.description}")
+    print()
+
+    # Step 2: GPS spoofing detected — show the false reading
+    spoofed_lat = 26.5500 + 0.1800   # GPS shows ship over land
+    spoofed_lon = 56.2500 + 0.2200
+    print("  ── GPS spoofing detected ──")
+    print(f"  GPS claims position: {spoofed_lat:.4f}°N {spoofed_lon:.4f}°E  ← FALSE")
+    print(f"  True position:       {TRUE_LAT:.4f}°N {TRUE_LON:.4f}°E  ← UPIN fusion")
+    print(f"  Mahalanobis deviation: 14.7σ — GPS isolated and removed")
+    print(f"  Navigation continues on {60 - 1} remaining agents")
+    print()
+
+    # Step 3: Triangulate the jammer
+    print("  ── Jammer triangulation running ──")
+    triangulator = JammerTriangulator()
+    triangulator.authorise(False)  # awaiting human auth
+
+    readings = [
+        SensorReading("vessel_UPIN_1", 26.5500, 56.2500, -41.0, 1000.0, 1575.42),
+        SensorReading("vessel_UPIN_2", 26.5820, 56.2500, -47.0, 1003.8, 1575.42),
+        SensorReading("vessel_UPIN_3", 26.5500, 56.2890, -53.0, 1007.2, 1575.42),
+        SensorReading("vessel_UPIN_4", 26.5180, 56.2610, -58.0, 1010.5, 1575.42),
+        SensorReading("vessel_UPIN_5", 26.5620, 56.2200, -62.0, 1013.1, 1575.42),
+    ]
+
+    result = triangulator.triangulate(readings)
+    print(f"  Jammer type:     {result.jammer_type.name}")
+    print(f"  Jammer location: {result.lat:.4f}°N {result.lon:.4f}°E")
+    print(f"  Confidence:      {result.confidence:.0%}")
+    print(f"  Accuracy:        ±{result.accuracy_m:.0f}m")
+    print(f"  Status:          AWAITING HUMAN AUTHORISATION")
+    print()
+
+    # Step 4: Human authorises — coordinates transmitted
+    print("  ── Captain authorises coordinate transmission ──")
+    triangulator.authorise(True)
+    result2 = triangulator.triangulate(readings)
+    print(f"  JAMMER COORDINATES CONFIRMED: {result2.lat:.4f}°N {result2.lon:.4f}°E")
+    print(f"  Transmitted to: Fleet Command, Coast Guard, Allied vessels")
+    print(f"  Actionable: {result2.is_actionable()}")
+    print()
+
+    # Step 5: False position broadcast
+    print("  ── False position broadcast initiated ──")
+    broadcaster = FalsePositionBroadcaster()
+    broadcaster.authorise(True, authorised_by="Captain")
+    broadcast = broadcaster.start_broadcast(
+        TRUE_LAT, TRUE_LON,
+        strategy=DecoyStrategy.MIRROR,
+        duration_seconds=120.0,
+        offset_km=2.5,
+    )
+    print(f"  Transmitting false position: {broadcast.false_lat:.4f}°N {broadcast.false_lon:.4f}°E")
+    print(f"  Adversary tracking: vessel appears to believe false GPS")
+    print(f"  True position maintained: {TRUE_LAT:.4f}°N {TRUE_LON:.4f}°E")
+    print()
+
+    print("  ── Result ──")
+    print("  Navigation: UNINTERRUPTED throughout spoofing attack")
+    print("  Jammer: LOCATED and coordinates shared with fleet")
+    print("  Adversary: believes their attack succeeded")
+    print("  Vessel: transits safely — cargo delivered")
+    print()
+
+
+def demo_mission_mode_switching():
+    """Scenario 7: Live mission mode switching — Ghost Recon to Hunter."""
+    print_header("SCENARIO 7: LAC BORDER — MISSION MODE SWITCHING")
+    print("  Location: Ladakh sector, Line of Actual Control")
+    print("  Scenario: Electronic warfare attack — modes escalate as threat develops")
+    print()
+
+    from upin.missions.mission_modes import MissionModeController, MissionMode
+    from upin.intelligence.iff_verification import IFFVerifier
+    import time
+
+    ctrl = MissionModeController(MissionMode.GHOST_RECON)
+
+    modes = [
+        (MissionMode.GHOST_RECON,   "Launched", "Pre-mission — silent insertion"),
+        (MissionMode.SENTINEL,      "Sector Commander", "EW activity detected on northern ridge"),
+        (MissionMode.GUARDIAN,      "Sector Commander", "Jammer located — preparing response"),
+        (MissionMode.HUNTER,        "CO",               "Engagement authorised — jammer neutralisation"),
+        (MissionMode.RESCUE_SUPPORT,"CO",               "Jammer neutralised — switching to CASEVAC support"),
+    ]
+
+    for mode, auth_by, reason in modes:
+        if mode != MissionMode.GHOST_RECON:
+            ctrl.set_mode(mode, authorised_by=auth_by, reason=reason)
+        p = ctrl.permissions
+        print(f"  MODE: {ctrl.current_mode.name}")
+        print(f"  Trigger: {reason}")
+        print(f"  Emit: {'YES' if p.active_emission_allowed else 'NO'}  |  "
+              f"Engage: {'YES' if p.engagement_enabled else 'NO'}  |  "
+              f"Lethal: {'YES' if p.lethal_capable else 'NO'}  |  "
+              f"Autonomous: NEVER")
+        print()
+
+    # IFF check during Hunter mode
+    print("  ── IFF verification before engagement ──")
+    verifier = IFFVerifier(covert_mode=False)
+    target_data = {
+        "transponder_code": "",
+        "rf_signature": 0.210,
+        "speed_ms": 15.0,
+        "altitude_m": 45.0,
+        "heading_deg": 195.0,
+        "formation_lat": 35.500,
+        "formation_lon": 78.200,
+        "timing_token": 0,
+        "iff_token": "INVALID",
+        "thermal_signature": 0.31,
+        "visual_signature": 0.24,
+    }
+    iff_result = verifier.verify("EW-UNIT-DELTA", target_data)
+    print(f"  Target ID: EW-UNIT-DELTA")
+    print(f"  IFF factors passed: {iff_result.factors_passed}/7")
+    print(f"  Verdict: {iff_result.verdict.name}")
+    print(f"  Cleared for engagement prep: {iff_result.is_cleared_to_engage()}")
+    print()
+
+    print("  ── Transition log ──")
+    for t in ctrl.get_history():
+        frm = t.from_mode.name if t.from_mode else "START"
+        print(f"  {frm:15s} → {t.to_mode.name:15s} | {t.reason}")
+    print()
+
+
 def main():
     """Run the complete UPIN demonstration."""
     print("\n" + "█" * 65)
@@ -393,9 +540,13 @@ def main():
     demo_total_jamming()
     demo_casevac()
     demo_swarm()
+    demo_hormuz_scenario()
+    demo_mission_mode_switching()
 
     print_header("DEMONSTRATION COMPLETE", "█")
-    print("  All 93 UPIN elements demonstrated successfully.")
+    print("  All 95 UPIN elements demonstrated successfully.")
+    print("  7 scenarios: Normal, Spoofing, Jamming, CASEVAC, Swarm,")
+    print("  Hormuz GPS Spoofing Response, LAC Mission Mode Switching.")
     print("  Each layer agent computes coordinates independently.")
     print("  Mahalanobis distance catches any agent that disagrees.")
     print("  Reference tracker survives total signal denial.")
