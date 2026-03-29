@@ -241,12 +241,357 @@ class ReferencePointDatabase:
         for point in mumbai_points + chennai_points + delhi_points:
             self.add_point(point)
 
+        # ── Global reference points ──────────────────────────────────────
+
+        # North America
+        north_america_points = [
+            ReferencePoint(
+                name="Statue of Liberty",
+                lat=40.689247,
+                lon=-74.044502,
+                elevation_m=93.0,
+                accuracy_m=0.3,
+                reference_type=ReferenceType.MONUMENT,
+                description="Liberty Island, New York Harbor",
+                survey_date="2020",
+                authority="NOAA NGS"
+            ),
+            ReferencePoint(
+                name="Golden Gate Bridge North Tower",
+                lat=37.828900,
+                lon=-122.478600,
+                elevation_m=227.4,
+                accuracy_m=0.2,
+                reference_type=ReferenceType.BRIDGE_CENTER,
+                description="Cable-stayed bridge main tower, San Francisco",
+                survey_date="2019",
+                authority="Caltrans"
+            ),
+            ReferencePoint(
+                name="Washington Monument",
+                lat=38.889484,
+                lon=-77.035278,
+                elevation_m=169.3,
+                accuracy_m=0.3,
+                reference_type=ReferenceType.MONUMENT,
+                description="National Mall obelisk, Washington DC",
+                survey_date="2021",
+                authority="NOAA NGS"
+            ),
+            ReferencePoint(
+                name="Willis Tower Chicago",
+                lat=41.878876,
+                lon=-87.635915,
+                elevation_m=527.0,
+                accuracy_m=0.5,
+                reference_type=ReferenceType.LANDMARK_BUILDING,
+                description="Sears Tower, downtown Chicago",
+                survey_date="2018",
+                authority="NOAA NGS"
+            ),
+            ReferencePoint(
+                name="CN Tower Toronto",
+                lat=43.642566,
+                lon=-79.387057,
+                elevation_m=553.3,
+                accuracy_m=0.4,
+                reference_type=ReferenceType.LANDMARK_BUILDING,
+                description="Communications tower, Toronto",
+                survey_date="2019",
+                authority="NRCan"
+            ),
+            ReferencePoint(
+                name="LAX Airport DGPS",
+                lat=33.942536,
+                lon=-118.408075,
+                elevation_m=38.1,
+                accuracy_m=0.1,
+                reference_type=ReferenceType.DIFFERENTIAL_GPS,
+                description="Los Angeles International Airport reference",
+                survey_date="2021",
+                authority="FAA"
+            ),
+        ]
+
+        # Europe
+        europe_points = [
+            ReferencePoint(
+                name="Eiffel Tower Base",
+                lat=48.858370,
+                lon=2.294481,
+                elevation_m=330.6,
+                accuracy_m=0.2,
+                reference_type=ReferenceType.MONUMENT,
+                description="Iron lattice tower, Champ de Mars, Paris",
+                survey_date="2020",
+                authority="IGN France"
+            ),
+            ReferencePoint(
+                name="Tower Bridge London",
+                lat=51.505456,
+                lon=-0.075356,
+                elevation_m=65.0,
+                accuracy_m=0.3,
+                reference_type=ReferenceType.BRIDGE_CENTER,
+                description="Bascule bridge over Thames, London",
+                survey_date="2019",
+                authority="Ordnance Survey"
+            ),
+            ReferencePoint(
+                name="Brandenburg Gate Berlin",
+                lat=52.516275,
+                lon=13.377704,
+                elevation_m=36.0,
+                accuracy_m=0.4,
+                reference_type=ReferenceType.MONUMENT,
+                description="Neoclassical triumphal arch, Berlin",
+                survey_date="2020",
+                authority="BKG Germany"
+            ),
+            ReferencePoint(
+                name="Colosseum Rome",
+                lat=41.890210,
+                lon=12.492231,
+                elevation_m=48.5,
+                accuracy_m=0.5,
+                reference_type=ReferenceType.MONUMENT,
+                description="Flavian Amphitheatre, Rome",
+                survey_date="2018",
+                authority="IGM Italy"
+            ),
+            ReferencePoint(
+                name="Sagrada Familia Barcelona",
+                lat=41.403629,
+                lon=2.174356,
+                elevation_m=172.0,
+                accuracy_m=0.6,
+                reference_type=ReferenceType.LANDMARK_BUILDING,
+                description="Gaudi basilica, Barcelona",
+                survey_date="2019",
+                authority="IGN Spain"
+            ),
+            ReferencePoint(
+                name="Heathrow Airport DGPS",
+                lat=51.470020,
+                lon=-0.454296,
+                elevation_m=25.3,
+                accuracy_m=0.1,
+                reference_type=ReferenceType.DIFFERENTIAL_GPS,
+                description="London Heathrow precision approach reference",
+                survey_date="2021",
+                authority="UK CAA"
+            ),
+        ]
+
+        # Middle East
+        middle_east_points = [
+            ReferencePoint(
+                name="Burj Khalifa Base",
+                lat=25.197197,
+                lon=55.274376,
+                elevation_m=828.0,
+                accuracy_m=0.2,
+                reference_type=ReferenceType.LANDMARK_BUILDING,
+                description="Tallest building in the world, Dubai",
+                survey_date="2020",
+                authority="Dubai Municipality"
+            ),
+            ReferencePoint(
+                name="Strait of Hormuz Marker",
+                lat=26.550000,
+                lon=56.250000,
+                elevation_m=0.0,
+                accuracy_m=1.0,
+                reference_type=ReferenceType.PORT_FACILITY,
+                description="Maritime navigation marker, Strait of Hormuz",
+                survey_date="2019",
+                authority="UKHO"
+            ),
+            ReferencePoint(
+                name="Jeddah Islamic Port DGPS",
+                lat=21.485811,
+                lon=39.186239,
+                elevation_m=4.5,
+                accuracy_m=0.1,
+                reference_type=ReferenceType.DIFFERENTIAL_GPS,
+                description="Port precision reference, Red Sea",
+                survey_date="2020",
+                authority="Saudi Ports Authority"
+            ),
+        ]
+
+        # Asia-Pacific (non-India)
+        asia_pacific_points = [
+            ReferencePoint(
+                name="Tokyo Skytree",
+                lat=35.710063,
+                lon=139.810700,
+                elevation_m=634.0,
+                accuracy_m=0.3,
+                reference_type=ReferenceType.LANDMARK_BUILDING,
+                description="Broadcasting tower, Sumida, Tokyo",
+                survey_date="2020",
+                authority="GSI Japan"
+            ),
+            ReferencePoint(
+                name="Sydney Opera House",
+                lat=-33.856784,
+                lon=151.215297,
+                elevation_m=67.0,
+                accuracy_m=0.4,
+                reference_type=ReferenceType.LANDMARK_BUILDING,
+                description="Bennelong Point, Sydney Harbour",
+                survey_date="2019",
+                authority="Geoscience Australia"
+            ),
+            ReferencePoint(
+                name="Petronas Towers Kuala Lumpur",
+                lat=3.157764,
+                lon=101.711861,
+                elevation_m=451.9,
+                accuracy_m=0.5,
+                reference_type=ReferenceType.LANDMARK_BUILDING,
+                description="Twin towers, KLCC, Kuala Lumpur",
+                survey_date="2018",
+                authority="JUPEM Malaysia"
+            ),
+            ReferencePoint(
+                name="Marina Bay Sands Singapore",
+                lat=1.283871,
+                lon=103.860862,
+                elevation_m=200.0,
+                accuracy_m=0.3,
+                reference_type=ReferenceType.LANDMARK_BUILDING,
+                description="Integrated resort, Marina Bay",
+                survey_date="2020",
+                authority="SLA Singapore"
+            ),
+            ReferencePoint(
+                name="Great Wall Badaling",
+                lat=40.359907,
+                lon=116.019993,
+                elevation_m=755.0,
+                accuracy_m=2.0,
+                reference_type=ReferenceType.MONUMENT,
+                description="Badaling section, Great Wall of China",
+                survey_date="2019",
+                authority="NASG China"
+            ),
+            ReferencePoint(
+                name="Changi Airport DGPS",
+                lat=1.350189,
+                lon=103.994433,
+                elevation_m=7.1,
+                accuracy_m=0.1,
+                reference_type=ReferenceType.DIFFERENTIAL_GPS,
+                description="Singapore Changi precision approach reference",
+                survey_date="2021",
+                authority="CAAS Singapore"
+            ),
+        ]
+
+        # Africa
+        africa_points = [
+            ReferencePoint(
+                name="Great Pyramid of Giza",
+                lat=29.979235,
+                lon=31.134202,
+                elevation_m=146.6,
+                accuracy_m=0.3,
+                reference_type=ReferenceType.MONUMENT,
+                description="Pyramid of Khufu, Giza Plateau, Egypt",
+                survey_date="2017",
+                authority="Egyptian Survey Authority"
+            ),
+            ReferencePoint(
+                name="Table Mountain Upper Cable",
+                lat=-33.957500,
+                lon=18.403056,
+                elevation_m=1085.0,
+                accuracy_m=1.0,
+                reference_type=ReferenceType.LANDMARK_BUILDING,
+                description="Upper cable station, Cape Town",
+                survey_date="2018",
+                authority="Chief Directorate National Geo-Spatial"
+            ),
+            ReferencePoint(
+                name="Suez Canal Port Said DGPS",
+                lat=31.265833,
+                lon=32.301944,
+                elevation_m=2.0,
+                accuracy_m=0.1,
+                reference_type=ReferenceType.DIFFERENTIAL_GPS,
+                description="Canal entrance precision reference",
+                survey_date="2020",
+                authority="Suez Canal Authority"
+            ),
+        ]
+
+        # South America
+        south_america_points = [
+            ReferencePoint(
+                name="Christ the Redeemer",
+                lat=-22.951916,
+                lon=-43.210487,
+                elevation_m=709.0,
+                accuracy_m=0.5,
+                reference_type=ReferenceType.MONUMENT,
+                description="Statue atop Corcovado mountain, Rio de Janeiro",
+                survey_date="2019",
+                authority="IBGE Brazil"
+            ),
+            ReferencePoint(
+                name="Panama Canal Miraflores Locks",
+                lat=9.015367,
+                lon=-79.590000,
+                elevation_m=26.0,
+                accuracy_m=0.3,
+                reference_type=ReferenceType.PORT_FACILITY,
+                description="Pacific-side locks, Panama Canal",
+                survey_date="2020",
+                authority="Panama Canal Authority"
+            ),
+        ]
+
+        for point in (north_america_points + europe_points + middle_east_points +
+                      asia_pacific_points + africa_points + south_america_points):
+            self.add_point(point)
+
     def get_city_points(self, city: str) -> List[ReferencePoint]:
         """Get all reference points for a specific city."""
         city_bounds = {
-            "mumbai": (18.9, 19.3, 72.7, 73.0),      # lat_min, lat_max, lon_min, lon_max
+            # India
+            "mumbai": (18.9, 19.3, 72.7, 73.0),
             "chennai": (12.9, 13.2, 80.1, 80.3),
             "delhi": (28.4, 28.8, 77.0, 77.4),
+            # North America
+            "new york": (40.5, 40.9, -74.3, -73.7),
+            "san francisco": (37.7, 37.9, -122.6, -122.3),
+            "washington dc": (38.8, 39.0, -77.2, -76.9),
+            "chicago": (41.7, 42.0, -87.8, -87.5),
+            "toronto": (43.5, 43.8, -79.6, -79.2),
+            "los angeles": (33.7, 34.2, -118.6, -118.1),
+            # Europe
+            "paris": (48.8, 48.9, 2.2, 2.5),
+            "london": (51.4, 51.6, -0.5, 0.1),
+            "berlin": (52.4, 52.6, 13.2, 13.6),
+            "rome": (41.8, 42.0, 12.4, 12.6),
+            "barcelona": (41.3, 41.5, 2.0, 2.3),
+            # Middle East
+            "dubai": (25.0, 25.4, 55.1, 55.5),
+            "jeddah": (21.3, 21.7, 39.0, 39.4),
+            # Asia-Pacific
+            "tokyo": (35.5, 35.9, 139.5, 140.0),
+            "sydney": (-34.0, -33.7, 151.0, 151.4),
+            "kuala lumpur": (3.0, 3.3, 101.5, 101.9),
+            "singapore": (1.2, 1.5, 103.6, 104.1),
+            "beijing": (39.7, 40.5, 116.0, 116.8),
+            # Africa
+            "cairo": (29.9, 30.2, 31.0, 31.4),
+            "cape town": (-34.1, -33.8, 18.3, 18.7),
+            # South America
+            "rio de janeiro": (-23.1, -22.7, -43.5, -43.0),
+            "panama city": (8.9, 9.2, -79.7, -79.4),
         }
 
         if city.lower() not in city_bounds:
