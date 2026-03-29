@@ -407,6 +407,167 @@ class TestFalsePosition(unittest.TestCase):
         b.start_broadcast(self.TRUE_LAT, self.TRUE_LON, self.DecoyStrategy.MIRROR)
         self.assertEqual(len(b.get_history()), 2)
 
+class TestDroneRecognition(unittest.TestCase):
+    """Tests for vision AI drone recognition."""
+
+    def setUp(self):
+        from upin.vision.drone_recognition import DroneRecognizer
+        import numpy as np
+        self.DroneRecognizer = DroneRecognizer
+        self.np = np
+
+    def test_recognizer_initializes(self):
+        recognizer = self.DroneRecognizer()
+        self.assertEqual(len(recognizer.detection_history), 0)
+        self.assertEqual(len(recognizer.active_tracks), 0)
+
+    def test_frame_processing(self):
+        recognizer = self.DroneRecognizer()
+        frame = self.np.random.randint(0, 255, (720, 1280, 3), dtype=self.np.uint8)
+        camera_params = {'position_lat': 13.0827, 'position_lon': 80.2707}
+
+        detections = recognizer.process_frame(frame, camera_params)
+        self.assertIsInstance(detections, list)
+
+    def test_threat_assessment(self):
+        recognizer = self.DroneRecognizer()
+        threats = recognizer.get_current_threats()
+        self.assertIsInstance(threats, list)
+
+    def test_detection_summary(self):
+        recognizer = self.DroneRecognizer()
+        summary = recognizer.get_detection_summary()
+        self.assertIn('total_detections_1min', summary)
+        self.assertIn('active_tracks', summary)
+
+
+class TestFishSchooling(unittest.TestCase):
+    """Tests for fish schooling fusion algorithm."""
+
+    def setUp(self):
+        from upin.swarm_fusion.fish_schooling import FishSchoolingFusion
+        from upin.core.layer_base import LayerReading
+        from upin.core.position import Position
+        self.FishSchoolingFusion = FishSchoolingFusion
+        self.LayerReading = LayerReading
+        self.Position = Position
+
+    def test_fusion_with_readings(self):
+        fusion = self.FishSchoolingFusion()
+        readings = [
+            self.LayerReading(layer_id='test1', position=self.Position(latitude=13.0827, longitude=80.2707, accuracy_m=5.0), self_confidence=0.95),
+            self.LayerReading(layer_id='test2', position=self.Position(latitude=13.0825, longitude=80.2709, accuracy_m=10.0), self_confidence=0.85),
+        ]
+
+        position, metadata = fusion.fuse_readings(readings)
+        self.assertIsNotNone(position)
+        self.assertIn('algorithm', metadata)
+        self.assertEqual(metadata['algorithm'], 'Fish_Schooling')
+
+    def test_empty_readings(self):
+        fusion = self.FishSchoolingFusion()
+        position, metadata = fusion.fuse_readings([])
+        self.assertEqual(position.accuracy_m, 1000.0)
+
+    def test_bad_sensor_rejection(self):
+        fusion = self.FishSchoolingFusion()
+        readings = [
+            self.LayerReading(layer_id='good', position=self.Position(latitude=13.0827, longitude=80.2707, accuracy_m=5.0), self_confidence=0.95),
+            self.LayerReading(layer_id='bad', position=self.Position(latitude=13.1000, longitude=80.3000, accuracy_m=100.0), self_confidence=0.20),
+        ]
+
+        position, metadata = fusion.fuse_readings(readings)
+        # Should be closer to good sensor
+        self.assertLess(abs(position.latitude - 13.0827), 0.01)
+
+
+class TestMultiFusion(unittest.TestCase):
+    """Tests for multi-algorithm fusion engine."""
+
+    def setUp(self):
+        from upin.fusion.multi_fusion_engine import MultiFusionEngine
+        from upin.core.layer_base import LayerReading
+        from upin.core.position import Position
+        self.MultiFusionEngine = MultiFusionEngine
+        self.LayerReading = LayerReading
+        self.Position = Position
+
+    def test_multiple_algorithms_run(self):
+        engine = self.MultiFusionEngine()
+        readings = [
+            self.LayerReading(layer_id='test', position=self.Position(latitude=13.0827, longitude=80.2707, accuracy_m=5.0), self_confidence=0.95),
+        ]
+
+        results = engine.fuse_all_algorithms(readings)
+        self.assertGreater(len(results), 0)
+
+    def test_best_result_selection(self):
+        engine = self.MultiFusionEngine()
+        readings = [
+            self.LayerReading(layer_id='test1', position=self.Position(latitude=13.0827, longitude=80.2707, accuracy_m=5.0), self_confidence=0.95),
+            self.LayerReading(layer_id='test2', position=self.Position(latitude=13.0825, longitude=80.2709, accuracy_m=10.0), self_confidence=0.85),
+        ]
+
+        position, metadata = engine.get_consensus_position(readings)
+        self.assertIsNotNone(position)
+        self.assertIn('best_algorithm', metadata)
+
+
+class TestEncryption(unittest.TestCase):
+    """Tests for encrypted communications."""
+
+    def setUp(self):
+        from upin.security.encryption import SecureComm, ClassificationLevel
+        self.SecureComm = SecureComm
+        self.ClassificationLevel = ClassificationLevel
+
+    def test_encryption_decryption(self):
+        alice = self.SecureComm("alice")
+        bob = self.SecureComm("bob")
+
+        # Establish session
+        alice.establish_session("bob")
+        bob.session_keys["alice"] = alice.session_keys["bob"]
+
+        # Encrypt message
+        test_data = {"lat": 13.0827, "lon": 80.2707, "confidence": 0.95}
+        encrypted_msg = alice.encrypt_message(test_data, "bob", self.ClassificationLevel.CONFIDENTIAL)
+
+        # Decrypt message
+        decrypted_data = bob.decrypt_message(encrypted_msg)
+        self.assertEqual(decrypted_data["lat"], 13.0827)
+
+    def test_security_status(self):
+        comm = self.SecureComm("test_node")
+        status = comm.get_security_status()
+        self.assertIn('node_id', status)
+        self.assertIn('active_sessions', status)
+
+
+class TestCalibrationManager(unittest.TestCase):
+    """Tests for calibration system."""
+
+    def setUp(self):
+        from upin.calibration.calibration_manager import CalibrationManager, SensorType
+        self.CalibrationManager = CalibrationManager
+        self.SensorType = SensorType
+
+    def test_calibration_manager_init(self):
+        manager = self.CalibrationManager("test_device")
+        self.assertEqual(manager.device_id, "test_device")
+
+    def test_sensor_compensation(self):
+        manager = self.CalibrationManager("test_device")
+        readings = {self.SensorType.GPS: 13.0830}
+        compensated = manager.apply_all_compensations(readings)
+        self.assertIn(self.SensorType.GPS, compensated)
+
+    def test_calibration_status(self):
+        manager = self.CalibrationManager("test_device")
+        status = manager.get_calibration_status()
+        self.assertIn('device_id', status)
+        self.assertIn('auto_calibration', status)
+
 if __name__ == "__main__":
     loader = unittest.TestLoader()
     suite = loader.loadTestsFromModule(__import__(__name__))
