@@ -168,6 +168,245 @@ class TestIntegration(unittest.TestCase):
         out = e.cycle()
         self.assertGreaterEqual(out.confidence_score, 0.0)
         self.assertLessEqual(out.confidence_score, 1.0)
+
+class TestJammerTriangulation(unittest.TestCase):
+    """Tests for the jammer triangulation module."""
+
+    def setUp(self):
+        from upin.intelligence.jammer_triangulation import JammerTriangulator, SensorReading
+        self.JammerTriangulator = JammerTriangulator
+        self.SensorReading = SensorReading
+
+    def _make_readings(self):
+        return [
+            self.SensorReading("s1", 13.0827, 80.2707, -45.0, 1000.0, 1575.42),
+            self.SensorReading("s2", 13.0900, 80.2707, -52.0, 1003.2, 1575.42),
+            self.SensorReading("s3", 13.0827, 80.2800, -58.0, 1006.8, 1575.42),
+            self.SensorReading("s4", 13.0750, 80.2750, -61.0, 1009.1, 1575.42),
+        ]
+
+    def test_triangulates_location(self):
+        t = self.JammerTriangulator()
+        result = t.triangulate(self._make_readings())
+        self.assertIsNotNone(result)
+        self.assertGreater(result.confidence, 0.5)
+        self.assertIsInstance(result.lat, float)
+        self.assertIsInstance(result.lon, float)
+
+    def test_requires_minimum_three_sensors(self):
+        t = self.JammerTriangulator()
+        result = t.triangulate(self._make_readings()[:2])
+        self.assertIsNone(result)
+
+    def test_not_actionable_without_auth(self):
+        t = self.JammerTriangulator()
+        result = t.triangulate(self._make_readings())
+        self.assertFalse(result.is_actionable())
+
+    def test_actionable_after_auth(self):
+        t = self.JammerTriangulator()
+        t.authorise(True)
+        result = t.triangulate(self._make_readings())
+        self.assertTrue(result.human_authorised)
+
+    def test_audit_log_exists(self):
+        t = self.JammerTriangulator()
+        result = t.triangulate(self._make_readings())
+        self.assertGreater(len(result.audit_log), 0)
+
+    def test_history_grows(self):
+        t = self.JammerTriangulator()
+        t.triangulate(self._make_readings())
+        t.triangulate(self._make_readings())
+        self.assertEqual(len(t.get_history()), 2)
+
+
+class TestMissionModes(unittest.TestCase):
+    """Tests for the mission mode controller."""
+
+    def setUp(self):
+        from upin.missions.mission_modes import MissionModeController, MissionMode
+        self.MissionModeController = MissionModeController
+        self.MissionMode = MissionMode
+
+    def test_default_mode_is_ghost_recon(self):
+        ctrl = self.MissionModeController()
+        self.assertEqual(ctrl.current_mode, self.MissionMode.GHOST_RECON)
+
+    def test_ghost_recon_blocks_engagement(self):
+        ctrl = self.MissionModeController()
+        self.assertFalse(ctrl.can("engage"))
+        self.assertFalse(ctrl.can("emit"))
+        self.assertFalse(ctrl.can("lethal"))
+
+    def test_autonomous_always_blocked(self):
+        ctrl = self.MissionModeController()
+        for mode in self.MissionMode:
+            ctrl.set_mode(mode, "test", "test")
+            self.assertFalse(ctrl.can("autonomous"))
+
+    def test_hunter_allows_lethal(self):
+        ctrl = self.MissionModeController()
+        ctrl.set_mode(self.MissionMode.HUNTER, "CO", "test")
+        self.assertTrue(ctrl.can("lethal"))
+
+    def test_rescue_support_blocks_engagement(self):
+        ctrl = self.MissionModeController()
+        ctrl.set_mode(self.MissionMode.RESCUE_SUPPORT, "CO", "test")
+        self.assertFalse(ctrl.can("engage"))
+        self.assertFalse(ctrl.can("lethal"))
+
+    def test_covert_isr_blocks_emission(self):
+        ctrl = self.MissionModeController()
+        ctrl.set_mode(self.MissionMode.COVERT_ISR, "CO", "test")
+        self.assertFalse(ctrl.can("emit"))
+
+    def test_mode_transitions_logged(self):
+        ctrl = self.MissionModeController()
+        ctrl.set_mode(self.MissionMode.GUARDIAN, "Commander", "threat")
+        ctrl.set_mode(self.MissionMode.HUNTER, "CO", "engage")
+        self.assertEqual(len(ctrl.get_history()), 3)
+
+    def test_auth_always_required(self):
+        ctrl = self.MissionModeController()
+        for mode in self.MissionMode:
+            ctrl.set_mode(mode, "test", "test")
+            self.assertTrue(ctrl.require_auth())
+
+
+class TestIFFVerification(unittest.TestCase):
+    """Tests for the seven-factor IFF verification module."""
+
+    def setUp(self):
+        import time
+        from upin.intelligence.iff_verification import IFFVerifier, IFFVerdict
+        self.IFFVerifier = IFFVerifier
+        self.IFFVerdict = IFFVerdict
+        self.friendly_data = {
+            "transponder_code": "IFF-ALPHA-7749",
+            "rf_signature": 0.847,
+            "speed_ms": 180.0,
+            "altitude_m": 3000.0,
+            "heading_deg": 45.0,
+            "formation_lat": 13.0830,
+            "formation_lon": 80.2710,
+            "timing_token": int(time.time()) // 30,
+            "iff_token": "TOK-X7K9QP--",
+            "thermal_signature": 0.72,
+            "visual_signature": 0.68,
+        }
+        self.hostile_data = {
+            "transponder_code": "IFF-ALPHA-7749",
+            "rf_signature": 0.100,
+            "speed_ms": 10.0,
+            "altitude_m": 20.0,
+            "heading_deg": 200.0,
+            "formation_lat": 18.0,
+            "formation_lon": 85.0,
+            "timing_token": 0,
+            "iff_token": "BAD",
+            "thermal_signature": 0.10,
+            "visual_signature": 0.10,
+        }
+
+    def test_genuine_friendly_passes_all_seven(self):
+        v = self.IFFVerifier()
+        result = v.verify("ALPHA-1", self.friendly_data)
+        self.assertEqual(result.factors_passed, 7)
+        self.assertEqual(result.verdict, self.IFFVerdict.FRIENDLY)
+
+    def test_spoofed_transponder_detected_as_hostile(self):
+        v = self.IFFVerifier()
+        result = v.verify("SPOOF-X", self.hostile_data)
+        self.assertIn(result.verdict, [self.IFFVerdict.HOSTILE, self.IFFVerdict.SUSPECT])
+        self.assertLess(result.factors_passed, 4)
+
+    def test_confirmed_friendly_method(self):
+        v = self.IFFVerifier()
+        result = v.verify("ALPHA-1", self.friendly_data)
+        self.assertTrue(result.is_confirmed_friendly())
+
+    def test_hostile_not_confirmed_friendly(self):
+        v = self.IFFVerifier()
+        result = v.verify("SPOOF-X", self.hostile_data)
+        self.assertFalse(result.is_confirmed_friendly())
+
+    def test_covert_mode_suppresses_active_factors(self):
+        v = self.IFFVerifier(covert_mode=True)
+        result = v.verify("SHADOW", self.friendly_data)
+        self.assertTrue(result.covert_mode)
+
+    def test_audit_log_present(self):
+        v = self.IFFVerifier()
+        result = v.verify("ALPHA-1", self.friendly_data)
+        self.assertGreater(len(result.audit_log), 0)
+
+    def test_history_recorded(self):
+        v = self.IFFVerifier()
+        v.verify("A", self.friendly_data)
+        v.verify("B", self.hostile_data)
+        self.assertEqual(len(v.get_history()), 2)
+
+
+class TestFalsePosition(unittest.TestCase):
+    """Tests for the false position broadcasting module."""
+
+    def setUp(self):
+        from upin.intelligence.false_position import FalsePositionBroadcaster, DecoyStrategy
+        self.FalsePositionBroadcaster = FalsePositionBroadcaster
+        self.DecoyStrategy = DecoyStrategy
+        self.TRUE_LAT = 13.0827
+        self.TRUE_LON = 80.2707
+
+    def test_blocked_without_authorisation(self):
+        b = self.FalsePositionBroadcaster()
+        result = b.start_broadcast(self.TRUE_LAT, self.TRUE_LON, self.DecoyStrategy.STATIONARY)
+        self.assertIsNone(result)
+
+    def test_broadcasts_after_authorisation(self):
+        b = self.FalsePositionBroadcaster()
+        b.authorise(True, "Commander")
+        result = b.start_broadcast(self.TRUE_LAT, self.TRUE_LON, self.DecoyStrategy.RETREATING)
+        self.assertIsNotNone(result)
+        self.assertTrue(result.human_authorised)
+
+    def test_false_position_differs_from_true(self):
+        b = self.FalsePositionBroadcaster()
+        b.authorise(True, "Commander")
+        result = b.start_broadcast(
+            self.TRUE_LAT, self.TRUE_LON,
+            self.DecoyStrategy.RETREATING, offset_km=5.0
+        )
+        self.assertGreater(result.deception_distance_km(), 0.4)
+
+    def test_revoke_stops_broadcast(self):
+        b = self.FalsePositionBroadcaster()
+        b.authorise(True, "Commander")
+        b.start_broadcast(self.TRUE_LAT, self.TRUE_LON, self.DecoyStrategy.STATIONARY)
+        self.assertTrue(b.is_active())
+        b.authorise(False)
+        self.assertFalse(b.is_active())
+
+    def test_blocked_when_emissions_blocked(self):
+        b = self.FalsePositionBroadcaster()
+        b.authorise(True, "Commander")
+        b.block_emissions(True)
+        result = b.start_broadcast(self.TRUE_LAT, self.TRUE_LON, self.DecoyStrategy.STATIONARY)
+        self.assertIsNone(result)
+
+    def test_audit_log_on_broadcast(self):
+        b = self.FalsePositionBroadcaster()
+        b.authorise(True, "Commander")
+        result = b.start_broadcast(self.TRUE_LAT, self.TRUE_LON, self.DecoyStrategy.MIRROR)
+        self.assertGreater(len(result.audit_log), 0)
+
+    def test_history_tracked(self):
+        b = self.FalsePositionBroadcaster()
+        b.authorise(True, "Commander")
+        b.start_broadcast(self.TRUE_LAT, self.TRUE_LON, self.DecoyStrategy.STATIONARY)
+        b.start_broadcast(self.TRUE_LAT, self.TRUE_LON, self.DecoyStrategy.MIRROR)
+        self.assertEqual(len(b.get_history()), 2)
+
 if __name__ == "__main__":
     loader = unittest.TestLoader()
     suite = loader.loadTestsFromModule(__import__(__name__))
