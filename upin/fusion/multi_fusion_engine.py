@@ -36,6 +36,10 @@ class FusionAlgorithm(Enum):
     LEAST_SQUARES = auto()
     AI_ENHANCED = auto()
     CONSENSUS_VOTING = auto()
+    UNSCENTED_KALMAN = auto()
+    COVARIANCE_INTERSECTION = auto()
+    DEMPSTER_SHAFER = auto()
+    ANT_COLONY = auto()
 
 
 @dataclass
@@ -329,6 +333,239 @@ class WeightedLeastSquaresFusion(BaseFusionEngine):
         )
 
 
+class UnscentedKalmanFusion(BaseFusionEngine):
+    """Unscented Kalman Filter — better than EKF for highly nonlinear systems."""
+
+    def get_algorithm_type(self) -> FusionAlgorithm:
+        return FusionAlgorithm.UNSCENTED_KALMAN
+
+    def fuse_readings(self, readings: List[LayerReading]) -> FusionResult:
+        start_time = time.time()
+        if not readings:
+            return self._empty_result()
+
+        n = len(readings)
+        # Generate sigma points around each reading
+        all_lat, all_lon, all_w = [], [], []
+        for r in readings:
+            w = r.self_confidence / max(r.position.accuracy_m, 0.1)
+            spread = r.position.accuracy_m / 111320
+            # Central sigma point + 2 per dimension
+            all_lat.append(r.position.latitude);        all_lon.append(r.position.longitude);        all_w.append(w * 2)
+            all_lat.append(r.position.latitude + spread); all_lon.append(r.position.longitude);        all_w.append(w * 0.5)
+            all_lat.append(r.position.latitude - spread); all_lon.append(r.position.longitude);        all_w.append(w * 0.5)
+            all_lat.append(r.position.latitude);        all_lon.append(r.position.longitude + spread); all_w.append(w * 0.5)
+            all_lat.append(r.position.latitude);        all_lon.append(r.position.longitude - spread); all_w.append(w * 0.5)
+
+        weights = np.array(all_w)
+        if weights.sum() > 0:
+            weights /= weights.sum()
+        lat = float(np.average(all_lat, weights=weights))
+        lon = float(np.average(all_lon, weights=weights))
+        var_lat = float(np.average((np.array(all_lat) - lat)**2, weights=weights))
+        var_lon = float(np.average((np.array(all_lon) - lon)**2, weights=weights))
+        accuracy = max(2.0, math.sqrt(var_lat + var_lon) * 111320)
+        confidence = min(0.96, float(np.mean([r.self_confidence for r in readings])))
+
+        position = Position(latitude=lat, longitude=lon, accuracy_m=accuracy)
+        processing_time = (time.time() - start_time) * 1000
+        return FusionResult(
+            algorithm=self.get_algorithm_type(), position=position,
+            confidence=confidence, processing_time_ms=processing_time,
+            layers_used=[r.layer_id for r in readings],
+            reasoning=f"UKF sigma-point fusion of {n} layers",
+            quality_score=min(1.0, (confidence + max(0, 1 - accuracy/50)) / 2),
+        )
+
+    def _empty_result(self) -> FusionResult:
+        return FusionResult(
+            algorithm=self.get_algorithm_type(),
+            position=Position(0.0, 0.0, accuracy_m=1000.0),
+            confidence=0.0, processing_time_ms=0.1, layers_used=[],
+            reasoning="No readings for UKF", quality_score=0.0,
+        )
+
+
+class CovarianceIntersectionFusion(BaseFusionEngine):
+    """Covariance Intersection — handles unknown correlations between sensors."""
+
+    def get_algorithm_type(self) -> FusionAlgorithm:
+        return FusionAlgorithm.COVARIANCE_INTERSECTION
+
+    def fuse_readings(self, readings: List[LayerReading]) -> FusionResult:
+        start_time = time.time()
+        if not readings:
+            return self._empty_result()
+
+        # CI fuses pairs iteratively: P_fused^-1 = w*P_a^-1 + (1-w)*P_b^-1
+        lat = readings[0].position.latitude
+        lon = readings[0].position.longitude
+        var = (readings[0].position.accuracy_m / 111320) ** 2
+
+        for r in readings[1:]:
+            r_var = (r.position.accuracy_m / 111320) ** 2
+            # Optimal omega minimises trace of fused covariance
+            omega = r_var / (var + r_var) if (var + r_var) > 0 else 0.5
+            fused_var = 1.0 / (omega / max(var, 1e-12) + (1 - omega) / max(r_var, 1e-12))
+            lat = fused_var * (omega * lat / max(var, 1e-12) + (1 - omega) * r.position.latitude / max(r_var, 1e-12))
+            lon = fused_var * (omega * lon / max(var, 1e-12) + (1 - omega) * r.position.longitude / max(r_var, 1e-12))
+            var = fused_var
+
+        accuracy = max(2.0, math.sqrt(var) * 111320)
+        confidence = min(0.95, 1.0 / (1.0 + accuracy / 10.0))
+        position = Position(latitude=float(lat), longitude=float(lon), accuracy_m=accuracy)
+        processing_time = (time.time() - start_time) * 1000
+        return FusionResult(
+            algorithm=self.get_algorithm_type(), position=position,
+            confidence=confidence, processing_time_ms=processing_time,
+            layers_used=[r.layer_id for r in readings],
+            reasoning=f"Covariance Intersection of {len(readings)} layers",
+            quality_score=min(1.0, confidence * 1.1),
+        )
+
+    def _empty_result(self) -> FusionResult:
+        return FusionResult(
+            algorithm=self.get_algorithm_type(),
+            position=Position(0.0, 0.0, accuracy_m=1000.0),
+            confidence=0.0, processing_time_ms=0.1, layers_used=[],
+            reasoning="No readings for CI", quality_score=0.0,
+        )
+
+
+class DempsterShaferFusion(BaseFusionEngine):
+    """Dempster-Shafer Evidence Theory — combines uncertain evidence."""
+
+    def get_algorithm_type(self) -> FusionAlgorithm:
+        return FusionAlgorithm.DEMPSTER_SHAFER
+
+    def fuse_readings(self, readings: List[LayerReading]) -> FusionResult:
+        start_time = time.time()
+        if not readings:
+            return self._empty_result()
+
+        # Each reading is evidence: belief = confidence, plausibility = 1
+        # Combine via Dempster's rule of combination
+        combined_lat = 0.0
+        combined_lon = 0.0
+        combined_belief = 1.0
+
+        for r in readings:
+            belief = r.self_confidence
+            # Dempster combination: m12(A) = sum m1(B)*m2(C) / (1-K)
+            conflict = (1.0 - belief) * (1.0 - combined_belief)
+            normaliser = max(1.0 - conflict, 0.01)
+
+            w_old = combined_belief / normaliser
+            w_new = belief / normaliser
+
+            total_w = w_old + w_new
+            if total_w > 0:
+                combined_lat = (combined_lat * w_old + r.position.latitude * w_new) / total_w
+                combined_lon = (combined_lon * w_old + r.position.longitude * w_new) / total_w
+
+            combined_belief = min(0.99, (combined_belief * belief) / normaliser)
+
+        # Accuracy from spread of evidence
+        distances = []
+        for r in readings:
+            dlat = (r.position.latitude - combined_lat) * 111320
+            dlon = (r.position.longitude - combined_lon) * 111320 * math.cos(math.radians(combined_lat))
+            distances.append(math.sqrt(dlat**2 + dlon**2))
+
+        accuracy = max(3.0, float(np.std(distances) * 2)) if distances else 50.0
+        position = Position(latitude=combined_lat, longitude=combined_lon, accuracy_m=accuracy)
+        processing_time = (time.time() - start_time) * 1000
+        return FusionResult(
+            algorithm=self.get_algorithm_type(), position=position,
+            confidence=combined_belief, processing_time_ms=processing_time,
+            layers_used=[r.layer_id for r in readings],
+            reasoning=f"Dempster-Shafer evidence combination of {len(readings)} sources",
+            quality_score=min(1.0, combined_belief),
+        )
+
+    def _empty_result(self) -> FusionResult:
+        return FusionResult(
+            algorithm=self.get_algorithm_type(),
+            position=Position(0.0, 0.0, accuracy_m=1000.0),
+            confidence=0.0, processing_time_ms=0.1, layers_used=[],
+            reasoning="No readings for DS", quality_score=0.0,
+        )
+
+
+class AntColonyFusion(BaseFusionEngine):
+    """Ant Colony Optimization — bio-inspired pheromone trail convergence."""
+
+    def get_algorithm_type(self) -> FusionAlgorithm:
+        return FusionAlgorithm.ANT_COLONY
+
+    def fuse_readings(self, readings: List[LayerReading], num_ants: int = 50, iterations: int = 15) -> FusionResult:
+        start_time = time.time()
+        if not readings:
+            return self._empty_result()
+
+        # Grid around readings for ants to explore
+        lats = [r.position.latitude for r in readings]
+        lons = [r.position.longitude for r in readings]
+        center_lat, center_lon = np.mean(lats), np.mean(lons)
+        spread = max(np.std(lats), np.std(lons), 1e-6) * 3
+
+        # Pheromone grid (10x10)
+        grid_size = 10
+        pheromone = np.ones((grid_size, grid_size))
+
+        for _ in range(iterations):
+            ant_scores = np.zeros((grid_size, grid_size))
+            for _ in range(num_ants):
+                # Ant chooses cell probabilistically based on pheromone
+                probs = pheromone.flatten() / pheromone.sum()
+                cell = np.random.choice(grid_size * grid_size, p=probs)
+                gi, gj = divmod(cell, grid_size)
+
+                # Cell position
+                cell_lat = center_lat + (gi - grid_size/2) * spread / grid_size
+                cell_lon = center_lon + (gj - grid_size/2) * spread / grid_size
+
+                # Score = sum of inverse distance to readings weighted by confidence
+                score = 0.0
+                for r in readings:
+                    dlat = (cell_lat - r.position.latitude) * 111320
+                    dlon = (cell_lon - r.position.longitude) * 111320
+                    dist = math.sqrt(dlat**2 + dlon**2) + 1.0
+                    score += r.self_confidence / dist
+
+                ant_scores[gi, gj] += score
+
+            # Evaporate and deposit pheromone
+            pheromone *= 0.7  # evaporation
+            pheromone += ant_scores
+
+        # Best cell = highest pheromone
+        best = np.unravel_index(np.argmax(pheromone), pheromone.shape)
+        best_lat = center_lat + (best[0] - grid_size/2) * spread / grid_size
+        best_lon = center_lon + (best[1] - grid_size/2) * spread / grid_size
+
+        accuracy = max(3.0, spread * 111320 / grid_size)
+        confidence = min(0.92, float(pheromone.max() / (pheromone.sum() + 1e-9)) * grid_size**2)
+
+        position = Position(latitude=float(best_lat), longitude=float(best_lon), accuracy_m=accuracy)
+        processing_time = (time.time() - start_time) * 1000
+        return FusionResult(
+            algorithm=self.get_algorithm_type(), position=position,
+            confidence=confidence, processing_time_ms=processing_time,
+            layers_used=[r.layer_id for r in readings],
+            reasoning=f"Ant Colony ({num_ants} ants, {iterations} iterations) on {len(readings)} readings",
+            quality_score=min(1.0, confidence),
+        )
+
+    def _empty_result(self) -> FusionResult:
+        return FusionResult(
+            algorithm=self.get_algorithm_type(),
+            position=Position(0.0, 0.0, accuracy_m=1000.0),
+            confidence=0.0, processing_time_ms=0.1, layers_used=[],
+            reasoning="No readings for ACO", quality_score=0.0,
+        )
+
+
 class MultiFusionEngine:
     """
     Master fusion engine that runs multiple algorithms in parallel
@@ -340,6 +577,10 @@ class MultiFusionEngine:
             ExtendedKalmanFusion(),
             ParticleFilterFusion(num_particles=500),
             WeightedLeastSquaresFusion(),
+            UnscentedKalmanFusion(),
+            CovarianceIntersectionFusion(),
+            DempsterShaferFusion(),
+            AntColonyFusion(),
         ]
         self.fusion_history: List[List[FusionResult]] = []
 
