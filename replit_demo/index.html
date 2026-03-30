@@ -3,105 +3,175 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UPIN Live Demo - Universal Positioning Intelligence</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <title>UPIN - Universal Positioning Intelligence Network</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="header">
-        <div class="logo">
-            <div class="logo-icon">P</div>
+    <!-- ── Top Bar ────────────────────────────────────────────── -->
+    <header class="top-bar">
+        <div class="brand">
+            <div class="brand-icon"></div>
             <div>
-                <h1>UPIN Live Demo</h1>
-                <span class="subtitle">Universal Positioning Intelligence Network</span>
+                <h1>UPIN</h1>
+                <span class="brand-sub">UNIVERSAL POSITIONING INTELLIGENCE NETWORK</span>
             </div>
         </div>
-        <div class="status-indicators">
-            <div class="indicator" id="gps-status">GPS</div>
-            <div class="indicator" id="fusion-status">Fusion</div>
-            <div class="indicator" id="threat-status">Security</div>
-            <div class="indicator active" id="demo-status">Live Demo</div>
+        <div class="top-status">
+            <div class="status-chip active" id="chip-fusion">FUSION ENGINE</div>
+            <div class="status-chip active" id="chip-threat">THREAT MONITOR</div>
+            <div class="status-chip" id="chip-mode">GHOST RECON</div>
         </div>
-    </div>
+    </header>
 
-    <div class="main-content">
-        <div class="map-section">
-            <div id="map"></div>
-            <div class="map-overlay">
-                <div><strong>UPIN Status:</strong> <span id="system-status">Operational</span></div>
-                <div><strong>Active Layers:</strong> <span id="active-layers">7</span>/60</div>
-                <div><strong>Accuracy:</strong> &plusmn;<span id="current-accuracy">8.5</span>m</div>
-                <div><strong>Threat Level:</strong> <span id="threat-level" class="threat-low">LOW</span></div>
-                <div><strong>Algorithm:</strong> <span id="best-algorithm">Fish Schooling</span></div>
-            </div>
-        </div>
+    <!-- ── Main Grid ──────────────────────────────────────────── -->
+    <main class="grid">
 
-        <div class="control-panel">
-            <div class="panel-section">
-                <div class="panel-title">Demo Controls</div>
-                <div class="demo-controls">
-                    <button class="demo-btn" onclick="startDemo()" id="start-btn">Start Live Demo</button>
-                    <button class="demo-btn danger" onclick="simulateSpoofing()" id="spoof-btn">Simulate GPS Spoofing</button>
-                    <button class="demo-btn warning" onclick="simulateJamming()" id="jam-btn">Simulate Jamming Attack</button>
-                    <button class="demo-btn" onclick="resetDemo()">Reset Demo</button>
+        <!-- LEFT — Platform Panels -->
+        <section class="platforms">
+            <!-- Air -->
+            <div class="platform-card" id="card-air" onclick="selectPlatform('air')">
+                <div class="card-corner tl"></div><div class="card-corner tr"></div>
+                <div class="card-corner bl"></div><div class="card-corner br"></div>
+                <div class="card-header">
+                    <span class="card-label">AIR</span>
+                    <span class="pos-badge" id="badge-air">POSITION: CONFIRMED</span>
+                </div>
+                <div class="card-body">
+                    <div class="platform-img air-img"></div>
+                    <div class="ring-wrap"><div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div></div>
+                </div>
+                <div class="sensor-row" id="sensors-air">
+                    <div class="sensor-icon on" data-tip="GPS">GPS</div>
+                    <div class="sensor-icon warn" data-tip="Cellular">CELL</div>
+                    <div class="sensor-icon on" data-tip="WiFi">WiFi</div>
+                    <div class="sensor-icon on" data-tip="Thermal">THRM</div>
+                    <div class="sensor-icon on" data-tip="IMU">IMU</div>
+                    <div class="sensor-icon on" data-tip="Visual">VIS</div>
                 </div>
             </div>
 
-            <div class="panel-section">
-                <div class="panel-title">Multi-Algorithm Fusion</div>
-                <div id="algorithm-results">
-                    <div class="algorithm-result">
-                        <span class="algorithm-name">Kalman Filter</span>
-                        <span class="confidence" id="kalman-conf">78%</span>
-                        <span class="accuracy" id="kalman-acc">&plusmn;12.3m</span>
-                    </div>
-                    <div class="algorithm-result winner">
-                        <span class="algorithm-name">Particle Filter</span>
-                        <span class="confidence" id="particle-conf">94%</span>
-                        <span class="accuracy" id="particle-acc">&plusmn;6.8m</span>
-                    </div>
-                    <div class="algorithm-result">
-                        <span class="algorithm-name">Fish Schooling</span>
-                        <span class="confidence" id="fish-conf">89%</span>
-                        <span class="accuracy" id="fish-acc">&plusmn;8.1m</span>
-                    </div>
+            <!-- Sea -->
+            <div class="platform-card" id="card-sea" onclick="selectPlatform('sea')">
+                <div class="card-corner tl"></div><div class="card-corner tr"></div>
+                <div class="card-corner bl"></div><div class="card-corner br"></div>
+                <div class="card-header">
+                    <span class="card-label">SEA</span>
+                    <span class="pos-badge" id="badge-sea">POSITION: CONFIRMED</span>
                 </div>
-                <div class="coordinates">
-                    <strong>Consensus Position:</strong><br>
-                    <span id="consensus-position">13.082734N 80.270542E</span>
+                <div class="card-body">
+                    <div class="platform-img sea-img"></div>
+                    <div class="ring-wrap"><div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div></div>
+                </div>
+                <div class="sensor-row" id="sensors-sea">
+                    <div class="sensor-icon off" data-tip="GPS">GPS</div>
+                    <div class="sensor-icon on" data-tip="Cellular">CELL</div>
+                    <div class="sensor-icon on" data-tip="Sonar">SON</div>
+                    <div class="sensor-icon on" data-tip="IMU">IMU</div>
+                    <div class="sensor-icon on" data-tip="Barometric">BAR</div>
                 </div>
             </div>
 
-            <div class="panel-section">
-                <div class="panel-title">Live Sensor Data</div>
-                <div class="sensor-grid">
-                    <div class="sensor-item"><div class="sensor-label">GPS</div><div class="sensor-value" id="gps-value">Active</div></div>
-                    <div class="sensor-item"><div class="sensor-label">IMU</div><div class="sensor-value" id="imu-value">Stable</div></div>
-                    <div class="sensor-item"><div class="sensor-label">WiFi</div><div class="sensor-value" id="wifi-value">4 networks</div></div>
-                    <div class="sensor-item"><div class="sensor-label">Cellular</div><div class="sensor-value" id="cellular-value">Strong</div></div>
-                    <div class="sensor-item"><div class="sensor-label">Magnetometer</div><div class="sensor-value" id="mag-value">247 deg</div></div>
-                    <div class="sensor-item"><div class="sensor-label">Barometric</div><div class="sensor-value" id="baro-value">1013 hPa</div></div>
+            <!-- Sub -->
+            <div class="platform-card" id="card-sub" onclick="selectPlatform('sub')">
+                <div class="card-corner tl"></div><div class="card-corner tr"></div>
+                <div class="card-corner bl"></div><div class="card-corner br"></div>
+                <div class="card-header">
+                    <span class="card-label">SUB</span>
+                    <span class="pos-badge" id="badge-sub">POSITION: CONFIRMED</span>
+                </div>
+                <div class="card-body">
+                    <div class="platform-img sub-img"></div>
+                    <div class="ring-wrap"><div class="ring r1 cyan"></div><div class="ring r2 cyan"></div><div class="ring r3 cyan"></div></div>
+                </div>
+                <div class="sensor-row" id="sensors-sub">
+                    <div class="sensor-icon off" data-tip="GPS">GPS</div>
+                    <div class="sensor-icon on" data-tip="IMU">IMU</div>
+                    <div class="sensor-icon on" data-tip="Sonar">SON</div>
+                    <div class="sensor-icon on" data-tip="Depth">DEP</div>
+                    <div class="sensor-icon on" data-tip="Magnetic">MAG</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CENTER — Fusion Engine -->
+        <section class="fusion-center">
+            <div class="brain-box">
+                <div class="brain-label">UPIN<br>FUSION<br>ENGINE</div>
+                <div class="brain-glow"></div>
+            </div>
+
+            <div class="algo-list">
+                <div class="algo" id="algo-kalman"><span>Kalman</span><span class="algo-v" id="v-kalman">78%</span></div>
+                <div class="algo winner" id="algo-particle"><span>Particle</span><span class="algo-v" id="v-particle">94%</span></div>
+                <div class="algo" id="algo-fish"><span>Fish School</span><span class="algo-v" id="v-fish">89%</span></div>
+                <div class="algo" id="algo-ukf"><span>UKF</span><span class="algo-v" id="v-ukf">85%</span></div>
+                <div class="algo" id="algo-ci"><span>Cov. Intersect</span><span class="algo-v" id="v-ci">83%</span></div>
+                <div class="algo" id="algo-aco"><span>Ant Colony</span><span class="algo-v" id="v-aco">92%</span></div>
+            </div>
+
+            <div class="consensus-box">
+                <div class="consensus-label">SIGNAL CONSENSUS: CONFIRMED</div>
+                <div class="consensus-pos" id="consensus-pos">13.082734 N &nbsp; 80.270542 E</div>
+                <div class="consensus-acc" id="consensus-acc">Accuracy &plusmn;3.2 m &nbsp;|&nbsp; Layers 63/63</div>
+            </div>
+
+            <div class="center-sensors">
+                <div class="cs-icon" id="cs-gps" style="--c:#4CAF50">GPS</div>
+                <div class="cs-icon" id="cs-cell" style="--c:#FF9800">CELL</div>
+                <div class="cs-icon" id="cs-wifi" style="--c:#2196F3">WiFi</div>
+                <div class="cs-icon" id="cs-imu" style="--c:#9C27B0">IMU</div>
+                <div class="cs-icon" id="cs-vis" style="--c:#E91E63">VIS</div>
+                <div class="cs-icon" id="cs-acou" style="--c:#00BCD4">ACOU</div>
+            </div>
+        </section>
+
+        <!-- RIGHT — Intel & Controls -->
+        <section class="intel-panel">
+            <!-- Map -->
+            <div class="panel-block map-block">
+                <div class="panel-label">TACTICAL MAP</div>
+                <div id="map"></div>
+            </div>
+
+            <!-- Threat -->
+            <div class="panel-block threat-block" id="threat-block">
+                <div class="panel-label">THREAT STATUS</div>
+                <div class="threat-content" id="threat-content">
+                    <div class="threat-ok">ALL CLEAR &mdash; NO THREATS</div>
                 </div>
             </div>
 
-            <div class="panel-section">
-                <div class="panel-title">Threat Detection</div>
-                <div id="threat-alerts">
-                    <div class="status-good">All Systems Secure<br><small>No threats detected</small></div>
+            <!-- Controls -->
+            <div class="panel-block ctrl-block">
+                <div class="panel-label">DEMO CONTROLS</div>
+                <div class="ctrl-grid">
+                    <button class="btn green" onclick="simSpoofing()">SPOOF ATTACK</button>
+                    <button class="btn amber" onclick="simJamming()">JAM ATTACK</button>
+                    <button class="btn blue" onclick="simTriangulate()">TRIANGULATE</button>
+                    <button class="btn grey" onclick="resetDemo()">RESET</button>
                 </div>
             </div>
 
-            <div class="panel-section">
-                <div class="panel-title">Performance Metrics</div>
-                <div class="metrics-grid">
-                    <div class="metric"><span class="metric-label">Fusion Speed</span><span class="metric-value" id="fusion-speed">4.2ms</span></div>
-                    <div class="metric"><span class="metric-label">Update Rate</span><span class="metric-value" id="update-rate">2 Hz</span></div>
-                    <div class="metric"><span class="metric-label">GPS Quality</span><span class="metric-value" id="gps-quality">Excellent</span></div>
-                    <div class="metric"><span class="metric-label">Power Usage</span><span class="metric-value" id="power-usage">Normal</span></div>
+            <!-- Metrics -->
+            <div class="panel-block metrics-block">
+                <div class="panel-label">PERFORMANCE</div>
+                <div class="metric-row">
+                    <div class="m"><span class="ml">Fusion</span><span class="mv" id="m-fusion">4.2ms</span></div>
+                    <div class="m"><span class="ml">Rate</span><span class="mv" id="m-rate">2 Hz</span></div>
+                    <div class="m"><span class="ml">Power</span><span class="mv" id="m-power">NORM</span></div>
+                    <div class="m"><span class="ml">Mode</span><span class="mv" id="m-mode">SENTINEL</span></div>
                 </div>
             </div>
-        </div>
-    </div>
+        </section>
+    </main>
+
+    <!-- ── Bottom Bar ─────────────────────────────────────────── -->
+    <footer class="bottom-bar">
+        <span>UPIN &mdash; Universal Positioning Intelligence Network</span>
+        <span>Patent-pending &bull; AIMCRS / Abheet Prem Manghnani</span>
+        <span id="clock"></span>
+    </footer>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="script.js"></script>
