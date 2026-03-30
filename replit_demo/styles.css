@@ -189,10 +189,37 @@ body{font-family:var(--font);background:var(--bg);color:#c8d6e5;height:100vh;ove
 .btn.cyan{border-color:var(--cyan);color:var(--cyan)}.btn.cyan:hover{background:rgba(0,188,212,.15);box-shadow:var(--glow-cyan)}
 .btn.magenta{border-color:#E91E63;color:#E91E63}.btn.magenta:hover{background:rgba(233,30,99,.15);box-shadow:0 0 12px rgba(233,30,99,.3)}
 
+/* ── Sensor Cards ─────────────────────────────────────────────── */
+.sensor-card{border:1px solid var(--border);border-radius:4px;padding:10px;margin-bottom:8px;background:rgba(255,255,255,.02)}
+.sc-title{font-size:11px;font-weight:700;letter-spacing:1px;color:var(--cyan);margin-bottom:6px}
+.sc-data{font-size:11px;font-family:'Courier New',monospace;color:#8a9a8a;line-height:1.5;white-space:pre-wrap}
+.btn-sm{padding:6px 10px;font-size:10px;margin-top:6px}
+
+/* ── Scroll Area ──────────────────────────────────────────────── */
+.scroll-area{max-height:200px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--green) transparent}
+.tab-inner{display:flex;flex-direction:column;gap:6px;height:100%;overflow-y:auto;padding:2px}
+
+/* ── Swarm Units ──────────────────────────────────────────────── */
+.swarm-unit{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border:1px solid var(--border);border-radius:3px;margin:3px 0;font-size:11px}
+.swarm-unit .su-name{font-weight:700;color:var(--cyan)}
+.swarm-unit .su-role{font-size:9px;color:var(--amber);letter-spacing:1px}
+.swarm-unit .su-status{font-size:9px;color:var(--green)}
+
+/* ── Form helpers ─────────────────────────────────────────────── */
+.form-group{display:flex;flex-direction:column;gap:6px}
+.form-row{display:flex;gap:6px;align-items:center}
+.form-row .intel-input{flex:1}
+.search-box{width:100%;padding:7px 10px;background:#0d1520;border:1px solid var(--border);border-radius:4px;color:#c8d6e5;font-size:12px;outline:none;margin-bottom:4px}
+.search-box:focus{border-color:var(--green)}
+
+/* ── Left panel generic ──────────────────────────────────────── */
+.left-panel{display:flex;flex-direction:column;gap:4px;padding:8px;overflow:hidden}
+
 /* ── Responsive ───────────────────────────────────────────────── */
 @media(max-width:900px){
   .grid{grid-template-columns:1fr;grid-template-rows:auto 1fr auto}
-  .platforms{flex-direction:row;overflow-x:auto}
+  .left-panel{max-height:40vh;overflow-y:auto}
   .platform-card{min-width:200px}
-  .top-status{display:none}
+  .top-status,.tab-bar{flex-wrap:wrap}
+  .tab{padding:6px 10px;font-size:9px}
 }

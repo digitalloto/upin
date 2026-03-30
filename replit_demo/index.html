@@ -8,160 +8,190 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <!-- ── Top Bar ────────────────────────────────────────────── -->
     <header class="top-bar">
-        <div class="brand">
-            <div class="brand-icon"></div>
-            <div>
-                <h1>UPIN</h1>
-                <span class="brand-sub">UNIVERSAL POSITIONING INTELLIGENCE NETWORK</span>
-            </div>
-        </div>
+        <div class="brand"><div class="brand-icon"></div><div><h1>UPIN</h1><span class="brand-sub">UNIVERSAL POSITIONING INTELLIGENCE NETWORK</span></div></div>
         <div class="top-status">
-            <div class="status-chip active" id="chip-fusion">FUSION ENGINE</div>
-            <div class="status-chip active" id="chip-threat">THREAT MONITOR</div>
+            <div class="status-chip active" id="chip-fusion">FUSION</div>
+            <div class="status-chip active" id="chip-threat">THREAT</div>
             <div class="status-chip" id="chip-mode">GHOST RECON</div>
+            <div class="status-chip" id="chip-swarm">SWARM: 0</div>
         </div>
     </header>
 
-    <!-- ── Tab Bar ─────────────────────────────────────────────── -->
     <div class="tab-bar">
         <button class="tab active" onclick="switchTab('platforms')">PLATFORMS</button>
         <button class="tab" onclick="switchTab('layers')">LAYERS</button>
-        <button class="tab" onclick="switchTab('intel')">INTEL INPUT</button>
+        <button class="tab" onclick="switchTab('intel')">INTEL</button>
+        <button class="tab" onclick="switchTab('swarm')">SWARM</button>
+        <button class="tab" onclick="switchTab('sensors')">SENSORS</button>
+        <button class="tab" onclick="switchTab('security')">SECURITY</button>
+        <button class="tab" onclick="switchTab('ops')">OPS</button>
     </div>
 
-    <!-- ── Main Grid ──────────────────────────────────────────── -->
     <main class="grid">
-
-        <!-- LEFT — Platform Panels -->
-        <section class="platforms" id="tab-platforms">
-            <!-- Air -->
-            <div class="platform-card" id="card-air" onclick="selectPlatform('air')">
-                <div class="card-corner tl"></div><div class="card-corner tr"></div>
-                <div class="card-corner bl"></div><div class="card-corner br"></div>
-                <div class="card-header">
-                    <span class="card-label">AIR</span>
-                    <span class="pos-badge" id="badge-air">POSITION: CONFIRMED</span>
-                </div>
-                <div class="card-body">
-                    <div class="platform-img air-img"></div>
-                    <div class="ring-wrap"><div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div></div>
-                </div>
-                <div class="sensor-row" id="sensors-air">
-                    <div class="sensor-icon on" data-tip="GPS">GPS</div>
-                    <div class="sensor-icon warn" data-tip="Cellular">CELL</div>
-                    <div class="sensor-icon on" data-tip="WiFi">WiFi</div>
-                    <div class="sensor-icon on" data-tip="Thermal">THRM</div>
-                    <div class="sensor-icon on" data-tip="IMU">IMU</div>
-                    <div class="sensor-icon on" data-tip="Visual">VIS</div>
-                </div>
+        <!-- ── PLATFORMS TAB ──────────────────────────────────── -->
+        <section class="left-panel" id="tab-platforms">
+            <div class="platform-card selected" id="card-air" onclick="selectPlatform('air')">
+                <div class="card-corner tl"></div><div class="card-corner tr"></div><div class="card-corner bl"></div><div class="card-corner br"></div>
+                <div class="card-header"><span class="card-label">AIR</span><span class="pos-badge" id="badge-air">POSITION: CONFIRMED</span></div>
+                <div class="card-body"><div class="ring-wrap"><div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div></div></div>
+                <div class="sensor-row" id="sensors-air"><div class="sensor-icon on">GPS</div><div class="sensor-icon warn">CELL</div><div class="sensor-icon on">WiFi</div><div class="sensor-icon on">THRM</div><div class="sensor-icon on">IMU</div><div class="sensor-icon on">VIS</div></div>
             </div>
-
-            <!-- Sea -->
             <div class="platform-card" id="card-sea" onclick="selectPlatform('sea')">
-                <div class="card-corner tl"></div><div class="card-corner tr"></div>
-                <div class="card-corner bl"></div><div class="card-corner br"></div>
-                <div class="card-header">
-                    <span class="card-label">SEA</span>
-                    <span class="pos-badge" id="badge-sea">POSITION: CONFIRMED</span>
-                </div>
-                <div class="card-body">
-                    <div class="platform-img sea-img"></div>
-                    <div class="ring-wrap"><div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div></div>
-                </div>
-                <div class="sensor-row" id="sensors-sea">
-                    <div class="sensor-icon off" data-tip="GPS">GPS</div>
-                    <div class="sensor-icon on" data-tip="Cellular">CELL</div>
-                    <div class="sensor-icon on" data-tip="Sonar">SON</div>
-                    <div class="sensor-icon on" data-tip="IMU">IMU</div>
-                    <div class="sensor-icon on" data-tip="Barometric">BAR</div>
-                </div>
+                <div class="card-corner tl"></div><div class="card-corner tr"></div><div class="card-corner bl"></div><div class="card-corner br"></div>
+                <div class="card-header"><span class="card-label">SEA</span><span class="pos-badge" id="badge-sea">POSITION: CONFIRMED</span></div>
+                <div class="card-body"><div class="ring-wrap"><div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div></div></div>
+                <div class="sensor-row" id="sensors-sea"><div class="sensor-icon off">GPS</div><div class="sensor-icon on">CELL</div><div class="sensor-icon on">SON</div><div class="sensor-icon on">IMU</div><div class="sensor-icon on">BAR</div></div>
             </div>
-
-            <!-- Sub -->
             <div class="platform-card" id="card-sub" onclick="selectPlatform('sub')">
-                <div class="card-corner tl"></div><div class="card-corner tr"></div>
-                <div class="card-corner bl"></div><div class="card-corner br"></div>
-                <div class="card-header">
-                    <span class="card-label">SUB</span>
-                    <span class="pos-badge" id="badge-sub">POSITION: CONFIRMED</span>
-                </div>
-                <div class="card-body">
-                    <div class="platform-img sub-img"></div>
-                    <div class="ring-wrap"><div class="ring r1 cyan"></div><div class="ring r2 cyan"></div><div class="ring r3 cyan"></div></div>
-                </div>
-                <div class="sensor-row" id="sensors-sub">
-                    <div class="sensor-icon off" data-tip="GPS">GPS</div>
-                    <div class="sensor-icon on" data-tip="IMU">IMU</div>
-                    <div class="sensor-icon on" data-tip="Sonar">SON</div>
-                    <div class="sensor-icon on" data-tip="Depth">DEP</div>
-                    <div class="sensor-icon on" data-tip="Magnetic">MAG</div>
-                </div>
+                <div class="card-corner tl"></div><div class="card-corner tr"></div><div class="card-corner bl"></div><div class="card-corner br"></div>
+                <div class="card-header"><span class="card-label">SUB</span><span class="pos-badge" id="badge-sub">POSITION: CONFIRMED</span></div>
+                <div class="card-body"><div class="ring-wrap"><div class="ring r1 cyan"></div><div class="ring r2 cyan"></div><div class="ring r3 cyan"></div></div></div>
+                <div class="sensor-row" id="sensors-sub"><div class="sensor-icon off">GPS</div><div class="sensor-icon on">IMU</div><div class="sensor-icon on">SON</div><div class="sensor-icon on">DEP</div><div class="sensor-icon on">MAG</div></div>
             </div>
         </section>
 
-        <!-- LEFT — Layer Browser (hidden by default) -->
-        <section class="platforms" id="tab-layers" style="display:none">
-            <div class="panel-block" style="flex:1;overflow-y:auto">
-                <div class="panel-label">LAYER BROWSER — 63 LAYERS (toggle on/off)</div>
-                <div class="layer-filter">
-                    <input type="text" id="layer-search" placeholder="Search layers..." oninput="filterLayers(this.value)">
-                </div>
-                <div id="layer-list"></div>
+        <!-- ── LAYERS TAB ─────────────────────────────────────── -->
+        <section class="left-panel" id="tab-layers" style="display:none">
+            <div class="tab-inner">
+                <div class="panel-label">LAYER BROWSER (63 LAYERS)</div>
+                <input type="text" class="search-box" placeholder="Search layers..." oninput="filterLayers(this.value)">
+                <select class="preset-select" onchange="loadPreset(this.value)">
+                    <option value="">-- Load Preset --</option>
+                    <optgroup label="Environment"><option>minimal</option><option>urban</option><option>rural</option><option>maritime</option><option>submarine</option><option>aerial</option><option>gps_denied</option><option>all</option></optgroup>
+                    <optgroup label="Unit"><option>unit_micro_uav</option><option>unit_small_uav</option><option>unit_medium_uav</option><option>unit_large_uav</option><option>unit_ground_vehicle</option><option>unit_naval_vessel</option><option>unit_submarine</option><option>unit_soldier</option></optgroup>
+                    <optgroup label="Mission"><option>mission_recon</option><option>mission_strike</option><option>mission_casevac</option><option>mission_patrol</option><option>mission_covert</option></optgroup>
+                    <optgroup label="Precision"><option>precision_centimetre</option><option>precision_submetre</option><option>precision_tactical</option><option>precision_navigation</option><option>precision_area</option><option>precision_degraded</option></optgroup>
+                </select>
+                <div class="layer-count" id="layer-count">12 layers active</div>
+                <div id="layer-list" class="scroll-area"></div>
             </div>
         </section>
 
-        <!-- LEFT — Intel Input (hidden by default) -->
-        <section class="platforms" id="tab-intel" style="display:none">
-            <div class="panel-block" style="flex:1;overflow-y:auto">
+        <!-- ── INTEL TAB ──────────────────────────────────────── -->
+        <section class="left-panel" id="tab-intel" style="display:none">
+            <div class="tab-inner">
                 <div class="panel-label">MISSION INTELLIGENCE INPUT</div>
-
-                <div class="intel-form">
-                    <select id="intel-type" class="intel-input">
-                        <option value="SPOOFING_ZONE">Spoofing Zone</option>
-                        <option value="JAMMING_ZONE">Jamming Zone</option>
-                        <option value="THREAT_LOCATION">Threat Location</option>
-                        <option value="SAFE_ROUTE">Safe Route</option>
-                        <option value="DANGER_ROUTE">Danger Route</option>
-                        <option value="TARGET">Target</option>
-                        <option value="PATROL_ROUTE">Patrol Route</option>
-                        <option value="NO_FLY_ZONE">No-Fly Zone</option>
-                        <option value="OBSERVATION_POST">Observation Post</option>
-                        <option value="REFERENCE_POINT">Reference Point</option>
-                        <option value="SATELLITE_MAP">Satellite Map Ref</option>
-                        <option value="CUSTOM">Custom Intel</option>
-                    </select>
-                    <input type="text" id="intel-name" class="intel-input" placeholder="Name (e.g. Hormuz Spoofer)">
-                    <input type="text" id="intel-desc" class="intel-input" placeholder="Description / notes">
-                    <div class="intel-row">
-                        <input type="number" id="intel-lat" class="intel-input" placeholder="Latitude" step="0.0001" value="13.0850">
-                        <input type="number" id="intel-lon" class="intel-input" placeholder="Longitude" step="0.0001" value="80.2750">
-                    </div>
-                    <div class="intel-row">
-                        <input type="number" id="intel-radius" class="intel-input" placeholder="Radius (m)" value="500">
-                        <select id="intel-severity" class="intel-input">
-                            <option value="0.3">Low Severity</option>
-                            <option value="0.5">Medium Severity</option>
-                            <option value="0.7" selected>High Severity</option>
-                            <option value="1.0">Critical</option>
-                        </select>
-                    </div>
-                    <button class="btn green" style="width:100%" onclick="addIntel()">ADD INTELLIGENCE</button>
-                </div>
-
-                <div class="panel-label" style="margin-top:14px">ACTIVE INTEL</div>
-                <div id="intel-entries"></div>
+                <select id="intel-type" class="intel-input"><option>SPOOFING_ZONE</option><option>JAMMING_ZONE</option><option>THREAT_LOCATION</option><option>SAFE_ROUTE</option><option>DANGER_ROUTE</option><option>TARGET</option><option>PATROL_ROUTE</option><option>NO_FLY_ZONE</option><option>OBSERVATION_POST</option><option>REFERENCE_POINT</option><option>SATELLITE_MAP</option><option>CUSTOM</option></select>
+                <input id="intel-name" class="intel-input" placeholder="Name">
+                <input id="intel-desc" class="intel-input" placeholder="Description / notes">
+                <div class="intel-row"><input type="number" id="intel-lat" class="intel-input" placeholder="Lat" step="0.0001" value="13.085"><input type="number" id="intel-lon" class="intel-input" placeholder="Lon" step="0.0001" value="80.275"></div>
+                <div class="intel-row"><input type="number" id="intel-radius" class="intel-input" placeholder="Radius m" value="500"><select id="intel-severity" class="intel-input"><option value="0.3">Low</option><option value="0.5">Medium</option><option value="0.7" selected>High</option><option value="1.0">Critical</option></select></div>
+                <button class="btn green" style="width:100%" onclick="addIntel()">ADD INTELLIGENCE</button>
+                <div class="panel-label" style="margin-top:10px">ACTIVE INTEL</div>
+                <div id="intel-entries" class="scroll-area"></div>
             </div>
         </section>
 
-        <!-- CENTER — Fusion Engine -->
-        <section class="fusion-center">
-            <div class="brain-box">
-                <div class="brain-label">UPIN<br>FUSION<br>ENGINE</div>
-                <div class="brain-glow"></div>
+        <!-- ── SWARM TAB ──────────────────────────────────────── -->
+        <section class="left-panel" id="tab-swarm" style="display:none">
+            <div class="tab-inner">
+                <div class="panel-label">SWARM MANAGEMENT</div>
+                <div class="form-group">
+                    <input id="sw-name" class="intel-input" placeholder="Unit name (e.g. Alpha-1)">
+                    <select id="sw-type" class="intel-input"><option>micro_uav</option><option>small_uav</option><option>medium_uav</option><option>large_uav</option><option>heavy_uav</option><option>ground_vehicle</option><option>naval_vessel</option></select>
+                    <select id="sw-role" class="intel-input"><option>scout</option><option>relay</option><option>strike</option><option>isr</option><option>decoy</option><option>cargo</option><option>casevac</option></select>
+                    <div class="intel-row"><input type="number" id="sw-lat" class="intel-input" placeholder="Lat" value="13.083"><input type="number" id="sw-lon" class="intel-input" placeholder="Lon" value="80.271"></div>
+                    <button class="btn cyan" style="width:100%" onclick="addSwarmUnit()">ADD UNIT TO SWARM</button>
+                </div>
+                <div class="panel-label" style="margin-top:10px">FORMATION</div>
+                <div class="form-row">
+                    <select id="sw-formation" class="intel-input"><option>diamond</option><option>line</option><option>vee</option><option>circle</option><option>grid</option><option>isr</option><option>perimeter</option></select>
+                    <button class="btn cyan" onclick="setFormation()">SET</button>
+                </div>
+                <div class="panel-label" style="margin-top:10px">MISSION</div>
+                <div class="form-row">
+                    <select id="sw-mission" class="intel-input"><option>patrol</option><option>recon</option><option>strike</option><option>escort</option><option>casevac</option><option>search_rescue</option></select>
+                    <button class="btn cyan" onclick="setSwarmMission()">ASSIGN</button>
+                </div>
+                <div class="panel-label" style="margin-top:10px">SWARM UNITS</div>
+                <div id="swarm-list" class="scroll-area"></div>
             </div>
+        </section>
 
+        <!-- ── SENSORS TAB ────────────────────────────────────── -->
+        <section class="left-panel" id="tab-sensors" style="display:none">
+            <div class="tab-inner">
+                <div class="panel-label">LIVE SENSOR FEEDS</div>
+                <div class="sensor-card"><div class="sc-title">WiFi CSI (Through-Wall)</div><div id="feed-csi" class="sc-data">Loading...</div><button class="btn green btn-sm" onclick="pollSensor('wifi_csi')">SCAN</button></div>
+                <div class="sensor-card"><div class="sc-title">Thermal Imaging</div><div id="feed-thermal" class="sc-data">Loading...</div><button class="btn green btn-sm" onclick="pollSensor('thermal')">SCAN</button></div>
+                <div class="sensor-card"><div class="sc-title">Drone Recognition</div><div id="feed-drone" class="sc-data">Loading...</div><button class="btn green btn-sm" onclick="pollSensor('drone')">SCAN</button></div>
+                <div class="sensor-card"><div class="sc-title">AI Target Lock</div><div id="feed-target" class="sc-data">Loading...</div><button class="btn amber btn-sm" onclick="pollSensor('target_lock')">STATUS</button></div>
+                <div class="sensor-card"><div class="sc-title">Phone Sensors</div><div id="feed-phone" class="sc-data">Tap to activate</div><button class="btn magenta btn-sm" onclick="simPhoneSensors()">ACTIVATE</button></div>
+                <div id="phone-panel" style="display:none">
+                    <div class="sensor-grid-phone">
+                        <div class="ps"><span class="psl">GPS</span><span class="psv" id="ps-gps">--</span></div>
+                        <div class="ps"><span class="psl">Accel X</span><span class="psv" id="ps-ax">--</span></div>
+                        <div class="ps"><span class="psl">Accel Y</span><span class="psv" id="ps-ay">--</span></div>
+                        <div class="ps"><span class="psl">Accel Z</span><span class="psv" id="ps-az">--</span></div>
+                        <div class="ps"><span class="psl">Heading</span><span class="psv" id="ps-head">--</span></div>
+                        <div class="ps"><span class="psl">Gyro</span><span class="psv" id="ps-gyro">--</span></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── SECURITY TAB ───────────────────────────────────── -->
+        <section class="left-panel" id="tab-security" style="display:none">
+            <div class="tab-inner">
+                <div class="panel-label">SECURITY &amp; IFF</div>
+                <div class="sensor-card"><div class="sc-title">IFF 7-Factor Check</div>
+                    <input id="iff-target" class="intel-input" placeholder="Target ID (e.g. ALPHA-1)">
+                    <button class="btn green btn-sm" onclick="runIFF()">RUN IFF CHECK</button>
+                    <div id="iff-result" class="sc-data" style="margin-top:6px"></div>
+                </div>
+                <div class="sensor-card"><div class="sc-title">Encrypted Comms</div>
+                    <div class="intel-row"><input id="comm-from" class="intel-input" placeholder="From" value="node-1"><input id="comm-to" class="intel-input" placeholder="To" value="node-2"></div>
+                    <select id="comm-class" class="intel-input"><option>UNCLASSIFIED</option><option>RESTRICTED</option><option>CONFIDENTIAL</option><option>SECRET</option></select>
+                    <button class="btn cyan btn-sm" onclick="sendComm()">SEND ENCRYPTED</button>
+                </div>
+                <div class="sensor-card"><div class="sc-title">False Position Broadcasting</div>
+                    <select id="fp-strategy" class="intel-input"><option>MIRROR</option><option>RETREATING</option><option>STATIONARY</option><option>DECOY_ROUTE</option></select>
+                    <button class="btn amber btn-sm" onclick="startFalsePos()">BROADCAST FALSE POSITION</button>
+                    <div id="fp-result" class="sc-data"></div>
+                </div>
+                <div class="panel-label" style="margin-top:10px">IFF LOG</div>
+                <div id="iff-log" class="scroll-area"></div>
+                <div class="panel-label" style="margin-top:10px">COMMS LOG</div>
+                <div id="comms-log-view" class="scroll-area"></div>
+            </div>
+        </section>
+
+        <!-- ── OPS TAB ────────────────────────────────────────── -->
+        <section class="left-panel" id="tab-ops" style="display:none">
+            <div class="tab-inner">
+                <div class="panel-label">OPERATIONS</div>
+                <div class="sensor-card"><div class="sc-title">Mission Mode</div>
+                    <div class="mode-grid">
+                        <button class="mode-btn active" onclick="setMode(this,'GHOST_RECON')">GHOST RECON</button>
+                        <button class="mode-btn" onclick="setMode(this,'SENTINEL')">SENTINEL</button>
+                        <button class="mode-btn" onclick="setMode(this,'GUARDIAN')">GUARDIAN</button>
+                        <button class="mode-btn" onclick="setMode(this,'HUNTER')">HUNTER</button>
+                        <button class="mode-btn" onclick="setMode(this,'COVERT_ISR')">COVERT ISR</button>
+                        <button class="mode-btn" onclick="setMode(this,'RESCUE')">RESCUE</button>
+                    </div>
+                    <div class="mode-rules" id="mode-rules">Emit: NO | Engage: NO | Lethal: NO | Autonomous: NEVER</div>
+                </div>
+                <div class="sensor-card"><div class="sc-title">Power Management</div><div id="power-data" class="sc-data">Loading...</div><button class="btn green btn-sm" onclick="pollPower()">REFRESH</button></div>
+                <div class="sensor-card"><div class="sc-title">Navigation Confidence</div><div id="conf-data" class="sc-data">Loading...</div><button class="btn cyan btn-sm" onclick="pollConfidence()">CHECK</button></div>
+                <div class="sensor-card"><div class="sc-title">Geofencing</div>
+                    <div class="intel-row"><input type="number" id="geo-lat" class="intel-input" value="19.09" step="0.01"><input type="number" id="geo-lon" class="intel-input" value="72.87" step="0.01"></div>
+                    <button class="btn amber btn-sm" onclick="checkGeofence()">CHECK BOUNDARY</button>
+                    <div id="geo-result" class="sc-data"></div>
+                </div>
+                <div class="sensor-card"><div class="sc-title">Calibration</div><div id="cal-data" class="sc-data">Loading...</div><button class="btn green btn-sm" onclick="pollCalibration()">STATUS</button></div>
+                <div class="sensor-card"><div class="sc-title">EMP Hardening Specs</div><div id="hardening-data" class="sc-data">Loading...</div><button class="btn grey btn-sm" onclick="pollHardening()">VIEW</button></div>
+                <div class="sensor-card"><div class="sc-title">Mission Recorder</div>
+                    <input id="rec-event" class="intel-input" placeholder="Event description">
+                    <button class="btn green btn-sm" onclick="recordEvent()">LOG EVENT</button>
+                    <div id="recorder-log-view" class="scroll-area" style="max-height:80px"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── CENTER — Fusion Engine ─────────────────────────── -->
+        <section class="fusion-center">
+            <div class="brain-box"><div class="brain-label">UPIN<br>FUSION<br>ENGINE</div><div class="brain-glow"></div></div>
             <div class="algo-list">
                 <div class="algo" id="algo-kalman"><span>Kalman</span><span class="algo-v" id="v-kalman">78%</span></div>
                 <div class="algo winner" id="algo-particle"><span>Particle</span><span class="algo-v" id="v-particle">94%</span></div>
@@ -170,118 +200,32 @@
                 <div class="algo" id="algo-ci"><span>Cov. Intersect</span><span class="algo-v" id="v-ci">83%</span></div>
                 <div class="algo" id="algo-aco"><span>Ant Colony</span><span class="algo-v" id="v-aco">92%</span></div>
             </div>
-
             <div class="consensus-box">
                 <div class="consensus-label">SIGNAL CONSENSUS: CONFIRMED</div>
                 <div class="consensus-pos" id="consensus-pos">13.082734 N &nbsp; 80.270542 E</div>
-                <div class="consensus-acc" id="consensus-acc">Accuracy &plusmn;3.2 m &nbsp;|&nbsp; Layers 63/63</div>
+                <div class="consensus-acc" id="consensus-acc">Accuracy &plusmn;3.2 m &nbsp;|&nbsp; Layers 12/63</div>
             </div>
-
             <div class="center-sensors">
-                <div class="cs-icon" id="cs-gps" style="--c:#4CAF50">GPS</div>
-                <div class="cs-icon" id="cs-cell" style="--c:#FF9800">CELL</div>
-                <div class="cs-icon" id="cs-wifi" style="--c:#2196F3">WiFi</div>
-                <div class="cs-icon" id="cs-imu" style="--c:#9C27B0">IMU</div>
-                <div class="cs-icon" id="cs-vis" style="--c:#E91E63">VIS</div>
-                <div class="cs-icon" id="cs-acou" style="--c:#00BCD4">ACOU</div>
+                <div class="cs-icon" style="--c:#4CAF50">GPS</div><div class="cs-icon" style="--c:#FF9800">CELL</div>
+                <div class="cs-icon" style="--c:#2196F3">WiFi</div><div class="cs-icon" style="--c:#9C27B0">IMU</div>
+                <div class="cs-icon" style="--c:#E91E63">VIS</div><div class="cs-icon" style="--c:#00BCD4">ACOU</div>
             </div>
         </section>
 
-        <!-- RIGHT — Intel & Controls -->
+        <!-- ── RIGHT — Map & Controls ─────────────────────────── -->
         <section class="intel-panel">
-            <!-- Map -->
-            <div class="panel-block map-block">
-                <div class="panel-label">TACTICAL MAP</div>
-                <div id="map"></div>
-            </div>
-
-            <!-- Mission Mode -->
-            <div class="panel-block">
-                <div class="panel-label">MISSION MODE</div>
-                <div class="mode-grid">
-                    <button class="mode-btn active" onclick="setMode(this,'GHOST_RECON')" id="mode-ghost">GHOST RECON</button>
-                    <button class="mode-btn" onclick="setMode(this,'SENTINEL')" id="mode-sentinel">SENTINEL</button>
-                    <button class="mode-btn" onclick="setMode(this,'GUARDIAN')" id="mode-guardian">GUARDIAN</button>
-                    <button class="mode-btn" onclick="setMode(this,'HUNTER')" id="mode-hunter">HUNTER</button>
-                    <button class="mode-btn" onclick="setMode(this,'COVERT_ISR')" id="mode-covert">COVERT ISR</button>
-                    <button class="mode-btn" onclick="setMode(this,'RESCUE')" id="mode-rescue">RESCUE</button>
-                </div>
-                <div class="mode-rules" id="mode-rules">Emit: NO | Engage: NO | Lethal: NO | Autonomous: NEVER</div>
-            </div>
-
-            <!-- Precision Selector -->
-            <div class="panel-block">
-                <div class="panel-label">PRECISION LEVEL</div>
-                <div class="prec-bar">
-                    <button class="prec-btn" onclick="setPrecision(this,'centimetre')">&lt;10cm</button>
-                    <button class="prec-btn" onclick="setPrecision(this,'submetre')">&lt;1m</button>
-                    <button class="prec-btn active" onclick="setPrecision(this,'tactical')">1-5m</button>
-                    <button class="prec-btn" onclick="setPrecision(this,'navigation')">5-15m</button>
-                    <button class="prec-btn" onclick="setPrecision(this,'area')">15-50m</button>
-                    <button class="prec-btn" onclick="setPrecision(this,'degraded')">DENIED</button>
-                </div>
-                <div class="prec-info" id="prec-info">Tactical: GPS+VSLAM+WiFi+Cell (10 layers)</div>
-            </div>
-
-            <!-- Layer Preset -->
-            <div class="panel-block">
-                <div class="panel-label">LAYER PRESET</div>
-                <select class="preset-select" id="preset-select" onchange="loadPreset(this.value)">
-                    <optgroup label="Environment">
-                        <option value="minimal">Minimal (7)</option>
-                        <option value="urban">Urban (12)</option>
-                        <option value="rural">Rural (12)</option>
-                        <option value="maritime">Maritime (13)</option>
-                        <option value="submarine">Submarine (18)</option>
-                        <option value="aerial" selected>Aerial (12)</option>
-                        <option value="gps_denied">GPS Denied (14)</option>
-                        <option value="all">All Layers (63)</option>
-                    </optgroup>
-                    <optgroup label="Unit / Platform">
-                        <option value="unit_micro_uav">Micro UAV (4)</option>
-                        <option value="unit_small_uav">Small UAV (8)</option>
-                        <option value="unit_medium_uav">Medium UAV (13)</option>
-                        <option value="unit_large_uav">Large UAV (22)</option>
-                        <option value="unit_ground_vehicle">Ground Vehicle (17)</option>
-                        <option value="unit_naval_vessel">Naval Vessel (16)</option>
-                        <option value="unit_submarine">Submarine (20)</option>
-                        <option value="unit_soldier">Soldier (9)</option>
-                    </optgroup>
-                    <optgroup label="Mission">
-                        <option value="mission_recon">Recon (13)</option>
-                        <option value="mission_strike">Strike (11)</option>
-                        <option value="mission_casevac">CASEVAC (10)</option>
-                        <option value="mission_patrol">Patrol (13)</option>
-                        <option value="mission_covert">Covert (14)</option>
-                    </optgroup>
-                </select>
-                <div class="layer-count" id="layer-count">12 layers active</div>
-            </div>
-
-            <!-- Threat -->
-            <div class="panel-block threat-block" id="threat-block">
-                <div class="panel-label">THREAT STATUS</div>
-                <div class="threat-content" id="threat-content">
-                    <div class="threat-ok">ALL CLEAR &mdash; NO THREATS</div>
-                </div>
-            </div>
-
-            <!-- Controls -->
-            <div class="panel-block ctrl-block">
-                <div class="panel-label">DEMO CONTROLS</div>
+            <div class="panel-block map-block"><div class="panel-label">TACTICAL MAP</div><div id="map"></div></div>
+            <div class="panel-block"><div class="panel-label">THREAT STATUS</div><div id="threat-content"><div class="threat-ok">ALL CLEAR</div></div></div>
+            <div class="panel-block"><div class="panel-label">DEMO ATTACKS</div>
                 <div class="ctrl-grid">
-                    <button class="btn green" onclick="simSpoofing()">SPOOF ATTACK</button>
-                    <button class="btn amber" onclick="simJamming()">JAM ATTACK</button>
-                    <button class="btn blue" onclick="simTriangulate()">TRIANGULATE</button>
-                    <button class="btn cyan" onclick="simFlightPath()">FLIGHT PATH</button>
-                    <button class="btn magenta" onclick="simPhoneSensors()">PHONE SENSORS</button>
+                    <button class="btn green" onclick="simSpoofing()">SPOOF</button>
+                    <button class="btn amber" onclick="simJamming()">JAM</button>
+                    <button class="btn blue" onclick="simTriangulate()">LOCATE</button>
+                    <button class="btn cyan" onclick="simFlightPath()">FLIGHT</button>
                     <button class="btn grey" onclick="resetDemo()">RESET</button>
                 </div>
             </div>
-
-            <!-- Metrics -->
-            <div class="panel-block metrics-block">
-                <div class="panel-label">PERFORMANCE</div>
+            <div class="panel-block"><div class="panel-label">METRICS</div>
                 <div class="metric-row">
                     <div class="m"><span class="ml">Fusion</span><span class="mv" id="m-fusion">4.2ms</span></div>
                     <div class="m"><span class="ml">Rate</span><span class="mv" id="m-rate">2 Hz</span></div>
@@ -289,29 +233,10 @@
                     <div class="m"><span class="ml">Mode</span><span class="mv" id="m-mode">GHOST</span></div>
                 </div>
             </div>
-
-            <!-- Phone Sensor Panel (hidden by default) -->
-            <div class="panel-block" id="phone-panel" style="display:none">
-                <div class="panel-label">PHONE SENSORS (LIVE)</div>
-                <div class="sensor-grid-phone">
-                    <div class="ps"><span class="psl">GPS</span><span class="psv" id="ps-gps">--</span></div>
-                    <div class="ps"><span class="psl">Accel X</span><span class="psv" id="ps-ax">--</span></div>
-                    <div class="ps"><span class="psl">Accel Y</span><span class="psv" id="ps-ay">--</span></div>
-                    <div class="ps"><span class="psl">Accel Z</span><span class="psv" id="ps-az">--</span></div>
-                    <div class="ps"><span class="psl">Heading</span><span class="psv" id="ps-head">--</span></div>
-                    <div class="ps"><span class="psl">Gyro</span><span class="psv" id="ps-gyro">--</span></div>
-                </div>
-            </div>
         </section>
     </main>
 
-    <!-- ── Bottom Bar ─────────────────────────────────────────── -->
-    <footer class="bottom-bar">
-        <span>UPIN &mdash; Universal Positioning Intelligence Network</span>
-        <span>Patent-pending &bull; AIMCRS / Abheet Prem Manghnani</span>
-        <span id="clock"></span>
-    </footer>
-
+    <footer class="bottom-bar"><span>UPIN &mdash; Universal Positioning Intelligence Network</span><span>Patent-pending &bull; AIMCRS / Abheet Prem Manghnani</span><span id="clock"></span></footer>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="script.js"></script>
 </body>
