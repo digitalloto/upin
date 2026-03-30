@@ -166,6 +166,11 @@ class LayerManager:
           unit_micro_uav, unit_small_uav, unit_medium_uav, unit_large_uav,
           unit_heavy_uav, unit_ground_vehicle, unit_naval_vessel,
           unit_submarine, unit_soldier
+
+        **Precision presets** — what accuracy do you need?
+          precision_centimetre (<10cm), precision_submetre (<1m),
+          precision_tactical (1-5m), precision_navigation (5-15m),
+          precision_area (15-50m), precision_degraded (50-200m GPS denied)
         """
         presets = self._get_all_presets()
 
@@ -355,5 +360,33 @@ class LayerManager:
                 "gps_l1", "navic_l2", "ins_l3", "baro_l11",
                 "magano_l6", "celltower_l9", "wifi_l8",
                 "beacon_l20", "spoofmap_l21",
+            ],
+
+            # ── Precision presets (by accuracy requirement) ───────
+            "precision_centimetre": [                 # <10 cm — survey grade
+                "gps_l1", "navic_l2", "uwb_d06", "ins_l3",
+                "vslam_l31", "lidar_l33", "laserdop_l18",
+                "depthpres_b10", "qclock_l27",
+            ],
+            "precision_submetre": [                   # <1 m — precision strike
+                "gps_l1", "navic_l2", "ins_l3", "baro_l11",
+                "uwb_d06", "vslam_l31", "lidar_l33",
+                "doppler_l12", "magano_l6", "radaralt_b09",
+            ],
+            "precision_tactical": [                   # 1-5 m — tactical ops
+                "gps_l1", "navic_l2", "ins_l3", "baro_l11",
+                "vslam_l31", "magano_l6", "doppler_l12",
+                "wifi_l8", "celltower_l9", "opticflow_l43",
+            ],
+            "precision_navigation": [                 # 5-15 m — general nav
+                "gps_l1", "navic_l2", "ins_l3", "baro_l11",
+                "magano_l6", "doppler_l12", "terrain_l5",
+            ],
+            "precision_area": [                       # 15-50 m — area awareness
+                "gps_l1", "ins_l3", "baro_l11", "magano_l6",
+                "celltower_l9",
+            ],
+            "precision_degraded": _CORE_INTERNAL + [  # 50-200 m — GPS denied fallback
+                "terrain_l5", "vslam_l31", "schumann_l59",
             ],
         }
