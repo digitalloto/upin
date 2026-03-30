@@ -568,6 +568,237 @@ class TestCalibrationManager(unittest.TestCase):
         self.assertIn('device_id', status)
         self.assertIn('auto_calibration', status)
 
+
+class TestWiFiCSISensor(unittest.TestCase):
+    """Tests for WiFi CSI through-wall sensor."""
+
+    def test_sensor_init(self):
+        from upin.sensors.wifi_csi_sensor import WiFiCSISensor, WallMaterial
+        sensor = WiFiCSISensor("test", WallMaterial.DRYWALL)
+        self.assertEqual(sensor.sensor_id, "test")
+
+    def test_scan_returns_roomscan(self):
+        from upin.sensors.wifi_csi_sensor import WiFiCSISensor, WallMaterial
+        sensor = WiFiCSISensor("test", WallMaterial.DRYWALL)
+        sensor.set_position(13.08, 80.27, 0)
+        sensor.add_simulated_nodes(4)
+        scan = sensor.scan()
+        self.assertIsNotNone(scan)
+        self.assertGreaterEqual(scan.person_count, 0)
+
+    def test_stats(self):
+        from upin.sensors.wifi_csi_sensor import WiFiCSISensor, WallMaterial
+        sensor = WiFiCSISensor("test", WallMaterial.CONCRETE)
+        stats = sensor.get_stats()
+        self.assertEqual(stats["wall_material"], "concrete")
+
+
+class TestDriftCompensation(unittest.TestCase):
+    """Tests for sensor drift compensation."""
+
+    def test_compensator_init(self):
+        from upin.calibration.drift_compensation import DriftCompensator
+        comp = DriftCompensator("dev-001")
+        self.assertEqual(comp.device_id, "dev-001")
+
+    def test_add_calibration_points(self):
+        from upin.calibration.drift_compensation import DriftCompensator, SensorType
+        comp = DriftCompensator("dev-001")
+        comp.add_calibration_point(SensorType.GPS, 13.083, 13.0827, 25.0, 13.08, 80.27)
+        comp.add_calibration_point(SensorType.GPS, 13.084, 13.0827, 26.0, 13.08, 80.27)
+        bias = comp.get_bias(SensorType.GPS)
+        self.assertIsNotNone(bias)
+
+    def test_no_compensation_without_data(self):
+        from upin.calibration.drift_compensation import DriftCompensator, SensorType
+        comp = DriftCompensator("dev-001")
+        corrected, applied = comp.apply_compensation(SensorType.GPS, 13.083)
+        self.assertFalse(applied)
+
+
+class TestReferencePoints(unittest.TestCase):
+    """Tests for reference points database."""
+
+    def test_global_db_loads(self):
+        from upin.calibration.reference_points import reference_db
+        all_points = reference_db.list_all_points()
+        self.assertGreater(len(all_points), 30)
+
+    def test_nearby_search(self):
+        from upin.calibration.reference_points import reference_db
+        nearby = reference_db.find_nearby(18.922, 72.835, 500)
+        self.assertGreater(len(nearby), 0)
+
+    def test_city_points(self):
+        from upin.calibration.reference_points import reference_db
+        mumbai = reference_db.get_city_points("mumbai")
+        self.assertGreater(len(mumbai), 0)
+        paris = reference_db.get_city_points("paris")
+        self.assertGreater(len(paris), 0)
+
+
+class TestMissionRecorder(unittest.TestCase):
+    """Tests for mission data recorder."""
+
+    def test_recorder_init(self):
+        from upin.logging.mission_recorder import MissionRecorder
+        rec = MissionRecorder("M001", "D001")
+        self.assertEqual(rec.mission_id, "M001")
+
+    def test_record_events(self):
+        from upin.logging.mission_recorder import MissionRecorder
+        rec = MissionRecorder("M001", "D001")
+        rec.record_sensor_reading("GPS", 13.08, 0.95)
+        rec.record_threat_detection("SPOOFING", "HIGH", "mahalanobis", {})
+        self.assertEqual(len(rec.get_mission_timeline()), 2)
+
+    def test_mission_summary(self):
+        from upin.logging.mission_recorder import MissionRecorder
+        rec = MissionRecorder("M001", "D001")
+        rec.record_sensor_reading("GPS", 13.08, 0.95)
+        summary = rec.get_mission_summary()
+        self.assertEqual(summary["total_events"], 1)
+
+    def test_ai_export_filters_classified(self):
+        from upin.logging.mission_recorder import MissionRecorder
+        rec = MissionRecorder("M001", "D001")
+        rec.record_sensor_reading("GPS", 13.08, 0.95)
+        rec.record_jammer_triangulation(13.08, 80.27, 0.94, 5, "GPS_SPOOFER")
+        export = rec.export_for_ai_training(classification_filter=1)
+        # Jammer event is classified SECRET (level 3), should be filtered out
+        self.assertLess(len(export["events"]), 2)
+
+
+class TestFusionMicroservice(unittest.TestCase):
+    """Tests for fusion microservices."""
+
+    def test_orchestrator_init(self):
+        from upin.services.fusion_microservice import ServiceOrchestrator
+        orch = ServiceOrchestrator()
+        self.assertEqual(len(orch.services), 0)
+
+    def test_register_and_process(self):
+        from upin.services.fusion_microservice import (
+            ServiceOrchestrator, ServiceConfig, KalmanMicroservice
+        )
+        from upin.core.layer_base import LayerReading
+        from upin.core.position import Position
+        orch = ServiceOrchestrator()
+        config = ServiceConfig(
+            service_id="k1", algorithm_name="Kalman",
+            parameters={"process_noise": 0.1, "measurement_noise": 1.0, "min_readings": 1},
+        )
+        orch.register_service(config, KalmanMicroservice)
+        readings = [
+            LayerReading(layer_id="gps", position=Position(latitude=13.08, longitude=80.27, accuracy_m=5.0), self_confidence=0.9),
+        ]
+        results = orch.process_parallel(readings)
+        self.assertGreater(len(results), 0)
+
+    def test_system_health(self):
+        from upin.services.fusion_microservice import ServiceOrchestrator
+        orch = ServiceOrchestrator()
+        health = orch.get_system_health()
+        self.assertIn("total_services", health)
+
+
+class TestRestServer(unittest.TestCase):
+    """Tests for REST API server."""
+
+    def test_server_init(self):
+        from upin.api.rest_server import UPINApiServer
+        server = UPINApiServer(None, port=9999)
+        self.assertEqual(server.port, 9999)
+
+    def test_routes_listed(self):
+        from upin.api.rest_server import UPINApiServer
+        server = UPINApiServer(None)
+        routes = server.get_routes()
+        self.assertEqual(len(routes), 6)
+
+
+class TestBoundaryManager(unittest.TestCase):
+    """Tests for geofencing boundary manager."""
+
+    def test_default_boundaries_loaded(self):
+        from upin.geofencing.boundary_manager import BoundaryManager
+        mgr = BoundaryManager()
+        self.assertEqual(len(mgr.boundaries), 3)
+
+    def test_point_inside_chennai(self):
+        from upin.geofencing.boundary_manager import BoundaryManager
+        from upin.core.position import Position
+        mgr = BoundaryManager()
+        pos = Position(latitude=13.08, longitude=80.27, accuracy_m=10.0)
+        violations = mgr.check_position(pos)
+        # Chennai position is inside chennai_ops but outside mumbai_ops
+        chennai_exits = [v for v in violations
+                         if v.boundary.boundary_id == "chennai_ops" and v.violation_type.name == "EXIT"]
+        self.assertEqual(len(chennai_exits), 0)
+
+    def test_boundary_status(self):
+        from upin.geofencing.boundary_manager import BoundaryManager
+        mgr = BoundaryManager()
+        status = mgr.get_boundary_status()
+        self.assertEqual(status["total_boundaries"], 3)
+
+
+class TestPowerManager(unittest.TestCase):
+    """Tests for power management."""
+
+    def test_full_battery_all_layers(self):
+        from upin.power.power_manager import PowerManager
+        pm = PowerManager()
+        pm.update_battery_level(100.0)
+        active = pm.get_active_layers()
+        self.assertGreater(len(active), 5)
+
+    def test_emergency_battery_fewer_layers(self):
+        from upin.power.power_manager import PowerManager
+        pm = PowerManager()
+        pm.update_battery_level(3.0)
+        active = pm.get_active_layers()
+        full_pm = PowerManager()
+        full_pm.update_battery_level(100.0)
+        full_active = full_pm.get_active_layers()
+        self.assertLess(len(active), len(full_active))
+
+    def test_power_status(self):
+        from upin.power.power_manager import PowerManager
+        pm = PowerManager()
+        pm.update_battery_level(65.0)
+        status = pm.get_power_status()
+        self.assertEqual(status["power_state"], "NORMAL")
+
+
+class TestMahalanobisDetector(unittest.TestCase):
+    """Tests for Mahalanobis distance spoofing detection."""
+
+    def test_detector_init(self):
+        from upin.detection.mahalanobis_detector import MahalanobisDetector
+        det = MahalanobisDetector(sensitivity=3.0)
+        self.assertEqual(det.sensitivity, 3.0)
+
+    def test_baseline_update(self):
+        from upin.detection.mahalanobis_detector import MahalanobisDetector
+        from upin.core.layer_base import LayerReading
+        from upin.core.position import Position
+        det = MahalanobisDetector()
+        readings = [
+            LayerReading(layer_id="gps", position=Position(latitude=13.08, longitude=80.27, accuracy_m=5.0), self_confidence=0.9),
+            LayerReading(layer_id="wifi", position=Position(latitude=13.08, longitude=80.27, accuracy_m=15.0), self_confidence=0.7),
+        ]
+        det.update_baseline(readings)
+        self.assertIsNotNone(det.baseline_mean)
+        self.assertEqual(det.baseline_samples, 2)
+
+    def test_detection_summary(self):
+        from upin.detection.mahalanobis_detector import MahalanobisDetector
+        det = MahalanobisDetector()
+        summary = det.get_detection_summary()
+        self.assertIn("baseline_established", summary)
+        self.assertFalse(summary["baseline_established"])
+
 if __name__ == "__main__":
     loader = unittest.TestLoader()
     suite = loader.loadTestsFromModule(__import__(__name__))
