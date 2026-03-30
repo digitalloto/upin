@@ -1,0 +1,9 @@
+[nix]
+channel = "stable-24_05"
+
+[deployment]
+run = ["sh", "-c", "cd replit_demo && python main.py"]
+
+[[ports]]
+localPort = 5000
+externalPort = 80
