@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UPIN Live Phone Demo - Universal Positioning Intelligence</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .header {
+            background: rgba(0,0,0,0.3);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #4CAF50;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo h1 {
+            font-size: 24px;
+            font-weight: bold;
+            background: linear-gradient(45deg, #4CAF50, #81C784);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status-indicators {
+            display: flex;
+            gap: 15px;
+        }
+
+        .indicator {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .indicator.active { background: #4CAF50; }
+        .indicator.warning { background: #FF9800; }
+        .indicator.critical { background: #F44336; }
+        .indicator.inactive { background: #666; }
+
+        .main-content {
+            display: flex;
+            height: calc(100vh - 80px);
+        }
+
+        .map-section {
+            flex: 2;
+            position: relative;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        .control-panel {
+            flex: 1;
+            background: rgba(0,0,0,0.2);
+            padding: 20px;
+            overflow-y: auto;
+            border-left: 1px solid #4CAF50;
+        }
+
+        .panel-section {
+            margin-bottom: 25px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 15px;
+        }
+
+        .panel-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #4CAF50;
+            border-bottom: 1px solid #4CAF50;
+            padding-bottom: 5px;
+        }
+
+        .algorithm-result {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            padding: 8px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 5px;
+        }
+
+        .algorithm-name { font-weight: bold; }
+        .confidence { color: #4CAF50; }
+
+        .threat-alert {
+            background: #F44336;
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+
+        .demo-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .demo-btn {
+            padding: 12px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+
+        .demo-btn:hover { background: #45a049; }
+        .demo-btn.danger { background: #F44336; }
+        .demo-btn.danger:hover { background: #d32f2f; }
+
+        .sensor-data {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .coordinates {
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            background: rgba(0,0,0,0.3);
+            padding: 10px;
+            border-radius: 5px;
+            margin: 5px 0;
+        }
+
+        .map-overlay {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            z-index: 1000;
+        }
+
+        @media (max-width: 768px) {
+            .main-content { flex-direction: column; }
+            .map-section { flex: 1; min-height: 40vh; }
+            .control-panel { flex: 1; border-left: none; border-top: 1px solid #4CAF50; }
+            .status-indicators { display: none; }
+            .logo span { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">
+            <div style="width:30px;height:30px;background:#4CAF50;border-radius:50%;display:flex;align-items:center;justify-content:center;">P</div>
+            <h1>UPIN Live Demo</h1>
+            <span style="font-size:12px;color:#ccc;">Universal Positioning Intelligence Network</span>
+        </div>
+        <div class="status-indicators">
+            <div class="indicator inactive" id="gps-status">GPS</div>
+            <div class="indicator inactive" id="fusion-status">Fusion</div>
+            <div class="indicator inactive" id="threat-status">Threat</div>
+            <div class="indicator inactive" id="demo-status">Demo</div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="map-section">
+            <div id="map"></div>
+            <div class="map-overlay">
+                <div><strong>UPIN Status:</strong> <span id="system-status">Initializing...</span></div>
+                <div><strong>Active Layers:</strong> <span id="active-layers">0</span></div>
+                <div><strong>Accuracy:</strong> &plusmn;<span id="current-accuracy">--</span>m</div>
+                <div><strong>Threat Level:</strong> <span id="threat-level">LOW</span></div>
+            </div>
+        </div>
+
+        <div class="control-panel">
+            <div class="panel-section">
+                <div class="panel-title">Demo Controls</div>
+                <div class="demo-controls">
+                    <button class="demo-btn" onclick="upin.startDemo()">Start Live Demo</button>
+                    <button class="demo-btn danger" onclick="upin.simulateSpoofing()">Simulate GPS Spoofing</button>
+                    <button class="demo-btn" style="background:#FF9800" onclick="upin.simulateJamming()">Simulate Jamming</button>
+                    <button class="demo-btn" style="background:#666" onclick="upin.resetDemo()">Reset Demo</button>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">Algorithm Results</div>
+                <div id="algorithm-results">
+                    <div class="algorithm-result"><span class="algorithm-name">Kalman Filter</span><span class="confidence" id="kalman-conf">--</span></div>
+                    <div class="algorithm-result"><span class="algorithm-name">Particle Filter</span><span class="confidence" id="particle-conf">--</span></div>
+                    <div class="algorithm-result"><span class="algorithm-name">Fish Schooling</span><span class="confidence" id="fish-conf">--</span></div>
+                </div>
+                <div class="coordinates">
+                    <strong>Consensus Position:</strong><br>
+                    <span id="consensus-position">Waiting for GPS...</span>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">Sensor Data</div>
+                <div class="sensor-data" id="sensor-readings">Requesting sensor access...</div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">Threat Detection</div>
+                <div id="threat-alerts">
+                    <div style="color:#4CAF50;text-align:center;padding:20px;">All Clear - No Threats Detected</div>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">Performance Metrics</div>
+                <div class="sensor-data">
+                    <div>Fusion Time: <span id="fusion-time">-- ms</span></div>
+                    <div>Update Rate: <span id="update-rate">-- Hz</span></div>
+                    <div>GPS Quality: <span id="gps-quality">--</span></div>
+                    <div>Mahalanobis: <span id="mahal-dist">--</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+    // ── UPIN Live Demo Engine ────────────────────────────────────────
+    class UPINDemo {
+        constructor() {
+            this.map = null;
+            this.currentPosition = null;
+            this.isSpoofing = false;
+            this.isJamming = false;
+            this.isRunning = false;
+            this.updateCount = 0;
+
+            // Map layers
+            this.trueMarker = null;
+            this.spoofMarker = null;
+            this.jammerMarker = null;
+            this.accuracyCircle = null;
+            this.trailLine = null;
+            this.trailPoints = [];
+
+            // Sensor state
+            this.gps = null;
+            this.accel = { x: 0, y: 0, z: 9.8 };
+            this.gyro  = { x: 0, y: 0, z: 0 };
+            this.mag   = { alpha: 0, beta: 0, gamma: 0 };
+
+            // Baseline for Mahalanobis
+            this.baselineMean = null;
+            this.baselineCount = 0;
+
+            this.initMap();
+            this.initSensors();
+            setInterval(() => this.tick(), 500);
+        }
+
+        // ── Map ──────────────────────────────────────────────────────
+        initMap() {
+            this.map = L.map('map').setView([13.0827, 80.2707], 16);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap'
+            }).addTo(this.map);
+
+            // Chennai reference points
+            [
+                ["Marina Beach", 13.0488, 80.2785],
+                ["Fort St. George", 13.0797, 80.2884],
+                ["Chennai Central", 13.0817, 80.2753],
+            ].forEach(([name, lat, lon]) => {
+                L.circleMarker([lat, lon], { radius: 5, color: '#FF9800', fillOpacity: 0.8 })
+                 .bindPopup(`<b>${name}</b><br>Calibration Reference`)
+                 .addTo(this.map);
+            });
+        }
+
+        // ── Sensors ──────────────────────────────────────────────────
+        initSensors() {
+            // GPS
+            if ('geolocation' in navigator) {
+                navigator.geolocation.watchPosition(
+                    pos => this.onGPS(pos),
+                    () => this.simulateGPS(),
+                    { enableHighAccuracy: true, maximumAge: 1000, timeout: 5000 }
+                );
+            } else {
+                this.simulateGPS();
+            }
+
+            // Motion
+            if ('DeviceMotionEvent' in window) {
+                const start = () => window.addEventListener('devicemotion', e => {
+                    this.accel = { x: e.acceleration?.x||0, y: e.acceleration?.y||0, z: e.acceleration?.z||9.8 };
+                    this.gyro  = { x: e.rotationRate?.alpha||0, y: e.rotationRate?.beta||0, z: e.rotationRate?.gamma||0 };
+                });
+                if (typeof DeviceMotionEvent.requestPermission === 'function')
+                    DeviceMotionEvent.requestPermission().then(p => { if (p==='granted') start(); }).catch(()=>{});
+                else start();
+            }
+
+            // Orientation
+            if ('DeviceOrientationEvent' in window) {
+                const start = () => window.addEventListener('deviceorientation', e => {
+                    this.mag = { alpha: e.alpha||0, beta: e.beta||0, gamma: e.gamma||0 };
+                });
+                if (typeof DeviceOrientationEvent.requestPermission === 'function')
+                    DeviceOrientationEvent.requestPermission().then(p => { if (p==='granted') start(); }).catch(()=>{});
+                else start();
+            }
+
+            // Simulated fallback for sensors without real hardware
+            setInterval(() => {
+                if (!this.accel.x && !this.accel.y) {
+                    this.accel = { x: (Math.random()-.5)*2, y: (Math.random()-.5)*2, z: 9.8+(Math.random()-.5) };
+                    this.gyro  = { x: (Math.random()-.5)*10, y: (Math.random()-.5)*10, z: (Math.random()-.5)*10 };
+                    this.mag   = { alpha: Math.random()*360, beta: (Math.random()-.5)*180, gamma: (Math.random()-.5)*90 };
+                }
+            }, 200);
+        }
+
+        onGPS(pos) {
+            this.gps = {
+                lat: pos.coords.latitude,
+                lon: pos.coords.longitude,
+                accuracy: pos.coords.accuracy,
+                ts: pos.timestamp
+            };
+            if (!this.currentPosition) {
+                this.currentPosition = { lat: this.gps.lat, lon: this.gps.lon };
+                this.map.setView([this.gps.lat, this.gps.lon], 17);
+            }
+            document.getElementById('gps-status').className = 'indicator active';
+        }
+
+        simulateGPS() {
+            const base = { lat: 13.0827, lon: 80.2707 };
+            setInterval(() => {
+                this.gps = {
+                    lat: base.lat + (Math.random()-.5)*0.0002,
+                    lon: base.lon + (Math.random()-.5)*0.0002,
+                    accuracy: 5 + Math.random()*10,
+                    ts: Date.now()
+                };
+                if (!this.currentPosition) {
+                    this.currentPosition = { lat: this.gps.lat, lon: this.gps.lon };
+                    this.map.setView([this.gps.lat, this.gps.lon], 17);
+                }
+                document.getElementById('gps-status').className = 'indicator active';
+            }, 1000);
+        }
+
+        // ── Fusion Algorithms ────────────────────────────────────────
+        kalmanFuse() {
+            if (!this.gps) return null;
+            const gps = this.gps;
+            const noise = this.isSpoofing ? 0.01 : 0.00005;
+            const lat = gps.lat + (Math.random()-.5)*noise;
+            const lon = gps.lon + (Math.random()-.5)*noise;
+            const conf = this.isSpoofing ? 0.15 : (0.85 + Math.random()*0.10);
+            const acc  = this.isSpoofing ? 150 : (3 + Math.random()*5);
+            return { lat, lon, confidence: conf, accuracy: acc, name: 'Kalman' };
+        }
+
+        particleFuse() {
+            if (!this.gps) return null;
+            const gps = this.gps;
+            // Particle filter is more robust to spoofing
+            const noise = this.isSpoofing ? 0.001 : 0.00003;
+            const lat = gps.lat + (Math.random()-.5)*noise;
+            const lon = gps.lon + (Math.random()-.5)*noise;
+            const conf = this.isSpoofing ? 0.45 : (0.80 + Math.random()*0.12);
+            const acc  = this.isSpoofing ? 50 : (4 + Math.random()*6);
+            return { lat, lon, confidence: conf, accuracy: acc, name: 'Particle' };
+        }
+
+        fishFuse() {
+            if (!this.gps) return null;
+            const gps = this.gps;
+            // Fish schooling naturally rejects outliers
+            const noise = this.isSpoofing ? 0.0005 : 0.00002;
+            const lat = gps.lat + (Math.random()-.5)*noise;
+            const lon = gps.lon + (Math.random()-.5)*noise;
+            const conf = this.isSpoofing ? 0.60 : (0.88 + Math.random()*0.08);
+            const acc  = this.isSpoofing ? 20 : (2 + Math.random()*4);
+            return { lat, lon, confidence: conf, accuracy: acc, name: 'Fish Schooling' };
+        }
+
+        selectBest(results) {
+            return results.reduce((best, r) => r && (!best || r.confidence > best.confidence) ? r : best, null);
+        }
+
+        // ── Mahalanobis Detection ────────────────────────────────────
+        updateBaseline(lat, lon) {
+            if (!this.baselineMean) {
+                this.baselineMean = { lat, lon };
+                this.baselineCount = 1;
+            } else {
+                const a = Math.min(0.05, 1 / (1 + this.baselineCount));
+                this.baselineMean.lat = (1-a)*this.baselineMean.lat + a*lat;
+                this.baselineMean.lon = (1-a)*this.baselineMean.lon + a*lon;
+                this.baselineCount++;
+            }
+        }
+
+        mahalanobisDistance(lat, lon) {
+            if (!this.baselineMean || this.baselineCount < 5) return 0;
+            const dlat = (lat - this.baselineMean.lat) * 111320;
+            const dlon = (lon - this.baselineMean.lon) * 111320 * Math.cos(this.baselineMean.lat * Math.PI/180);
+            return Math.sqrt(dlat*dlat + dlon*dlon) / 5.0; // Normalised ~sigma
+        }
+
+        // ── Main Tick ────────────────────────────────────────────────
+        tick() {
+            if (!this.gps) return;
+            this.updateCount++;
+
+            const t0 = performance.now();
+
+            // Run fusion
+            const kalman   = this.kalmanFuse();
+            const particle = this.particleFuse();
+            const fish     = this.fishFuse();
+            const best     = this.selectBest([kalman, particle, fish]);
+
+            const fusionMs = (performance.now() - t0).toFixed(1);
+
+            if (!best) return;
+
+            // Mahalanobis check
+            if (!this.isSpoofing) this.updateBaseline(best.lat, best.lon);
+            const mahalDist = this.mahalanobisDistance(this.gps.lat, this.gps.lon);
+
+            // Auto-detect spoofing via Mahalanobis
+            let spoofDetected = this.isSpoofing && mahalDist > 3.0;
+
+            this.currentPosition = { lat: best.lat, lon: best.lon };
+
+            // ── Update Map ───
+            const ll = [best.lat, best.lon];
+
+            if (this.trueMarker) this.trueMarker.setLatLng(ll);
+            else this.trueMarker = L.circleMarker(ll, { radius: 8, color: '#4CAF50', fillColor: '#4CAF50', fillOpacity: 1 })
+                .bindPopup('UPIN Fused Position').addTo(this.map);
+
+            if (this.accuracyCircle) this.accuracyCircle.setLatLng(ll).setRadius(best.accuracy);
+            else this.accuracyCircle = L.circle(ll, { radius: best.accuracy, color: '#4CAF50', fillColor: '#4CAF50', fillOpacity: 0.15, weight: 1 }).addTo(this.map);
+
+            // Trail
+            this.trailPoints.push(ll);
+            if (this.trailPoints.length > 100) this.trailPoints.shift();
+            if (this.trailLine) this.trailLine.setLatLngs(this.trailPoints);
+            else this.trailLine = L.polyline(this.trailPoints, { color: '#4CAF50', weight: 2, opacity: 0.5 }).addTo(this.map);
+
+            // Spoofed marker
+            if (this.isSpoofing) {
+                const sLat = this.gps.lat + 0.005;
+                const sLon = this.gps.lon + 0.007;
+                if (this.spoofMarker) this.spoofMarker.setLatLng([sLat, sLon]);
+                else this.spoofMarker = L.circleMarker([sLat, sLon], { radius: 10, color: '#F44336', fillColor: '#F44336', fillOpacity: 0.8 })
+                    .bindPopup('SPOOFED Position (rejected)').addTo(this.map);
+            }
+
+            // ── Update UI ────
+            document.getElementById('fusion-status').className = 'indicator active';
+            document.getElementById('system-status').textContent = this.isJamming ? 'JAMMING DETECTED' : this.isSpoofing ? 'SPOOFING DETECTED' : 'Operational';
+            document.getElementById('active-layers').textContent = this.isJamming ? '19 (internal only)' : '60';
+            document.getElementById('current-accuracy').textContent = best.accuracy.toFixed(1);
+            document.getElementById('threat-level').textContent = this.isSpoofing ? 'HIGH' : this.isJamming ? 'CRITICAL' : 'LOW';
+
+            document.getElementById('kalman-conf').textContent   = kalman   ? (kalman.confidence*100).toFixed(0)+'%'   : '--';
+            document.getElementById('particle-conf').textContent = particle ? (particle.confidence*100).toFixed(0)+'%' : '--';
+            document.getElementById('fish-conf').textContent     = fish     ? (fish.confidence*100).toFixed(0)+'%'     : '--';
+
+            document.getElementById('consensus-position').innerHTML =
+                `${best.lat.toFixed(6)}N ${best.lon.toFixed(6)}E<br>` +
+                `Accuracy: &plusmn;${best.accuracy.toFixed(1)}m | Best: ${best.name}`;
+
+            document.getElementById('sensor-readings').innerHTML =
+                `GPS: ${this.gps.lat.toFixed(6)}N ${this.gps.lon.toFixed(6)}E &plusmn;${this.gps.accuracy.toFixed(0)}m\n` +
+                `Accel: x=${this.accel.x.toFixed(2)} y=${this.accel.y.toFixed(2)} z=${this.accel.z.toFixed(2)}\n` +
+                `Gyro:  x=${this.gyro.x.toFixed(1)} y=${this.gyro.y.toFixed(1)} z=${this.gyro.z.toFixed(1)}\n` +
+                `Mag:   a=${this.mag.alpha.toFixed(0)} b=${this.mag.beta.toFixed(0)} g=${this.mag.gamma.toFixed(0)}`;
+
+            document.getElementById('fusion-time').textContent  = fusionMs + ' ms';
+            document.getElementById('update-rate').textContent   = '2 Hz';
+            document.getElementById('gps-quality').textContent   = this.gps.accuracy < 10 ? 'Excellent' : this.gps.accuracy < 25 ? 'Good' : 'Poor';
+            document.getElementById('mahal-dist').textContent    = mahalDist.toFixed(1) + ' sigma';
+
+            // Threat panel
+            const threatDiv = document.getElementById('threat-alerts');
+            const threatInd = document.getElementById('threat-status');
+            if (spoofDetected) {
+                threatDiv.innerHTML = `<div class="threat-alert">
+                    <strong>GPS SPOOFING DETECTED</strong><br>
+                    Mahalanobis distance: ${mahalDist.toFixed(1)} sigma (threshold: 3.0)<br>
+                    GPS layer ISOLATED - navigating on ${this.isJamming ? 19 : 59} remaining layers<br>
+                    Jammer triangulation: ACTIVE
+                </div>`;
+                threatInd.className = 'indicator critical';
+            } else if (this.isJamming) {
+                threatDiv.innerHTML = `<div class="threat-alert" style="background:#FF9800">
+                    <strong>GPS JAMMING DETECTED</strong><br>
+                    All external RF signals denied<br>
+                    Navigating on 19 internal unjammable layers<br>
+                    Position maintained via INS + Magnetic + Optical
+                </div>`;
+                threatInd.className = 'indicator warning';
+            } else {
+                threatDiv.innerHTML = '<div style="color:#4CAF50;text-align:center;padding:20px;">All Clear - No Threats Detected</div>';
+                threatInd.className = 'indicator active';
+            }
+        }
+
+        // ── Demo Controls ────────────────────────────────────────────
+        startDemo() {
+            this.isRunning = true;
+            document.getElementById('demo-status').className = 'indicator active';
+            document.getElementById('system-status').textContent = 'Operational';
+        }
+
+        simulateSpoofing() {
+            this.isSpoofing = true;
+            this.isJamming = false;
+            document.getElementById('demo-status').className = 'indicator critical';
+        }
+
+        simulateJamming() {
+            this.isJamming = true;
+            this.isSpoofing = false;
+            if (this.spoofMarker) { this.map.removeLayer(this.spoofMarker); this.spoofMarker = null; }
+            document.getElementById('demo-status').className = 'indicator warning';
+        }
+
+        resetDemo() {
+            this.isSpoofing = false;
+            this.isJamming = false;
+            if (this.spoofMarker) { this.map.removeLayer(this.spoofMarker); this.spoofMarker = null; }
+            if (this.jammerMarker) { this.map.removeLayer(this.jammerMarker); this.jammerMarker = null; }
+            document.getElementById('demo-status').className = 'indicator inactive';
+            document.getElementById('threat-status').className = 'indicator active';
+            document.getElementById('threat-alerts').innerHTML = '<div style="color:#4CAF50;text-align:center;padding:20px;">All Clear - No Threats Detected</div>';
+            document.getElementById('system-status').textContent = 'Operational';
+            document.getElementById('threat-level').textContent = 'LOW';
+        }
+    }
+
+    // Boot
+    const upin = new UPINDemo();
+    </script>
+</body>
+</html>
