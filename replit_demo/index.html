@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UPIN Live Demo - Universal Positioning Intelligence</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="header">
+        <div class="logo">
+            <div class="logo-icon">P</div>
+            <div>
+                <h1>UPIN Live Demo</h1>
+                <span class="subtitle">Universal Positioning Intelligence Network</span>
+            </div>
+        </div>
+        <div class="status-indicators">
+            <div class="indicator" id="gps-status">GPS</div>
+            <div class="indicator" id="fusion-status">Fusion</div>
+            <div class="indicator" id="threat-status">Security</div>
+            <div class="indicator active" id="demo-status">Live Demo</div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="map-section">
+            <div id="map"></div>
+            <div class="map-overlay">
+                <div><strong>UPIN Status:</strong> <span id="system-status">Operational</span></div>
+                <div><strong>Active Layers:</strong> <span id="active-layers">7</span>/60</div>
+                <div><strong>Accuracy:</strong> &plusmn;<span id="current-accuracy">8.5</span>m</div>
+                <div><strong>Threat Level:</strong> <span id="threat-level" class="threat-low">LOW</span></div>
+                <div><strong>Algorithm:</strong> <span id="best-algorithm">Fish Schooling</span></div>
+            </div>
+        </div>
+
+        <div class="control-panel">
+            <div class="panel-section">
+                <div class="panel-title">Demo Controls</div>
+                <div class="demo-controls">
+                    <button class="demo-btn" onclick="startDemo()" id="start-btn">Start Live Demo</button>
+                    <button class="demo-btn danger" onclick="simulateSpoofing()" id="spoof-btn">Simulate GPS Spoofing</button>
+                    <button class="demo-btn warning" onclick="simulateJamming()" id="jam-btn">Simulate Jamming Attack</button>
+                    <button class="demo-btn" onclick="resetDemo()">Reset Demo</button>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">Multi-Algorithm Fusion</div>
+                <div id="algorithm-results">
+                    <div class="algorithm-result">
+                        <span class="algorithm-name">Kalman Filter</span>
+                        <span class="confidence" id="kalman-conf">78%</span>
+                        <span class="accuracy" id="kalman-acc">&plusmn;12.3m</span>
+                    </div>
+                    <div class="algorithm-result winner">
+                        <span class="algorithm-name">Particle Filter</span>
+                        <span class="confidence" id="particle-conf">94%</span>
+                        <span class="accuracy" id="particle-acc">&plusmn;6.8m</span>
+                    </div>
+                    <div class="algorithm-result">
+                        <span class="algorithm-name">Fish Schooling</span>
+                        <span class="confidence" id="fish-conf">89%</span>
+                        <span class="accuracy" id="fish-acc">&plusmn;8.1m</span>
+                    </div>
+                </div>
+                <div class="coordinates">
+                    <strong>Consensus Position:</strong><br>
+                    <span id="consensus-position">13.082734N 80.270542E</span>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">Live Sensor Data</div>
+                <div class="sensor-grid">
+                    <div class="sensor-item"><div class="sensor-label">GPS</div><div class="sensor-value" id="gps-value">Active</div></div>
+                    <div class="sensor-item"><div class="sensor-label">IMU</div><div class="sensor-value" id="imu-value">Stable</div></div>
+                    <div class="sensor-item"><div class="sensor-label">WiFi</div><div class="sensor-value" id="wifi-value">4 networks</div></div>
+                    <div class="sensor-item"><div class="sensor-label">Cellular</div><div class="sensor-value" id="cellular-value">Strong</div></div>
+                    <div class="sensor-item"><div class="sensor-label">Magnetometer</div><div class="sensor-value" id="mag-value">247 deg</div></div>
+                    <div class="sensor-item"><div class="sensor-label">Barometric</div><div class="sensor-value" id="baro-value">1013 hPa</div></div>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">Threat Detection</div>
+                <div id="threat-alerts">
+                    <div class="status-good">All Systems Secure<br><small>No threats detected</small></div>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">Performance Metrics</div>
+                <div class="metrics-grid">
+                    <div class="metric"><span class="metric-label">Fusion Speed</span><span class="metric-value" id="fusion-speed">4.2ms</span></div>
+                    <div class="metric"><span class="metric-label">Update Rate</span><span class="metric-value" id="update-rate">2 Hz</span></div>
+                    <div class="metric"><span class="metric-label">GPS Quality</span><span class="metric-value" id="gps-quality">Excellent</span></div>
+                    <div class="metric"><span class="metric-label">Power Usage</span><span class="metric-value" id="power-usage">Normal</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

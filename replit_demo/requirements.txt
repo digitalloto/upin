@@ -1,0 +1,4 @@
+# No external dependencies required - uses only Python stdlib
+# For production deployment with Flask, uncomment:
+# Flask==2.3.3
+# gunicorn==21.2.0
