@@ -1,0 +1,202 @@
+==============================================================================
+  UPIN — UNIVERSAL POSITIONING INTELLIGENCE NETWORK
+  Test Suite Report
+  Generated: 2026-03-30 06:00:49
+==============================================================================
+
+  Total Tests:    64
+  Passed:         64
+  Failed:         0
+  Errors:         0
+  Time:           0.50s
+  Status:         ALL PASSED
+
+------------------------------------------------------------------------------
+  Module                                         Tests   Pass   Fail   Status
+------------------------------------------------------------------------------
+  upin.calibration.calibration_manager               3      3      0     PASS
+  upin.sensors.computer_vision                       3      3      0     PASS
+  upin.vision.drone_recognition                      4      4      0     PASS
+  upin.security.encryption                           2      2      0     PASS
+  upin.intelligence.false_position                   7      7      0     PASS
+  upin.swarm_fusion.fish_schooling                   3      3      0     PASS
+  upin.core.fusion_engine                            1      1      0     PASS
+  upin.intelligence.iff_verification                 7      7      0     PASS
+  Integration (multi-module)                         2      2      0     PASS
+  upin.intelligence.jammer_triangulation             6      6      0     PASS
+  upin.layers.registry                               2      2      0     PASS
+  upin.missions.mission_modes                        8      8      0     PASS
+  upin.fusion.multi_fusion_engine                    2      2      0     PASS
+  upin.core.position                                 2      2      0     PASS
+  upin.layers (jamming)                              1      1      0     PASS
+  upin.swarm.beehive                                 3      3      0     PASS
+  upin.sensors.ai_target_lock                        4      4      0     PASS
+  upin.sensors.thermal_imaging                       3      3      0     PASS
+  upin.simulation.world                              1      1      0     PASS
+------------------------------------------------------------------------------
+  TOTAL                                             64     64      0     PASS
+
+==============================================================================
+  DETAILED RESULTS BY MODULE
+==============================================================================
+
+  TestCalibrationManager (upin.calibration.calibration_manager)
+  -------------------------------------------------------------
+    [PASS] test_calibration_manager_init
+    [PASS] test_calibration_status
+    [PASS] test_sensor_compensation
+
+  TestComputerVision (upin.sensors.computer_vision)
+  -------------------------------------------------
+    [PASS] test_classifier_always_needs_auth
+    [PASS] test_detector_runs
+    [PASS] test_structure_needs_auth
+
+  TestDroneRecognition (upin.vision.drone_recognition)
+  ----------------------------------------------------
+    [PASS] test_detection_summary
+    [PASS] test_frame_processing
+    [PASS] test_recognizer_initializes
+    [PASS] test_threat_assessment
+
+  TestEncryption (upin.security.encryption)
+  -----------------------------------------
+    [PASS] test_encryption_decryption
+    [PASS] test_security_status
+
+  TestFalsePosition (upin.intelligence.false_position)
+  ----------------------------------------------------
+    [PASS] test_audit_log_on_broadcast
+    [PASS] test_blocked_when_emissions_blocked
+    [PASS] test_blocked_without_authorisation
+    [PASS] test_broadcasts_after_authorisation
+    [PASS] test_false_position_differs_from_true
+    [PASS] test_history_tracked
+    [PASS] test_revoke_stops_broadcast
+
+  TestFishSchooling (upin.swarm_fusion.fish_schooling)
+  ----------------------------------------------------
+    [PASS] test_bad_sensor_rejection
+    [PASS] test_empty_readings
+    [PASS] test_fusion_with_readings
+
+  TestFusion (upin.core.fusion_engine)
+  ------------------------------------
+    [PASS] test_cycle_runs
+
+  TestIFFVerification (upin.intelligence.iff_verification)
+  --------------------------------------------------------
+    [PASS] test_audit_log_present
+    [PASS] test_confirmed_friendly_method
+    [PASS] test_covert_mode_suppresses_active_factors
+    [PASS] test_genuine_friendly_passes_all_seven
+    [PASS] test_history_recorded
+    [PASS] test_hostile_not_confirmed_friendly
+    [PASS] test_spoofed_transponder_detected_as_hostile
+
+  TestIntegration (Integration (multi-module))
+  --------------------------------------------
+    [PASS] test_full_pipeline
+    [PASS] test_fusion_full_cycle
+
+  TestJammerTriangulation (upin.intelligence.jammer_triangulation)
+  ----------------------------------------------------------------
+    [PASS] test_actionable_after_auth
+    [PASS] test_audit_log_exists
+    [PASS] test_history_grows
+    [PASS] test_not_actionable_without_auth
+    [PASS] test_requires_minimum_three_sensors
+    [PASS] test_triangulates_location
+
+  TestLayers (upin.layers.registry)
+  ---------------------------------
+    [PASS] test_layers_load
+    [PASS] test_layers_read
+
+  TestMissionModes (upin.missions.mission_modes)
+  ----------------------------------------------
+    [PASS] test_auth_always_required
+    [PASS] test_autonomous_always_blocked
+    [PASS] test_covert_isr_blocks_emission
+    [PASS] test_default_mode_is_ghost_recon
+    [PASS] test_ghost_recon_blocks_engagement
+    [PASS] test_hunter_allows_lethal
+    [PASS] test_mode_transitions_logged
+    [PASS] test_rescue_support_blocks_engagement
+
+  TestMultiFusion (upin.fusion.multi_fusion_engine)
+  -------------------------------------------------
+    [PASS] test_best_result_selection
+    [PASS] test_multiple_algorithms_run
+
+  TestPosition (upin.core.position)
+  ---------------------------------
+    [PASS] test_position_creation
+    [PASS] test_position_distance
+
+  TestSpoofing (upin.layers (jamming))
+  ------------------------------------
+    [PASS] test_jam_makes_invalid
+
+  TestSwarm (upin.swarm.beehive)
+  ------------------------------
+    [PASS] test_beehive_init
+    [PASS] test_formation_count
+    [PASS] test_offensive_needs_auth
+
+  TestTargetLock (upin.sensors.ai_target_lock)
+  --------------------------------------------
+    [PASS] test_acquire
+    [PASS] test_audit_trail
+    [PASS] test_max_20_targets
+    [PASS] test_no_auth_by_default
+
+  TestThermal (upin.sensors.thermal_imaging)
+  ------------------------------------------
+    [PASS] test_camera_captures
+    [PASS] test_classifier_needs_auth
+    [PASS] test_detector_finds_signatures
+
+  TestWorld (upin.simulation.world)
+  ---------------------------------
+    [PASS] test_world_creates
+
+==============================================================================
+  MODULE COVERAGE SUMMARY
+==============================================================================
+
+  Modules with unit tests:    18/27 (67%)
+  Modules without tests:      9/27
+
+    [TESTED ] upin.core.position
+    [TESTED ] upin.core.fusion_engine
+    [TESTED ] upin.core.layer_base
+    [TESTED ] upin.simulation.world
+    [TESTED ] upin.layers.registry (60 layers)
+    [TESTED ] upin.sensors.computer_vision
+    [TESTED ] upin.sensors.thermal_imaging
+    [TESTED ] upin.sensors.ai_target_lock
+    [NO TEST] upin.sensors.wifi_csi_sensor
+    [TESTED ] upin.swarm.beehive
+    [TESTED ] upin.swarm_fusion.fish_schooling
+    [TESTED ] upin.fusion.multi_fusion_engine
+    [TESTED ] upin.intelligence.jammer_triangulation
+    [TESTED ] upin.intelligence.iff_verification
+    [TESTED ] upin.intelligence.false_position
+    [TESTED ] upin.missions.mission_modes
+    [TESTED ] upin.calibration.calibration_manager
+    [NO TEST] upin.calibration.drift_compensation
+    [NO TEST] upin.calibration.reference_points
+    [TESTED ] upin.security.encryption
+    [TESTED ] upin.vision.drone_recognition
+    [NO TEST] upin.logging.mission_recorder
+    [NO TEST] upin.services.fusion_microservice
+    [NO TEST] upin.api.rest_server
+    [NO TEST] upin.geofencing.boundary_manager
+    [NO TEST] upin.power.power_manager
+    [NO TEST] upin.detection.mahalanobis_detector
+
+==============================================================================
+  UPIN Test Report Complete — 2026-03-30 06:00:49
+  Patent-pending. AIMCRS / Abheet Prem Manghnani.
+==============================================================================
