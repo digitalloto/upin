@@ -4,6 +4,104 @@ var isSpoofing = false, isJamming = false, isTriangulated = false;
 var selectedPlatform = 'air';
 var truePos = { lat: 13.082734, lon: 80.270542 };
 
+// ── Tab Switching ────────────────────────────────────────────────
+function switchTab(tab) {
+    document.querySelectorAll('.tab').forEach(function(t,i){ t.classList.remove('active'); });
+    event.target.classList.add('active');
+    document.getElementById('tab-platforms').style.display = tab==='platforms' ? '' : 'none';
+    document.getElementById('tab-layers').style.display = tab==='layers' ? '' : 'none';
+    document.getElementById('tab-intel').style.display = tab==='intel' ? '' : 'none';
+    if (tab==='layers') loadLayerBrowser();
+    if (tab==='intel') refreshIntel();
+}
+
+// ── Layer Browser ────────────────────────────────────────────────
+var allLayers = [];
+function loadLayerBrowser() {
+    fetch('/api/layers/list').then(function(r){return r.json()}).then(function(d){
+        allLayers = d.layers;
+        renderLayers(allLayers);
+    }).catch(function(){ renderLayers([]); });
+}
+function renderLayers(layers) {
+    var groups = {A:'Satellite',B:'Inertial',C:'Magnetic',D:'RF',E:'Optical',F:'Acoustic',G:'Gravity',H:'Chemical',I:'Cosmic',J:'Human',K:'Systems'};
+    var html = '';
+    var currentGroup = '';
+    layers.forEach(function(l){
+        if (l.group !== currentGroup) {
+            currentGroup = l.group;
+            html += '<div style="font-size:10px;color:var(--cyan);letter-spacing:2px;margin:10px 0 4px;font-weight:700">GROUP ' + l.group + ' — ' + (groups[l.group]||'') + '</div>';
+        }
+        html += '<div class="layer-row ' + (l.on?'on':'') + '" onclick="toggleLayer(this,\'' + l.id + '\')">';
+        html += '<div><div class="lr-name">' + l.name + '</div><div class="lr-group">' + l.id + '</div></div>';
+        html += '<div class="lr-toggle"></div></div>';
+    });
+    document.getElementById('layer-list').innerHTML = html;
+}
+function toggleLayer(el, id) {
+    el.classList.toggle('on');
+    allLayers.forEach(function(l){ if(l.id===id) l.on=!l.on; });
+    var count = allLayers.filter(function(l){return l.on}).length;
+    document.getElementById('layer-count').textContent = count + ' layers active';
+}
+function filterLayers(query) {
+    var q = query.toLowerCase();
+    var filtered = allLayers.filter(function(l){ return l.name.toLowerCase().indexOf(q)!==-1 || l.id.indexOf(q)!==-1 || l.group.toLowerCase().indexOf(q)!==-1; });
+    renderLayers(filtered);
+}
+
+// ── Intel Input ──────────────────────────────────────────────────
+var intelMarkers = [];
+function addIntel() {
+    var entry = {
+        type: document.getElementById('intel-type').value,
+        name: document.getElementById('intel-name').value || 'Unnamed',
+        description: document.getElementById('intel-desc').value,
+        lat: parseFloat(document.getElementById('intel-lat').value) || 13.085,
+        lon: parseFloat(document.getElementById('intel-lon').value) || 80.275,
+        radius_m: parseFloat(document.getElementById('intel-radius').value) || 500,
+        severity: parseFloat(document.getElementById('intel-severity').value) || 0.5
+    };
+    fetch('/api/intel/add', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(entry)})
+    .then(function(r){return r.json()})
+    .then(function(d){
+        // Add to map
+        var color = entry.type.indexOf('SPOOF')!==-1 ? '#F44336' : entry.type.indexOf('JAM')!==-1 ? '#FF9800' : entry.type.indexOf('THREAT')!==-1||entry.type.indexOf('DANGER')!==-1 ? '#F44336' : entry.type==='SAFE_ROUTE' ? '#4CAF50' : '#00BCD4';
+        var circle = L.circle([entry.lat, entry.lon], {radius: entry.radius_m, color: color, fillColor: color, fillOpacity: 0.15, weight: 1})
+            .bindPopup('<b>'+entry.type+'</b><br>'+entry.name+'<br>Radius: '+entry.radius_m+'m')
+            .addTo(map);
+        var pin = L.circleMarker([entry.lat, entry.lon], {radius: 5, color: color, fillColor: color, fillOpacity: 0.9})
+            .addTo(map);
+        intelMarkers.push({id: d.intel_id, circle: circle, pin: pin});
+        refreshIntel();
+        document.getElementById('intel-name').value = '';
+        document.getElementById('intel-desc').value = '';
+    });
+}
+function removeIntel(id) {
+    fetch('/api/intel/remove', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({intel_id:id})})
+    .then(function(){
+        intelMarkers.forEach(function(m){
+            if(m.id===id){ map.removeLayer(m.circle); map.removeLayer(m.pin); }
+        });
+        intelMarkers = intelMarkers.filter(function(m){return m.id!==id});
+        refreshIntel();
+    });
+}
+function refreshIntel() {
+    fetch('/api/intel/list').then(function(r){return r.json()}).then(function(d){
+        var html = '';
+        (d.intel||[]).forEach(function(e){
+            html += '<div class="intel-entry">';
+            html += '<div class="ie-info"><div class="ie-type">'+e.type+'</div><div class="ie-name">'+e.name+' ('+e.lat.toFixed(4)+'N '+e.lon.toFixed(4)+'E)</div></div>';
+            html += '<button class="ie-remove" onclick="removeIntel(\''+e.intel_id+'\')">X</button>';
+            html += '</div>';
+        });
+        if (!html) html = '<div style="text-align:center;color:#5a7a6a;padding:10px;font-size:11px">No intel entries — add above</div>';
+        document.getElementById('intel-entries').innerHTML = html;
+    });
+}
+
 // ── Boot ─────────────────────────────────────────────────────────
 window.addEventListener('load', function () {
     initMap();

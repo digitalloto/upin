@@ -24,11 +24,18 @@
         </div>
     </header>
 
+    <!-- ── Tab Bar ─────────────────────────────────────────────── -->
+    <div class="tab-bar">
+        <button class="tab active" onclick="switchTab('platforms')">PLATFORMS</button>
+        <button class="tab" onclick="switchTab('layers')">LAYERS</button>
+        <button class="tab" onclick="switchTab('intel')">INTEL INPUT</button>
+    </div>
+
     <!-- ── Main Grid ──────────────────────────────────────────── -->
     <main class="grid">
 
         <!-- LEFT — Platform Panels -->
-        <section class="platforms">
+        <section class="platforms" id="tab-platforms">
             <!-- Air -->
             <div class="platform-card" id="card-air" onclick="selectPlatform('air')">
                 <div class="card-corner tl"></div><div class="card-corner tr"></div>
@@ -91,6 +98,60 @@
                     <div class="sensor-icon on" data-tip="Depth">DEP</div>
                     <div class="sensor-icon on" data-tip="Magnetic">MAG</div>
                 </div>
+            </div>
+        </section>
+
+        <!-- LEFT — Layer Browser (hidden by default) -->
+        <section class="platforms" id="tab-layers" style="display:none">
+            <div class="panel-block" style="flex:1;overflow-y:auto">
+                <div class="panel-label">LAYER BROWSER — 63 LAYERS (toggle on/off)</div>
+                <div class="layer-filter">
+                    <input type="text" id="layer-search" placeholder="Search layers..." oninput="filterLayers(this.value)">
+                </div>
+                <div id="layer-list"></div>
+            </div>
+        </section>
+
+        <!-- LEFT — Intel Input (hidden by default) -->
+        <section class="platforms" id="tab-intel" style="display:none">
+            <div class="panel-block" style="flex:1;overflow-y:auto">
+                <div class="panel-label">MISSION INTELLIGENCE INPUT</div>
+
+                <div class="intel-form">
+                    <select id="intel-type" class="intel-input">
+                        <option value="SPOOFING_ZONE">Spoofing Zone</option>
+                        <option value="JAMMING_ZONE">Jamming Zone</option>
+                        <option value="THREAT_LOCATION">Threat Location</option>
+                        <option value="SAFE_ROUTE">Safe Route</option>
+                        <option value="DANGER_ROUTE">Danger Route</option>
+                        <option value="TARGET">Target</option>
+                        <option value="PATROL_ROUTE">Patrol Route</option>
+                        <option value="NO_FLY_ZONE">No-Fly Zone</option>
+                        <option value="OBSERVATION_POST">Observation Post</option>
+                        <option value="REFERENCE_POINT">Reference Point</option>
+                        <option value="SATELLITE_MAP">Satellite Map Ref</option>
+                        <option value="CUSTOM">Custom Intel</option>
+                    </select>
+                    <input type="text" id="intel-name" class="intel-input" placeholder="Name (e.g. Hormuz Spoofer)">
+                    <input type="text" id="intel-desc" class="intel-input" placeholder="Description / notes">
+                    <div class="intel-row">
+                        <input type="number" id="intel-lat" class="intel-input" placeholder="Latitude" step="0.0001" value="13.0850">
+                        <input type="number" id="intel-lon" class="intel-input" placeholder="Longitude" step="0.0001" value="80.2750">
+                    </div>
+                    <div class="intel-row">
+                        <input type="number" id="intel-radius" class="intel-input" placeholder="Radius (m)" value="500">
+                        <select id="intel-severity" class="intel-input">
+                            <option value="0.3">Low Severity</option>
+                            <option value="0.5">Medium Severity</option>
+                            <option value="0.7" selected>High Severity</option>
+                            <option value="1.0">Critical</option>
+                        </select>
+                    </div>
+                    <button class="btn green" style="width:100%" onclick="addIntel()">ADD INTELLIGENCE</button>
+                </div>
+
+                <div class="panel-label" style="margin-top:14px">ACTIVE INTEL</div>
+                <div id="intel-entries"></div>
             </div>
         </section>
 

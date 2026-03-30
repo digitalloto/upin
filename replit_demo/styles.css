@@ -23,6 +23,39 @@ body{font-family:var(--font);background:var(--bg);color:#c8d6e5;height:100vh;ove
 .status-chip.warn{border-color:var(--amber);color:var(--amber);box-shadow:var(--glow-amber)}
 .status-chip.crit{border-color:var(--red);color:var(--red);box-shadow:var(--glow-red);animation:pulse 1.2s infinite}
 
+/* ── Tab Bar ──────────────────────────────────────────────────── */
+.tab-bar{display:flex;gap:0;padding:0 8px;background:var(--panel);border-bottom:1px solid var(--border)}
+.tab{padding:8px 18px;border:none;background:transparent;color:#5a7a6a;font-size:11px;font-weight:700;letter-spacing:2px;cursor:pointer;border-bottom:2px solid transparent;transition:.3s}
+.tab:hover{color:var(--green)}
+.tab.active{color:var(--green);border-bottom-color:var(--green)}
+
+/* ── Layer Browser ────────────────────────────────────────────── */
+.layer-filter{margin-bottom:8px}
+.layer-filter input{width:100%;padding:7px 10px;background:#0d1520;border:1px solid var(--border);border-radius:4px;color:#c8d6e5;font-size:12px;outline:none}
+.layer-filter input:focus{border-color:var(--green)}
+.layer-row{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border:1px solid #111;border-radius:3px;margin:3px 0;transition:.2s;cursor:pointer}
+.layer-row:hover{border-color:var(--border)}
+.layer-row.on{border-color:var(--green);background:rgba(76,175,80,.06)}
+.layer-row .lr-name{font-size:11px;font-weight:600}
+.layer-row .lr-group{font-size:9px;color:#5a7a6a;letter-spacing:1px}
+.layer-row .lr-toggle{width:36px;height:18px;border-radius:9px;border:1px solid #333;position:relative;background:#111;transition:.3s;flex-shrink:0}
+.layer-row.on .lr-toggle{background:var(--green);border-color:var(--green)}
+.layer-row .lr-toggle::after{content:'';position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#555;transition:.3s}
+.layer-row.on .lr-toggle::after{left:20px;background:#fff}
+
+/* ── Intel Input ──────────────────────────────────────────────── */
+.intel-form{display:flex;flex-direction:column;gap:8px}
+.intel-input{width:100%;padding:7px 10px;background:#0d1520;border:1px solid var(--border);border-radius:4px;color:#c8d6e5;font-size:12px;outline:none}
+.intel-input:focus{border-color:var(--cyan)}
+.intel-row{display:flex;gap:8px}
+.intel-row .intel-input{flex:1}
+.intel-entry{display:flex;justify-content:space-between;align-items:center;padding:8px;border:1px solid var(--border);border-radius:4px;margin:4px 0;background:rgba(255,255,255,.03)}
+.intel-entry .ie-info{flex:1}
+.intel-entry .ie-type{font-size:9px;color:var(--amber);letter-spacing:1px;font-weight:700}
+.intel-entry .ie-name{font-size:12px;font-weight:600;margin-top:2px}
+.intel-entry .ie-remove{background:transparent;border:1px solid var(--red);color:var(--red);padding:3px 8px;border-radius:3px;cursor:pointer;font-size:10px;font-weight:700}
+.intel-entry .ie-remove:hover{background:rgba(244,67,54,.15)}
+
 /* ── Main 3-Column Grid ──────────────────────────────────────── */
 .grid{flex:1;display:grid;grid-template-columns:1fr 1.1fr 1fr;gap:0;overflow:hidden}
 
