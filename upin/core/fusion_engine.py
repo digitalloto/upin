@@ -941,3 +941,62 @@ class FusionEngine:
 
     # ── Extended Kalman Filter property (for direct access) ──
     ExtendedKalmanFilter = ExtendedKalmanFilter
+
+    # ── Navigation Confidence Integration ─────────────────────────
+
+    def get_position_with_confidence(self, agent_readings: list[dict]) -> dict:
+        """
+        Get fused position with navigation confidence assessment.
+
+        Returns position with confidence scoring and operational recommendations.
+        """
+        from upin.core.navigation_confidence import NavigationConfidence
+
+        if not hasattr(self, '_nav_confidence'):
+            self._nav_confidence = NavigationConfidence()
+
+        # Run a standard cycle to get position
+        if self._initialized:
+            output = self.cycle()
+            position_result = {
+                'lat': output.position.latitude,
+                'lon': output.position.longitude,
+                'accuracy_m': output.position.accuracy_m,
+                'threat_detected': output.threat_level.value >= 2,
+            }
+        else:
+            position_result = {
+                'lat': 0.0, 'lon': 0.0, 'accuracy_m': 1000.0,
+                'threat_detected': False,
+            }
+
+        # Determine active agents from readings
+        active_agents = [
+            r['agent_id'] for r in agent_readings
+            if r.get('status') == 'ACTIVE'
+        ]
+
+        # Check GPS availability
+        has_gps = any('gps' in a.lower() for a in active_agents)
+        if not has_gps and not hasattr(self, '_gps_loss_start'):
+            self._gps_loss_start = time.time()
+        elif has_gps and hasattr(self, '_gps_loss_start'):
+            delattr(self, '_gps_loss_start')
+
+        time_since_gps_loss = 0.0
+        if hasattr(self, '_gps_loss_start'):
+            time_since_gps_loss = (time.time() - self._gps_loss_start) / 60.0
+
+        confidence_summary = self._nav_confidence.get_confidence_summary(
+            active_agents=active_agents,
+            time_since_gps_loss=time_since_gps_loss,
+            mission_priority=getattr(self, 'mission_priority', 'NORMAL'),
+        )
+
+        return {
+            'position': position_result,
+            'confidence': confidence_summary,
+            'agents_active': active_agents,
+            'agents_total': len(agent_readings),
+            'timestamp': time.time(),
+        }
