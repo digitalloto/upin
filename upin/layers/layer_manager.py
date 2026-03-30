@@ -151,34 +151,35 @@ class LayerManager:
     # ── Bulk Operations ───────────────────────────────────────────
 
     def load_preset(self, preset: str) -> Tuple[int, str]:
-        """Load a preset layer configuration. Returns (count, message)."""
-        presets = {
-            "minimal": [
-                "gps_l1", "navic_l2", "ins_l3", "baro_l11",
-                "vslam_l31", "magano_l6", "doppler_l12",
-            ],
-            "urban": [
-                "gps_l1", "navic_l2", "ins_l3", "baro_l11",
-                "wifi_l8", "celltower_l9", "vslam_l31", "vio_l32",
-                "magano_l6", "doppler_l12", "uwb_d06",
-            ],
-            "maritime": [
-                "gps_l1", "navic_l2", "ins_l3", "baro_l11",
-                "sonar_l34", "focsonar_l35", "acoustic_l10",
-                "polwater_l25b", "latline_l48", "hydrowake_l37",
-                "depthpres_b10", "magano_l6",
-            ],
-            "gps_denied": [
-                "ins_l3", "baro_l11", "magano_l6", "dualqmag_l17",
-                "terrain_l5", "vslam_l31", "opticflow_l43",
-                "nmrgyro_l57", "serfgyro_l58", "gravgrad_l28a",
-                "muon_l40", "schumann_l59",
-            ],
-            "all": list(ALL_LAYER_CLASSES.keys()),
-        }
+        """Load a preset layer configuration.
+
+        Presets are organised in three categories:
+
+        **Environment presets** — where is the unit operating?
+          minimal, urban, rural, maritime, submarine, aerial, gps_denied, all
+
+        **Mission presets** — what is the mission?
+          mission_recon, mission_strike, mission_casevac, mission_patrol,
+          mission_covert
+
+        **Unit presets** — what hardware is the UPIN mounted on?
+          unit_micro_uav, unit_small_uav, unit_medium_uav, unit_large_uav,
+          unit_heavy_uav, unit_ground_vehicle, unit_naval_vessel,
+          unit_submarine, unit_soldier
+        """
+        presets = self._get_all_presets()
 
         if preset not in presets:
-            return 0, f"Unknown preset. Options: {', '.join(presets.keys())}"
+            cats: Dict[str, List[str]] = {}
+            for k in sorted(presets):
+                if k.startswith("mission_"):
+                    cats.setdefault("mission", []).append(k)
+                elif k.startswith("unit_"):
+                    cats.setdefault("unit", []).append(k)
+                else:
+                    cats.setdefault("environment", []).append(k)
+            lines = [f"  {c}: {', '.join(v)}" for c, v in cats.items()]
+            return 0, "Unknown preset. Available:\n" + "\n".join(lines)
 
         # Clear current layers
         self._active_layers.clear()
@@ -241,3 +242,118 @@ class LayerManager:
             timestamp=time.time(), action=action,
             layer_id=layer_id, detail=detail,
         ))
+
+    # ── Preset Definitions ────────────────────────────────────────
+
+    def _get_all_presets(self) -> Dict[str, List[str]]:
+        """Return the complete preset catalogue."""
+
+        # ── Shared building blocks ────────────────────────────────
+        _CORE_GPS = ["gps_l1", "navic_l2", "ins_l3", "baro_l11"]
+        _CORE_INTERNAL = [                           # unjammable
+            "ins_l3", "baro_l11", "magano_l6", "dualqmag_l17",
+            "opticflow_l43", "nmrgyro_l57", "serfgyro_l58",
+            "gravgrad_l28a", "muon_l40",
+        ]
+        _RF_URBAN = ["wifi_l8", "celltower_l9", "uwb_d06", "lora_d07"]
+        _OPTICAL = ["vslam_l31", "vio_l32", "lidar_l33", "terrain_l5"]
+        _ACOUSTIC_WATER = ["acoustic_l10", "sonar_l34", "focsonar_l35"]
+        _MAG_FULL = ["magano_l6", "dualqmag_l17", "magmap_l23",
+                     "nvdiamond_l30", "efield_c07"]
+
+        return {
+            # ── Environment presets ───────────────────────────────
+            "minimal": [
+                "gps_l1", "navic_l2", "ins_l3", "baro_l11",
+                "vslam_l31", "magano_l6", "doppler_l12",
+            ],
+            "urban": _CORE_GPS + _RF_URBAN + [
+                "vslam_l31", "vio_l32", "magano_l6", "doppler_l12",
+            ],
+            "rural": _CORE_GPS + [
+                "magano_l6", "terrain_l5", "eloran_l41", "lora_d07",
+                "opticflow_l43", "doppler_l12", "polsky_l25a",
+                "monarch_e10",
+            ],
+            "maritime": _CORE_GPS + _ACOUSTIC_WATER + [
+                "polwater_l25b", "latline_l48", "hydrowake_l37",
+                "depthpres_b10", "magano_l6", "tern_k05",
+            ],
+            "submarine": _CORE_INTERNAL + _ACOUSTIC_WATER + [
+                "depthpres_b10", "latline_l48", "hydrowake_l37",
+                "polwater_l25b", "chemgrad_l26", "efield_c07",
+            ],
+            "aerial": _CORE_GPS + [
+                "doppler_l12", "radaralt_b09", "baro_l11",
+                "magano_l6", "opticflow_l43", "startrack_l4",
+                "polsky_l25a", "vslam_l31", "monarch_e10",
+            ],
+            "gps_denied": _CORE_INTERNAL + [
+                "terrain_l5", "vslam_l31", "schumann_l59",
+                "tern_k05", "monarch_e10",
+            ],
+            "all": list(ALL_LAYER_CLASSES.keys()),
+
+            # ── Mission presets ───────────────────────────────────
+            "mission_recon": _CORE_GPS + _OPTICAL + [
+                "magano_l6", "thermal_l38", "hyperspec_l39",
+                "opticflow_l43", "tern_k05",
+            ],
+            "mission_strike": _CORE_GPS + [
+                "doppler_l12", "laserdop_l18", "vslam_l31",
+                "magano_l6", "rfanomaly_l16", "tern_k05",
+                "radaralt_b09",
+            ],
+            "mission_casevac": _CORE_GPS + [
+                "doppler_l12", "radaralt_b09", "vslam_l31",
+                "beacon_l20", "radius_l22", "magano_l6",
+            ],
+            "mission_patrol": _CORE_GPS + _RF_URBAN + [
+                "vslam_l31", "magano_l6", "doppler_l12",
+                "rfanomaly_l16", "spoofmap_l21",
+            ],
+            "mission_covert": _CORE_INTERNAL + [
+                "terrain_l5", "vslam_l31", "polsky_l25a",
+                "monarch_e10", "tern_k05",
+            ],
+
+            # ── Unit presets (by hardware platform) ───────────────
+            "unit_micro_uav": [                      # <1.5 kg
+                "ins_l3", "baro_l11", "magano_l6", "opticflow_l43",
+            ],
+            "unit_small_uav": [                      # 1.5-25 kg
+                "gps_l1", "navic_l2", "ins_l3", "baro_l11",
+                "magano_l6", "opticflow_l43", "vslam_l31",
+                "wifi_l8",
+            ],
+            "unit_medium_uav": _CORE_GPS + [         # 25-150 kg
+                "magano_l6", "vslam_l31", "wifi_l8", "celltower_l9",
+                "uwb_d06", "doppler_l12", "radaralt_b09",
+                "opticflow_l43", "rfanomaly_l16",
+            ],
+            "unit_large_uav": _CORE_GPS + _OPTICAL + _MAG_FULL + [ # 150-600 kg
+                "doppler_l12", "laserdop_l18", "radaralt_b09",
+                "wifi_l8", "celltower_l9", "uwb_d06",
+                "thermal_l38", "rfanomaly_l16", "tern_k05",
+            ],
+            "unit_heavy_uav": list(ALL_LAYER_CLASSES.keys()),  # >600 kg — all layers
+            "unit_ground_vehicle": _CORE_GPS + _RF_URBAN + _OPTICAL + [
+                "magano_l6", "doppler_l12", "seismic_l36",
+                "tactile_l45", "odometer_l60",
+            ],
+            "unit_naval_vessel": _CORE_GPS + _ACOUSTIC_WATER + [
+                "magano_l6", "dualqmag_l17", "polwater_l25b",
+                "latline_l48", "hydrowake_l37", "depthpres_b10",
+                "eloran_l41", "soop_l42", "tern_k05",
+            ],
+            "unit_submarine": _CORE_INTERNAL + _ACOUSTIC_WATER + [
+                "depthpres_b10", "latline_l48", "hydrowake_l37",
+                "polwater_l25b", "chemgrad_l26", "efield_c07",
+                "gravimeter_l28b", "seismic_l36",
+            ],
+            "unit_soldier": [                        # Dismounted infantry
+                "gps_l1", "navic_l2", "ins_l3", "baro_l11",
+                "magano_l6", "celltower_l9", "wifi_l8",
+                "beacon_l20", "spoofmap_l21",
+            ],
+        }
