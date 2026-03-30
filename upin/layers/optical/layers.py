@@ -885,3 +885,62 @@ class HyperspectralLayer(NavigationLayer):
 
     def set_simulated_position(self, lat: float, lon: float, alt: float = 10.0):
         pass
+
+
+class MonarchSunCompassLayer(NavigationLayer):
+    """Sun compass heading — inspired by Monarch butterfly migration.
+
+    Monarchs use a time-compensated sun compass: they combine the sun's
+    azimuth with an internal circadian clock to maintain a constant
+    heading across 4000 km of migration.  This layer measures solar
+    azimuth + time-of-day to derive true heading.
+    """
+
+    def __init__(self):
+        super().__init__(
+            layer_id="monarch_e10",
+            layer_number=66,
+            name="Monarch Sun Compass",
+            group=LayerGroup.E_OPTICAL_VISION,
+            capabilities=[LayerCapability.HEADING],
+            is_novel=True,
+            bio_inspiration="Monarch butterfly time-compensated sun compass",
+            description="Solar azimuth + circadian clock heading estimation",
+        )
+
+    def initialize(self) -> bool:
+        self.status.is_active = True
+        self.status.is_healthy = True
+        return True
+
+    def get_accuracy_rating(self) -> float:
+        return 0.50
+
+    def read(self) -> LayerReading:
+        import math as _math
+        # Simulate sun azimuth based on time of day (simplified)
+        hour = (time.time() % 86400) / 3600  # 0-24
+        sun_azimuth = (hour - 6) * 15.0  # rough: 15 deg/hr from 6am
+        sun_azimuth = sun_azimuth % 360.0
+
+        if self.world is not None:
+            true_heading = getattr(self.world, "true_heading", 45.0)
+            noise = np.random.normal(0, 5.0)
+            heading = (true_heading + noise) % 360.0
+            return LayerReading(
+                layer_id=self.layer_id, heading=heading,
+                self_confidence=0.60,
+                raw_data={"sun_azimuth": sun_azimuth, "hour_utc": hour, "heading_deg": heading},
+            )
+
+        if self._simulated:
+            heading = (getattr(self, "_sim_heading", 45.0) + np.random.normal(0, 5.0)) % 360.0
+            return LayerReading(
+                layer_id=self.layer_id, heading=heading,
+                self_confidence=0.60,
+                raw_data={"sun_azimuth": sun_azimuth, "hour_utc": hour, "heading_deg": heading},
+            )
+        raise NotImplementedError
+
+    def set_simulated_position(self, lat: float, lon: float, alt: float = 10.0):
+        self._sim_heading = 45.0

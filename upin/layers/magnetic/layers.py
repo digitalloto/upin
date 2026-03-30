@@ -644,3 +644,52 @@ class BiocoordinateGeoChemMagLayer(NavigationLayer):
     def set_simulated_position(self, lat: float, lon: float, alt: float = 10.0):
         self._sim_lat = lat
         self._sim_lon = lon
+
+
+class ElectricFieldSensingLayer(NavigationLayer):
+    """Electric field gradient sensing — inspired by electric eel electrolocation.
+
+    Detects ambient electric field distortions caused by geological structures,
+    power lines, and subsurface conductivity variations.
+    Bio-inspired by Electrophorus electricus passive electrolocation.
+    """
+
+    def __init__(self):
+        super().__init__(
+            layer_id="efield_c07",
+            layer_number=65,
+            name="Electric Field Gradient Sensing",
+            group=LayerGroup.C_MAGNETIC_QUANTUM,
+            capabilities=[LayerCapability.POSITION],
+            is_novel=True,
+            bio_inspiration="Electric eel passive electrolocation",
+            description="Ambient electric field gradient navigation",
+        )
+
+    def initialize(self) -> bool:
+        self.status.is_active = True
+        self.status.is_healthy = True
+        return True
+
+    def get_accuracy_rating(self) -> float:
+        return 0.35
+
+    def read(self) -> LayerReading:
+        noise_m = 40.0
+        if self.world is not None:
+            lat = self.world.true_lat + np.random.normal(0, noise_m / 111_000)
+            lon = self.world.true_lon + np.random.normal(0, noise_m / 111_000)
+            pos = Position(latitude=lat, longitude=lon, altitude=0, accuracy_m=noise_m, timestamp=time.time())
+            return LayerReading(layer_id=self.layer_id, position=pos, self_confidence=0.45,
+                raw_data={"field_mv_m": 50 + np.random.normal(0, 5), "gradient_deg": np.random.uniform(0, 360)})
+        if self._simulated:
+            lat = getattr(self, "_sim_lat", 13.0827) + np.random.normal(0, noise_m / 111_000)
+            lon = getattr(self, "_sim_lon", 80.2707) + np.random.normal(0, noise_m / 111_000)
+            pos = Position(latitude=lat, longitude=lon, altitude=0, accuracy_m=noise_m, timestamp=time.time())
+            return LayerReading(layer_id=self.layer_id, position=pos, self_confidence=0.45,
+                raw_data={"field_mv_m": 50.0, "gradient_deg": 180.0})
+        raise NotImplementedError
+
+    def set_simulated_position(self, lat: float, lon: float, alt: float = 10.0):
+        self._sim_lat = lat
+        self._sim_lon = lon

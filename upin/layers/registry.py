@@ -26,6 +26,7 @@ from upin.layers.magnetic.layers import (
     MagneticAnomalyLayer, DualQuantumMagnetometerLayer,
     MagneticMapMatchingLayer, EMInductionLayer,
     NVDiamondMagnetometerLayer, BiocoordinateGeoChemMagLayer,
+    ElectricFieldSensingLayer,
 )
 # Group D — RF & Terrestrial
 from upin.layers.rf.layers import (
@@ -37,6 +38,7 @@ from upin.layers.optical.layers import (
     StarTrackingLayer, TerrainMatchingLayer, PolarisedSkyLayer,
     UnderwaterPolarisedLayer, VisualSLAMLayer, VisualOdometryLayer,
     LiDARSLAMLayer, ThermalIRLayer, HyperspectralLayer,
+    MonarchSunCompassLayer,
 )
 # Group F — Acoustic
 from upin.layers.acoustic.layers import (
@@ -66,10 +68,11 @@ from upin.layers.human.layers import (
 from upin.layers.systems.layers import (
     AntennaStabilisationLayer, CascadePreventionLayer,
     SwarmRelativePositionLayer, RFAnomalyDetectionLayer,
+    ArcticTernMultiCueLayer,
 )
 
 
-# Complete mapping of all 60 layers
+# Complete mapping of all 63 layers
 ALL_LAYER_CLASSES: dict[str, type[NavigationLayer]] = {
     # Group A — Satellite & Celestial (6)
     "gps_l1": GPSLayer,
@@ -96,6 +99,7 @@ ALL_LAYER_CLASSES: dict[str, type[NavigationLayer]] = {
     "eminduct_l24": EMInductionLayer,
     "nvdiamond_l30": NVDiamondMagnetometerLayer,
     "bicoord_l44": BiocoordinateGeoChemMagLayer,
+    "efield_c07": ElectricFieldSensingLayer,
     # Group D — RF & Terrestrial (5)
     "groundrf_l7": GroundEmitterLayer,
     "wifi_l8": WiFiMilitaryNavLayer,
@@ -114,6 +118,7 @@ ALL_LAYER_CLASSES: dict[str, type[NavigationLayer]] = {
     "lidar_l33": LiDARSLAMLayer,
     "thermal_l38": ThermalIRLayer,
     "hyperspec_l39": HyperspectralLayer,
+    "monarch_e10": MonarchSunCompassLayer,
     # Group F — Acoustic (3)
     "acoustic_l10": PassiveAcousticLayer,
     "sonar_l34": ActiveSonarLayer,
@@ -142,6 +147,7 @@ ALL_LAYER_CLASSES: dict[str, type[NavigationLayer]] = {
     "cascade_l14": CascadePreventionLayer,
     "swarmrel_l15": SwarmRelativePositionLayer,
     "rfanomaly_l16": RFAnomalyDetectionLayer,
+    "tern_k05": ArcticTernMultiCueLayer,
 }
 
 
