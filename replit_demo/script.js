@@ -223,6 +223,185 @@ function clearMarkers() {
     if (jamMarker) { map.removeLayer(jamMarker); jamMarker = null; }
 }
 
+// ── Mission Mode ─────────────────────────────────────────────────
+var currentMode = 'GHOST_RECON';
+var modeRules = {
+    GHOST_RECON: 'Emit: NO | Engage: NO | Lethal: NO | Autonomous: NEVER',
+    SENTINEL:    'Emit: YES | Engage: NO | Lethal: NO | Autonomous: NEVER',
+    GUARDIAN:    'Emit: YES | Engage: YES | Lethal: NO | Autonomous: NEVER',
+    HUNTER:      'Emit: YES | Engage: YES | Lethal: YES | Autonomous: NEVER',
+    COVERT_ISR:  'Emit: NO | Engage: NO | Lethal: NO | Autonomous: NEVER',
+    RESCUE:      'Emit: YES | Engage: NO | Lethal: NO | Autonomous: NEVER'
+};
+
+function setMode(btn, mode) {
+    currentMode = mode;
+    document.querySelectorAll('.mode-btn').forEach(function(b){ b.classList.remove('active'); });
+    btn.classList.add('active');
+    document.getElementById('mode-rules').textContent = modeRules[mode];
+    document.getElementById('m-mode').textContent = mode.split('_')[0];
+    document.getElementById('chip-mode').textContent = mode.replace('_',' ');
+}
+
+// ── Precision Selector ───────────────────────────────────────────
+var precisionInfo = {
+    centimetre:  'Survey: UWB+LiDAR+VSLAM+LaserDoppler (9 layers)',
+    submetre:    'Precision: GPS+UWB+LiDAR+VSLAM (10 layers)',
+    tactical:    'Tactical: GPS+VSLAM+WiFi+Cell (10 layers)',
+    navigation:  'Navigation: GPS+INS+Terrain (7 layers)',
+    area:        'Area: GPS+INS+Cell (5 layers)',
+    degraded:    'GPS Denied: INS+Mag+Gravity+Muon (12 layers)'
+};
+
+function setPrecision(btn, level) {
+    document.querySelectorAll('.prec-btn').forEach(function(b){ b.classList.remove('active'); });
+    btn.classList.add('active');
+    document.getElementById('prec-info').textContent = precisionInfo[level];
+}
+
+// ── Layer Preset ─────────────────────────────────────────────────
+var presetCounts = {
+    minimal:7, urban:12, rural:12, maritime:13, submarine:18, aerial:12,
+    gps_denied:14, all:63,
+    unit_micro_uav:4, unit_small_uav:8, unit_medium_uav:13, unit_large_uav:22,
+    unit_ground_vehicle:17, unit_naval_vessel:16, unit_submarine:20, unit_soldier:9,
+    mission_recon:13, mission_strike:11, mission_casevac:10, mission_patrol:13, mission_covert:14
+};
+
+function loadPreset(name) {
+    var count = presetCounts[name] || '?';
+    document.getElementById('layer-count').textContent = count + ' layers active';
+    // Update the consensus display
+    document.getElementById('consensus-acc').textContent =
+        'Accuracy \u00b1' + (3 + Math.random()*5).toFixed(1) + ' m  |  Layers ' + count + '/63';
+}
+
+// ── Flight Path ──────────────────────────────────────────────────
+var flightPathLine = null;
+var flightWaypoints = [];
+var flightAnimIdx = 0;
+var flightInterval = null;
+
+function simFlightPath() {
+    if (flightPathLine) {
+        // Toggle off
+        map.removeLayer(flightPathLine);
+        flightWaypoints.forEach(function(m){ map.removeLayer(m); });
+        flightPathLine = null;
+        flightWaypoints = [];
+        if (flightInterval) clearInterval(flightInterval);
+        return;
+    }
+
+    // Define waypoints around Chennai
+    var waypoints = [
+        [13.0827, 80.2707],  // Start
+        [13.0860, 80.2740],  // WP1
+        [13.0890, 80.2700],  // WP2
+        [13.0870, 80.2650],  // WP3
+        [13.0840, 80.2680],  // WP4
+        [13.0827, 80.2707]   // Return to start
+    ];
+
+    // Draw planned path
+    flightPathLine = L.polyline(waypoints, {
+        color: '#00BCD4', weight: 2, dashArray: '8 4', opacity: 0.8
+    }).addTo(map);
+
+    // Add waypoint markers
+    waypoints.forEach(function(wp, i) {
+        var label = i === 0 ? 'START' : i === waypoints.length-1 ? 'RTB' : 'WP' + i;
+        var color = i === 0 ? '#4CAF50' : i === waypoints.length-1 ? '#FF9800' : '#00BCD4';
+        var m = L.circleMarker(wp, {
+            radius: 5, color: color, fillColor: color, fillOpacity: 0.9
+        }).bindPopup('<b>' + label + '</b><br>' + wp[0].toFixed(4) + 'N ' + wp[1].toFixed(4) + 'E')
+          .addTo(map);
+        flightWaypoints.push(m);
+    });
+
+    // Animate position along path
+    flightAnimIdx = 0;
+    var totalSteps = waypoints.length * 20;
+    flightInterval = setInterval(function() {
+        flightAnimIdx++;
+        if (flightAnimIdx >= totalSteps) flightAnimIdx = 0;
+
+        var segIdx = Math.floor(flightAnimIdx / 20);
+        var segProg = (flightAnimIdx % 20) / 20;
+        var from = waypoints[segIdx % waypoints.length];
+        var to = waypoints[(segIdx + 1) % waypoints.length];
+
+        truePos.lat = from[0] + (to[0] - from[0]) * segProg;
+        truePos.lon = from[1] + (to[1] - from[1]) * segProg;
+    }, 200);
+
+    map.fitBounds(flightPathLine.getBounds().pad(0.2));
+}
+
+// ── Phone Sensors ────────────────────────────────────────────────
+var phoneActive = false;
+
+function simPhoneSensors() {
+    phoneActive = !phoneActive;
+    document.getElementById('phone-panel').style.display = phoneActive ? 'block' : 'none';
+
+    if (phoneActive && 'geolocation' in navigator) {
+        navigator.geolocation.watchPosition(function(pos) {
+            document.getElementById('ps-gps').textContent =
+                pos.coords.latitude.toFixed(5) + ' ' + pos.coords.longitude.toFixed(5);
+            truePos.lat = pos.coords.latitude;
+            truePos.lon = pos.coords.longitude;
+            map.setView([truePos.lat, truePos.lon], 16);
+        }, function(){
+            document.getElementById('ps-gps').textContent = 'Denied';
+        }, { enableHighAccuracy: true });
+    }
+
+    if (phoneActive && 'DeviceMotionEvent' in window) {
+        var startMotion = function() {
+            window.addEventListener('devicemotion', function(e) {
+                var a = e.acceleration || {};
+                document.getElementById('ps-ax').textContent = (a.x||0).toFixed(2);
+                document.getElementById('ps-ay').textContent = (a.y||0).toFixed(2);
+                document.getElementById('ps-az').textContent = (a.z||0).toFixed(2);
+                if (e.rotationRate) {
+                    document.getElementById('ps-gyro').textContent = (e.rotationRate.alpha||0).toFixed(1);
+                }
+            });
+        };
+        if (typeof DeviceMotionEvent.requestPermission === 'function') {
+            DeviceMotionEvent.requestPermission().then(function(p){ if(p==='granted') startMotion(); });
+        } else { startMotion(); }
+    }
+
+    if (phoneActive && 'DeviceOrientationEvent' in window) {
+        var startOrient = function() {
+            window.addEventListener('deviceorientation', function(e) {
+                document.getElementById('ps-head').textContent = (e.alpha||0).toFixed(0) + ' deg';
+            });
+        };
+        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+            DeviceOrientationEvent.requestPermission().then(function(p){ if(p==='granted') startOrient(); });
+        } else { startOrient(); }
+    }
+
+    // Simulated fallback for desktop
+    if (phoneActive) {
+        setInterval(function() {
+            if (document.getElementById('ps-ax').textContent === '--') {
+                document.getElementById('ps-ax').textContent = ((Math.random()-.5)*2).toFixed(2);
+                document.getElementById('ps-ay').textContent = ((Math.random()-.5)*2).toFixed(2);
+                document.getElementById('ps-az').textContent = (9.8+(Math.random()-.5)).toFixed(2);
+                document.getElementById('ps-head').textContent = Math.round(Math.random()*360) + ' deg';
+                document.getElementById('ps-gyro').textContent = ((Math.random()-.5)*10).toFixed(1);
+                if (document.getElementById('ps-gps').textContent === '--') {
+                    document.getElementById('ps-gps').textContent = truePos.lat.toFixed(5) + ' ' + truePos.lon.toFixed(5);
+                }
+            }
+        }, 500);
+    }
+}
+
 // ── Clock ────────────────────────────────────────────────────────
 function updateClock() {
     var now = new Date();

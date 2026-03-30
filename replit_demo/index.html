@@ -134,6 +134,69 @@
                 <div id="map"></div>
             </div>
 
+            <!-- Mission Mode -->
+            <div class="panel-block">
+                <div class="panel-label">MISSION MODE</div>
+                <div class="mode-grid">
+                    <button class="mode-btn active" onclick="setMode(this,'GHOST_RECON')" id="mode-ghost">GHOST RECON</button>
+                    <button class="mode-btn" onclick="setMode(this,'SENTINEL')" id="mode-sentinel">SENTINEL</button>
+                    <button class="mode-btn" onclick="setMode(this,'GUARDIAN')" id="mode-guardian">GUARDIAN</button>
+                    <button class="mode-btn" onclick="setMode(this,'HUNTER')" id="mode-hunter">HUNTER</button>
+                    <button class="mode-btn" onclick="setMode(this,'COVERT_ISR')" id="mode-covert">COVERT ISR</button>
+                    <button class="mode-btn" onclick="setMode(this,'RESCUE')" id="mode-rescue">RESCUE</button>
+                </div>
+                <div class="mode-rules" id="mode-rules">Emit: NO | Engage: NO | Lethal: NO | Autonomous: NEVER</div>
+            </div>
+
+            <!-- Precision Selector -->
+            <div class="panel-block">
+                <div class="panel-label">PRECISION LEVEL</div>
+                <div class="prec-bar">
+                    <button class="prec-btn" onclick="setPrecision(this,'centimetre')">&lt;10cm</button>
+                    <button class="prec-btn" onclick="setPrecision(this,'submetre')">&lt;1m</button>
+                    <button class="prec-btn active" onclick="setPrecision(this,'tactical')">1-5m</button>
+                    <button class="prec-btn" onclick="setPrecision(this,'navigation')">5-15m</button>
+                    <button class="prec-btn" onclick="setPrecision(this,'area')">15-50m</button>
+                    <button class="prec-btn" onclick="setPrecision(this,'degraded')">DENIED</button>
+                </div>
+                <div class="prec-info" id="prec-info">Tactical: GPS+VSLAM+WiFi+Cell (10 layers)</div>
+            </div>
+
+            <!-- Layer Preset -->
+            <div class="panel-block">
+                <div class="panel-label">LAYER PRESET</div>
+                <select class="preset-select" id="preset-select" onchange="loadPreset(this.value)">
+                    <optgroup label="Environment">
+                        <option value="minimal">Minimal (7)</option>
+                        <option value="urban">Urban (12)</option>
+                        <option value="rural">Rural (12)</option>
+                        <option value="maritime">Maritime (13)</option>
+                        <option value="submarine">Submarine (18)</option>
+                        <option value="aerial" selected>Aerial (12)</option>
+                        <option value="gps_denied">GPS Denied (14)</option>
+                        <option value="all">All Layers (63)</option>
+                    </optgroup>
+                    <optgroup label="Unit / Platform">
+                        <option value="unit_micro_uav">Micro UAV (4)</option>
+                        <option value="unit_small_uav">Small UAV (8)</option>
+                        <option value="unit_medium_uav">Medium UAV (13)</option>
+                        <option value="unit_large_uav">Large UAV (22)</option>
+                        <option value="unit_ground_vehicle">Ground Vehicle (17)</option>
+                        <option value="unit_naval_vessel">Naval Vessel (16)</option>
+                        <option value="unit_submarine">Submarine (20)</option>
+                        <option value="unit_soldier">Soldier (9)</option>
+                    </optgroup>
+                    <optgroup label="Mission">
+                        <option value="mission_recon">Recon (13)</option>
+                        <option value="mission_strike">Strike (11)</option>
+                        <option value="mission_casevac">CASEVAC (10)</option>
+                        <option value="mission_patrol">Patrol (13)</option>
+                        <option value="mission_covert">Covert (14)</option>
+                    </optgroup>
+                </select>
+                <div class="layer-count" id="layer-count">12 layers active</div>
+            </div>
+
             <!-- Threat -->
             <div class="panel-block threat-block" id="threat-block">
                 <div class="panel-label">THREAT STATUS</div>
@@ -149,6 +212,8 @@
                     <button class="btn green" onclick="simSpoofing()">SPOOF ATTACK</button>
                     <button class="btn amber" onclick="simJamming()">JAM ATTACK</button>
                     <button class="btn blue" onclick="simTriangulate()">TRIANGULATE</button>
+                    <button class="btn cyan" onclick="simFlightPath()">FLIGHT PATH</button>
+                    <button class="btn magenta" onclick="simPhoneSensors()">PHONE SENSORS</button>
                     <button class="btn grey" onclick="resetDemo()">RESET</button>
                 </div>
             </div>
@@ -160,7 +225,20 @@
                     <div class="m"><span class="ml">Fusion</span><span class="mv" id="m-fusion">4.2ms</span></div>
                     <div class="m"><span class="ml">Rate</span><span class="mv" id="m-rate">2 Hz</span></div>
                     <div class="m"><span class="ml">Power</span><span class="mv" id="m-power">NORM</span></div>
-                    <div class="m"><span class="ml">Mode</span><span class="mv" id="m-mode">SENTINEL</span></div>
+                    <div class="m"><span class="ml">Mode</span><span class="mv" id="m-mode">GHOST</span></div>
+                </div>
+            </div>
+
+            <!-- Phone Sensor Panel (hidden by default) -->
+            <div class="panel-block" id="phone-panel" style="display:none">
+                <div class="panel-label">PHONE SENSORS (LIVE)</div>
+                <div class="sensor-grid-phone">
+                    <div class="ps"><span class="psl">GPS</span><span class="psv" id="ps-gps">--</span></div>
+                    <div class="ps"><span class="psl">Accel X</span><span class="psv" id="ps-ax">--</span></div>
+                    <div class="ps"><span class="psl">Accel Y</span><span class="psv" id="ps-ay">--</span></div>
+                    <div class="ps"><span class="psl">Accel Z</span><span class="psv" id="ps-az">--</span></div>
+                    <div class="ps"><span class="psl">Heading</span><span class="psv" id="ps-head">--</span></div>
+                    <div class="ps"><span class="psl">Gyro</span><span class="psv" id="ps-gyro">--</span></div>
                 </div>
             </div>
         </section>

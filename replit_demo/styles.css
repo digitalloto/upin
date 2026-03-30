@@ -122,6 +122,40 @@ body{font-family:var(--font);background:var(--bg);color:#c8d6e5;height:100vh;ove
 /* ── Animations ───────────────────────────────────────────────── */
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 
+/* ── Mission Mode Grid ────────────────────────────────────────── */
+.mode-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:6px}
+.mode-btn{padding:6px;border:1px solid #1a3a2a;border-radius:3px;font-size:10px;font-weight:700;letter-spacing:1px;cursor:pointer;background:transparent;color:#5a7a6a;transition:.3s}
+.mode-btn:hover{border-color:var(--green);color:var(--green)}
+.mode-btn.active{border-color:var(--green);color:var(--green);background:rgba(76,175,80,.12);box-shadow:var(--glow-green)}
+.mode-rules{font-size:10px;color:#5a8a6a;text-align:center;padding:4px;border:1px solid #1a2a1a;border-radius:3px;font-family:'Courier New',monospace;letter-spacing:.5px}
+
+/* ── Precision Bar ────────────────────────────────────────────── */
+.prec-bar{display:flex;gap:4px;margin-bottom:6px}
+.prec-btn{flex:1;padding:5px 2px;border:1px solid #1a3a2a;border-radius:3px;font-size:9px;font-weight:700;letter-spacing:.5px;cursor:pointer;background:transparent;color:#5a7a6a;transition:.3s;text-align:center}
+.prec-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+.prec-btn.active{border-color:var(--cyan);color:var(--cyan);background:rgba(0,188,212,.12);box-shadow:var(--glow-cyan)}
+.prec-info{font-size:10px;color:#5a8a7a;text-align:center;padding:3px}
+
+/* ── Preset Select ────────────────────────────────────────────── */
+.preset-select{width:100%;padding:8px;background:#0d1520;border:1px solid var(--border);border-radius:4px;color:var(--green);font-size:12px;font-weight:600;cursor:pointer;outline:none;margin-bottom:4px}
+.preset-select:focus{border-color:var(--green);box-shadow:var(--glow-green)}
+.preset-select optgroup{color:#aaa;font-weight:700}
+.preset-select option{background:#0d1520;color:#c8d6e5}
+.layer-count{font-size:10px;color:#5a8a6a;text-align:center}
+
+/* ── Flight Path ──────────────────────────────────────────────── */
+.flight-path{stroke:var(--cyan);stroke-width:2;stroke-dasharray:8 4;fill:none}
+
+/* ── Phone Sensors ────────────────────────────────────────────── */
+.sensor-grid-phone{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.ps{text-align:center;padding:5px;border:1px solid #1a2a1a;border-radius:3px}
+.psl{display:block;font-size:9px;color:#5a7a6a;letter-spacing:1px}
+.psv{display:block;font-size:12px;font-weight:700;color:var(--cyan);margin-top:2px;font-family:'Courier New',monospace}
+
+/* ── Extra Buttons ────────────────────────────────────────────── */
+.btn.cyan{border-color:var(--cyan);color:var(--cyan)}.btn.cyan:hover{background:rgba(0,188,212,.15);box-shadow:var(--glow-cyan)}
+.btn.magenta{border-color:#E91E63;color:#E91E63}.btn.magenta:hover{background:rgba(233,30,99,.15);box-shadow:0 0 12px rgba(233,30,99,.3)}
+
 /* ── Responsive ───────────────────────────────────────────────── */
 @media(max-width:900px){
   .grid{grid-template-columns:1fr;grid-template-rows:auto 1fr auto}
