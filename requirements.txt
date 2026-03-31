@@ -1,0 +1,15 @@
+# UPIN — Universal Positioning Intelligence Network
+# Core dependencies (required)
+numpy>=1.24.0
+scipy>=1.10.0
+
+# Real sensor APIs (optional — UPIN works without these via simulation)
+requests>=2.28.0
+plyer>=2.1.0
+
+# Machine learning (optional — numpy fallback used when not installed)
+# torch>=2.0.0
+
+# Development
+# pytest>=7.0
+# pytest-asyncio>=0.21
