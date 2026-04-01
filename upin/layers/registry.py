@@ -70,9 +70,14 @@ from upin.layers.systems.layers import (
     SwarmRelativePositionLayer, RFAnomalyDetectionLayer,
     ArcticTernMultiCueLayer,
 )
+# Group L — Biological Predator-Prey
+from upin.layers.biological.layers import (
+    WolfPackCoordinationLayer, OwlSilentApproachLayer,
+    SalmonHomingLayer, EagleThermalVisionLayer,
+)
 
 
-# Complete mapping of all 63 layers
+# Complete mapping of all 67 layers
 ALL_LAYER_CLASSES: dict[str, type[NavigationLayer]] = {
     # Group A — Satellite & Celestial (6)
     "gps_l1": GPSLayer,
@@ -148,6 +153,11 @@ ALL_LAYER_CLASSES: dict[str, type[NavigationLayer]] = {
     "swarmrel_l15": SwarmRelativePositionLayer,
     "rfanomaly_l16": RFAnomalyDetectionLayer,
     "tern_k05": ArcticTernMultiCueLayer,
+    # Group L — Biological Predator-Prey (4)
+    "wolf_k06": WolfPackCoordinationLayer,
+    "owl_e11": OwlSilentApproachLayer,
+    "salmon_h08": SalmonHomingLayer,
+    "eagle_e12": EagleThermalVisionLayer,
 }
 
 
