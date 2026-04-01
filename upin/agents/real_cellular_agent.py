@@ -73,7 +73,7 @@ class RealCellularPositioningAgent(BaseAgent):
                  opencellid_key: Optional[str] = None):
         super().__init__(agent_id, "CELLULAR_REAL")
         self.status = "ACTIVE"
-        self._api_key = opencellid_key or os.environ.get("OPENCELLID_KEY", "")
+        self._api_key = opencellid_key or os.environ.get("OPENCELLID_KEY", "pk.e3891cf93763ba8e2a235fb5d87d5383")
         self._last_scan: List[CellTower] = []
         self._last_position: Optional[CellPosition] = None
         self._cache_ttl_s = 15.0
