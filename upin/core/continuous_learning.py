@@ -1,16 +1,20 @@
 """
 Continuous Background Learning — UPIN
 
-Every layer secretly predicts ahead while GPS is active, then checks
-against reality. Wrong predictions trigger auto-tuning. By the time
-GPS is jammed, every layer has already been training on YOUR device.
+ALL 67 layers, ALL 10 fusion algorithms, ALL financial indicators,
+ALL unconventional math — every component continuously validates and
+tunes itself against GPS/NavIC ground truth.
+
+Not just phone sensors. Every single formula, layer, algorithm, and
+strategy predicts ahead, checks against reality, and auto-tunes.
 
 Components:
-1. Background Validator — 30s predict-then-check cycle for all layers
-2. Sensor Auto-Calibrator — learns your phone's specific biases
-3. Fish School Grid Search — 6 schools with different parameters compete
-4. User Profile — saves learned parameters across sessions
-5. Continuous Tuning — every GPS tick is a learning opportunity
+1. Background Validator — predict-then-check for ANY predictor
+2. Sensor Auto-Calibrator — learns device-specific biases
+3. Fish School Grid Search — 6 parameter sets compete
+4. User Profile — saves everything across sessions
+5. Universal Layer Trainer — wraps ALL layers for continuous tuning
+6. Algorithm Tournament — ALL fusion algorithms compete in real-time
 
 Patent-pending. AIMCRS / Abheet Prem Manghnani.
 """
@@ -538,4 +542,272 @@ class ContinuousLearningEngine:
             "validation": self.validator.get_stats(),
             "fish_schools": self.fish_schools.get_stats(),
             "profile_sessions": self.profile.data.get("sessions", 0),
+        }
+
+
+# ══════════════════════════════════════════════════════════════════
+#  6. UNIVERSAL LAYER TRAINER — trains ALL 67 layers continuously
+# ══════════════════════════════════════════════════════════════════
+
+class LayerPerformanceTracker:
+    """Tracks one layer's prediction accuracy over time."""
+
+    def __init__(self, layer_id: str, layer_name: str):
+        self.layer_id = layer_id
+        self.layer_name = layer_name
+        self.errors: deque = deque(maxlen=200)
+        self.weight = 1.0
+        self.total_validations = 0
+        self.best_error = float("inf")
+        self.tuning_params: Dict[str, float] = {}
+
+    def record_error(self, error_m: float):
+        self.errors.append(error_m)
+        self.total_validations += 1
+        if error_m < self.best_error:
+            self.best_error = error_m
+
+    def avg_error(self) -> float:
+        return float(np.mean(self.errors)) if self.errors else 999.0
+
+    def recent_error(self, n: int = 10) -> float:
+        recent = list(self.errors)[-n:]
+        return float(np.mean(recent)) if recent else 999.0
+
+    def is_improving(self) -> bool:
+        if len(self.errors) < 20:
+            return False
+        first_half = list(self.errors)[:len(self.errors) // 2]
+        second_half = list(self.errors)[len(self.errors) // 2:]
+        return np.mean(second_half) < np.mean(first_half)
+
+    def to_dict(self) -> Dict:
+        return {
+            "layer_id": self.layer_id,
+            "name": self.layer_name,
+            "weight": round(self.weight, 3),
+            "avg_error_m": round(self.avg_error(), 2),
+            "recent_error_m": round(self.recent_error(), 2),
+            "best_error_m": round(self.best_error, 2),
+            "validations": self.total_validations,
+            "improving": self.is_improving(),
+        }
+
+
+class UniversalLayerTrainer:
+    """
+    Wraps ALL 67 navigation layers and trains them continuously.
+
+    Every validation cycle:
+    1. Each layer predicts where we'll be in 30 seconds
+    2. Compare predictions to actual GPS/NavIC position
+    3. Rank layers by accuracy
+    4. Adjust weights — best layers get more influence
+    5. Layers that are consistently bad get downweighted automatically
+
+    This works for satellite layers, inertial, magnetic, RF, optical,
+    acoustic, gravity, chemical, cosmic, human, AND systems layers.
+    """
+
+    def __init__(self):
+        self._trackers: Dict[str, LayerPerformanceTracker] = {}
+        self._validation_interval_s = 30.0
+        self._last_validation = 0.0
+        self._total_cycles = 0
+
+    def register_layer(self, layer_id: str, layer_name: str):
+        """Register a layer for continuous training."""
+        if layer_id not in self._trackers:
+            self._trackers[layer_id] = LayerPerformanceTracker(layer_id, layer_name)
+
+    def register_all_layers(self):
+        """Register all 67 UPIN layers."""
+        try:
+            from upin.layers.registry import ALL_LAYER_CLASSES
+            for lid, cls in ALL_LAYER_CLASSES.items():
+                inst = cls()
+                self.register_layer(lid, inst.name)
+        except ImportError:
+            pass
+
+    def validate_predictions(
+        self,
+        layer_predictions: Dict[str, Tuple[float, float]],
+        actual_lat: float,
+        actual_lon: float,
+    ) -> Dict:
+        """
+        Compare ALL layer predictions against ground truth.
+        Returns ranked results with weight adjustments.
+        """
+        self._total_cycles += 1
+        results = {}
+
+        for layer_id, (pred_lat, pred_lon) in layer_predictions.items():
+            if layer_id not in self._trackers:
+                self.register_layer(layer_id, layer_id)
+
+            dlat = (pred_lat - actual_lat) * 111320
+            dlon = (pred_lon - actual_lon) * 111320 * math.cos(math.radians(actual_lat))
+            error_m = math.sqrt(dlat ** 2 + dlon ** 2)
+
+            self._trackers[layer_id].record_error(error_m)
+            results[layer_id] = round(error_m, 2)
+
+        # Update weights — rank by recent error
+        self._update_weights()
+
+        return {
+            "cycle": self._total_cycles,
+            "errors": results,
+            "rankings": self.get_rankings()[:10],  # Top 10
+        }
+
+    def _update_weights(self):
+        """Auto-adjust weights: best layers get 2.0, worst get 0.3."""
+        if not self._trackers:
+            return
+
+        ranked = sorted(self._trackers.values(), key=lambda t: t.recent_error())
+        n = len(ranked)
+
+        for rank, tracker in enumerate(ranked):
+            # Linear weight from 2.0 (best) to 0.3 (worst)
+            tracker.weight = max(0.3, 2.0 - (rank / max(n - 1, 1)) * 1.7)
+
+    def get_rankings(self) -> List[Dict]:
+        """Get all layers ranked by recent error."""
+        ranked = sorted(self._trackers.values(), key=lambda t: t.recent_error())
+        return [t.to_dict() for t in ranked]
+
+    def get_weights(self) -> Dict[str, float]:
+        """Get current weight for each layer (for fusion engine)."""
+        return {lid: t.weight for lid, t in self._trackers.items()}
+
+    def get_best_layers(self, top_n: int = 10) -> List[str]:
+        """Get IDs of the best-performing layers."""
+        ranked = sorted(self._trackers.values(), key=lambda t: t.recent_error())
+        return [t.layer_id for t in ranked[:top_n]]
+
+    def get_stats(self) -> Dict:
+        return {
+            "total_layers": len(self._trackers),
+            "total_cycles": self._total_cycles,
+            "layers_improving": sum(1 for t in self._trackers.values() if t.is_improving()),
+            "best_layer": self.get_rankings()[0] if self._trackers else None,
+        }
+
+
+# ══════════════════════════════════════════════════════════════════
+#  7. ALGORITHM TOURNAMENT — ALL fusion algorithms compete
+# ══════════════════════════════════════════════════════════════════
+
+class AlgorithmTournament:
+    """
+    ALL 10 fusion algorithms + financial indicators + unconventional math
+    compete in real-time. Each predicts independently, results are scored.
+
+    Algorithms:
+    - Kalman, Particle, Least Squares, UKF, Covariance Intersection
+    - Dempster-Shafer, Ant Colony, Fish Schooling
+    - IAEKF, CNN-GRU
+    - Financial: Trend, Smooth, MACD, Bollinger, Adaptive
+    - Unconventional: Fourier, Markov, Bezier
+
+    Winner weights are fed back to the master optimizer.
+    """
+
+    def __init__(self):
+        self._competitors: Dict[str, Dict] = {}
+        self._total_rounds = 0
+
+    def register_competitor(self, name: str, category: str = "algorithm"):
+        """Register an algorithm/strategy/math for the tournament."""
+        if name not in self._competitors:
+            self._competitors[name] = {
+                "name": name,
+                "category": category,
+                "errors": deque(maxlen=100),
+                "weight": 1.0,
+                "wins": 0,
+                "rounds": 0,
+            }
+
+    def score_round(
+        self,
+        predictions: Dict[str, Tuple[float, float]],
+        actual_lat: float,
+        actual_lon: float,
+    ) -> Dict:
+        """Score one round of the tournament."""
+        self._total_rounds += 1
+        round_errors = {}
+
+        for name, (pred_lat, pred_lon) in predictions.items():
+            if name not in self._competitors:
+                self.register_competitor(name)
+
+            dlat = (pred_lat - actual_lat) * 111320
+            dlon = (pred_lon - actual_lon) * 111320 * math.cos(math.radians(actual_lat))
+            error = math.sqrt(dlat ** 2 + dlon ** 2)
+
+            self._competitors[name]["errors"].append(error)
+            self._competitors[name]["rounds"] += 1
+            round_errors[name] = round(error, 2)
+
+        # Find round winner
+        if round_errors:
+            winner = min(round_errors, key=round_errors.get)
+            self._competitors[winner]["wins"] += 1
+
+        # Update weights
+        self._update_tournament_weights()
+
+        return {
+            "round": self._total_rounds,
+            "errors": round_errors,
+            "winner": winner if round_errors else None,
+            "leaderboard": self.get_leaderboard()[:5],
+        }
+
+    def _update_tournament_weights(self):
+        """Update weights based on cumulative performance."""
+        if not self._competitors:
+            return
+
+        ranked = sorted(
+            self._competitors.values(),
+            key=lambda c: float(np.mean(c["errors"])) if c["errors"] else 999,
+        )
+        n = len(ranked)
+        for rank, comp in enumerate(ranked):
+            comp["weight"] = max(0.2, 2.0 - (rank / max(n - 1, 1)) * 1.8)
+
+    def get_leaderboard(self) -> List[Dict]:
+        """Get full tournament leaderboard."""
+        ranked = sorted(
+            self._competitors.values(),
+            key=lambda c: float(np.mean(c["errors"])) if c["errors"] else 999,
+        )
+        return [{
+            "name": c["name"],
+            "category": c["category"],
+            "weight": round(c["weight"], 3),
+            "avg_error_m": round(float(np.mean(c["errors"])), 2) if c["errors"] else None,
+            "wins": c["wins"],
+            "rounds": c["rounds"],
+            "win_rate": round(c["wins"] / max(c["rounds"], 1), 3),
+        } for c in ranked]
+
+    def get_optimal_weights(self) -> Dict[str, float]:
+        """Get tournament-optimized weights for the master optimizer."""
+        return {name: comp["weight"] for name, comp in self._competitors.items()}
+
+    def get_stats(self) -> Dict:
+        lb = self.get_leaderboard()
+        return {
+            "total_competitors": len(self._competitors),
+            "total_rounds": self._total_rounds,
+            "champion": lb[0]["name"] if lb else None,
+            "categories": list(set(c["category"] for c in self._competitors.values())),
         }
