@@ -15,6 +15,9 @@ from upin.layers.satellite.layers import (
     GPSLayer, NavICLayer, LEOAuthenticatedLayer,
     XRayPulsarLayer, StellarConstellationLayer, DiffuseSkyLayer,
 )
+from upin.layers.satellite.missing_constellations import (
+    GLONASSLayer, GalileoLayer, BeiDouLayer, QZSSLayer, BluetoothAoALayer,
+)
 # Group B — Inertial & Timing
 from upin.layers.inertial.layers import (
     INSDeadReckoningLayer, BarometricAltitudeLayer, DopplerVelocityLayer,
@@ -77,7 +80,7 @@ from upin.layers.biological.layers import (
 )
 
 
-# Complete mapping of all 67 layers
+# Complete mapping of all 73 layers
 ALL_LAYER_CLASSES: dict[str, type[NavigationLayer]] = {
     # Group A — Satellite & Celestial (6)
     "gps_l1": GPSLayer,
@@ -86,6 +89,10 @@ ALL_LAYER_CLASSES: dict[str, type[NavigationLayer]] = {
     "xnav_l29": XRayPulsarLayer,
     "stellar_l46": StellarConstellationLayer,
     "skygrad_l47": DiffuseSkyLayer,
+    "glonass_a07": GLONASSLayer,
+    "galileo_a08": GalileoLayer,
+    "beidou_a09": BeiDouLayer,
+    "qzss_a10": QZSSLayer,
     # Group B — Inertial & Timing (8)
     "ins_l3": INSDeadReckoningLayer,
     "baro_l11": BarometricAltitudeLayer,
@@ -113,6 +120,7 @@ ALL_LAYER_CLASSES: dict[str, type[NavigationLayer]] = {
     "soop_l42": CommercialSOOPLayer,
     "uwb_d06": UWBPositioningLayer,
     "lora_d07": LoRaWANNodeLayer,
+    "bluetooth_d08": BluetoothAoALayer,
     # Group E — Optical & Vision (9)
     "startrack_l4": StarTrackingLayer,
     "terrain_l5": TerrainMatchingLayer,
