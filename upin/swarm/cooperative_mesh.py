@@ -385,6 +385,124 @@ class CooperativeMeshPositioning:
         mr = max_range.get(self.ranging_method, 50)
         return max(0.1, 1.0 - distance_m / mr)
 
+    # ── Mesh Movement Tracking ────────────────────────────────────
+
+    def track_mesh_movement(self) -> Optional[Dict]:
+        """
+        Track how the entire mesh is moving over time.
+        Even without GPS, the mesh knows its own velocity and heading
+        from how peer distances change between ticks.
+
+        If the mesh had a GPS fix 10 minutes ago, this tells you
+        where the mesh is NOW based on how it's been moving since.
+        """
+        if len(self._position_history) < 2:
+            return None
+
+        recent = list(self._position_history)[-10:]
+        if len(recent) < 2:
+            return None
+
+        # Calculate velocity from position history
+        dt_total = 0.0
+        d_lat_total = 0.0
+        d_lon_total = 0.0
+
+        for i in range(1, len(recent)):
+            prev = recent[i - 1]
+            curr = recent[i]
+            if not prev or not curr:
+                continue
+
+            d_lat_total += curr["lat"] - prev["lat"]
+            d_lon_total += curr["lon"] - prev["lon"]
+            dt_total += 1.0  # Approximate 1s between fixes
+
+        if dt_total == 0:
+            return None
+
+        vel_lat = d_lat_total / dt_total  # degrees per second
+        vel_lon = d_lon_total / dt_total
+        speed_mps = math.sqrt((vel_lat * 111320) ** 2 +
+                               (vel_lon * 111320 * math.cos(math.radians(recent[-1]["lat"]))) ** 2)
+        heading = math.degrees(math.atan2(vel_lon, vel_lat)) % 360
+
+        return {
+            "vel_lat_dps": vel_lat,
+            "vel_lon_dps": vel_lon,
+            "speed_mps": round(speed_mps, 2),
+            "heading_deg": round(heading, 1),
+            "samples": len(recent),
+            "mesh_is_moving": speed_mps > 0.5,
+        }
+
+    def predict_mesh_position(self, seconds_ahead: float) -> Optional[Dict]:
+        """
+        Predict where the mesh will be in N seconds based on its
+        current velocity. This is how the mesh never loses position —
+        even if the last GPS fix was 10 minutes ago.
+        """
+        movement = self.track_mesh_movement()
+        if not movement or not self._own_device.position:
+            return None
+
+        current = self._own_device.position
+        pred_lat = current[0] + movement["vel_lat_dps"] * seconds_ahead
+        pred_lon = current[1] + movement["vel_lon_dps"] * seconds_ahead
+
+        # Confidence degrades with time since last absolute fix
+        time_since_fix = 0.0
+        if self._own_device.position_source == "gps":
+            time_since_fix = 0  # Fresh fix
+        elif self._position_history:
+            time_since_fix = seconds_ahead  # Predicting ahead
+
+        # Drift model: ~2m per minute of dead reckoning
+        drift_m = time_since_fix / 60.0 * 2.0
+        accuracy = self._mesh_accuracy_m + drift_m
+        confidence = max(0.1, movement.get("speed_mps", 0) > 0.1 and
+                         min(0.9, 1.0 - time_since_fix / 600.0) or 0.3)
+
+        return {
+            "lat": round(pred_lat, 8),
+            "lon": round(pred_lon, 8),
+            "accuracy_m": round(accuracy, 2),
+            "confidence": round(float(confidence), 3),
+            "seconds_ahead": seconds_ahead,
+            "speed_mps": movement["speed_mps"],
+            "heading_deg": movement["heading_deg"],
+            "drift_added_m": round(drift_m, 2),
+            "source": "mesh_prediction",
+        }
+
+    def continuous_position(self) -> Dict:
+        """
+        Get best available position — mesh fix if peers available,
+        prediction from movement if not. NEVER returns nothing
+        as long as we had at least one fix ever.
+        """
+        # Try fresh mesh fix first
+        mesh_pos = self.calculate_position()
+        if mesh_pos and mesh_pos["confidence"] > 0.3:
+            return mesh_pos
+
+        # Fall back to movement prediction
+        prediction = self.predict_mesh_position(seconds_ahead=0)
+        if prediction:
+            return prediction
+
+        # Last resort: last known position
+        if self._own_device.position:
+            return {
+                "lat": self._own_device.position[0],
+                "lon": self._own_device.position[1],
+                "accuracy_m": self._mesh_accuracy_m + 50,  # Degraded
+                "confidence": 0.15,
+                "source": "last_known",
+            }
+
+        return {"confidence": 0.0, "source": "no_position"}
+
     # ── UPIN Integration ──────────────────────────────────────────
 
     def get_upin_reading(self) -> Dict:
