@@ -304,16 +304,34 @@ class StrapdownINS:
         self.state.timestamp = time.time()
 
         # ── Step 9: Zero-velocity update (ZUPT) ──────────────────
+        # FIXED: Much stricter ZUPT — only fire when TRULY stationary
+        # Walking has accel_std ~0.3-1.0, stationary has <0.02
 
         self._accel_window.append(np.linalg.norm(accel_body))
-        if len(self._accel_window) >= 20:
+        if len(self._accel_window) >= 50:  # Need 50 samples (0.5s at 100Hz)
             accel_std = np.std(list(self._accel_window))
-            if accel_std < 0.05:  # Very stable → stationary
+            accel_mean = np.mean(list(self._accel_window))
+            # Only ZUPT if acceleration is very stable AND near gravity
+            if accel_std < 0.02 and abs(accel_mean - g) < 0.1:
                 self._apply_zupt()
 
-        # ── Step 10: Track drift ──────────────────────────────────
+        # ── Step 10: Schuler damping ──────────────────────────────
+        # The Schuler oscillation (84.4 min period) causes INS errors
+        # to oscillate rather than diverge. Apply light damping.
+        schuler_freq = 2 * math.pi / SCHULER_PERIOD
+        damping = 0.001  # Light damping factor
+        self._velocity[0] *= (1.0 - damping * dt)
+        self._velocity[1] *= (1.0 - damping * dt)
 
+        # ── Step 11: Velocity magnitude check ─────────────────────
+        # Prevent velocity from growing unrealistically (sanity check)
         speed = math.sqrt(self._velocity[0]**2 + self._velocity[1]**2)
+        max_speed = 500.0  # 500 m/s max (Mach 1.5 for aircraft)
+        if speed > max_speed:
+            self._velocity[:2] *= max_speed / speed
+
+        # ── Step 12: Track drift ──────────────────────────────────
+
         self._drift_estimate_m += abs(speed) * dt * 0.001  # ~0.1% of distance
 
         # Store history
@@ -381,4 +399,52 @@ class StrapdownINS:
                 "east": round(self.state.velocity_east, 3),
                 "down": round(self.state.velocity_down, 3),
             },
+        }
+
+
+# ── UPIN Navigation Layer Wrapper ─────────────────────────────────
+
+class GlobusINSReading:
+    """
+    Wraps StrapdownINS as a UPIN-compatible position source.
+    Named after the Soviet Globus mechanical navigation computer.
+
+    Feed it accelerometer + gyroscope readings every tick.
+    It produces lat/lon/heading using pure physics — no GPS needed.
+    """
+
+    def __init__(self, initial_lat: float = 13.0827, initial_lon: float = 80.2707,
+                 initial_heading: float = 0.0):
+        self.ins = StrapdownINS(initial_lat, initial_lon, 10.0, initial_heading)
+        self._last_update = time.time()
+
+    def update_sensors(self, accel: Tuple[float, float, float],
+                        gyro: Tuple[float, float, float]) -> Dict:
+        """Feed raw sensor data, get UPIN-compatible position back."""
+        now = time.time()
+        dt = min(0.1, now - self._last_update)  # Cap at 100ms
+        self._last_update = now
+
+        self.ins.update(accel, gyro, dt)
+        return self.ins.get_position()
+
+    def correct_from_gps(self, lat: float, lon: float):
+        """Apply GPS correction when available."""
+        self.ins.correct_position(lat, lon, "gps")
+
+    def get_layer_reading(self) -> Dict:
+        """Get position in standard UPIN layer format."""
+        pos = self.ins.get_position()
+        return {
+            "layer_id": "globus_ins",
+            "layer_name": "Globus Strapdown INS",
+            "lat": pos["lat"],
+            "lon": pos["lon"],
+            "accuracy_m": pos["accuracy_m"],
+            "confidence": pos["confidence"],
+            "heading_deg": pos["heading_deg"],
+            "speed_mps": pos["speed_mps"],
+            "source": "pure_physics",
+            "bio_inspiration": "Soviet Globus mechanical navigation computer",
+            "zupt_corrections": pos["zupt_corrections"],
         }
