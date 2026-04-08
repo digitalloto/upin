@@ -47,6 +47,90 @@ G_POLE = 9.8321849378           # Gravity at pole (m/s²)
 SCHULER_PERIOD = 84.4 * 60      # Schuler oscillation period (seconds)
 
 
+# ── Hardware Grade Profiles ───────────────────────────────────────
+
+class IMUGrade:
+    """
+    Hardware grade profiles. The SAME math runs on all —
+    only the noise parameters change.
+    """
+
+    PROFILES = {
+        "phone_mems": {
+            "name": "Phone MEMS (MPU-6050 class)",
+            "gyro_drift_deg_hr": 10.0,
+            "accel_bias_mg": 10.0,
+            "gyro_noise_deg_rt_hr": 0.3,
+            "accel_noise_ug_rt_hz": 400.0,
+            "position_drift_m_per_s": 1.5,
+            "zupt_threshold": 0.08,
+            "cost_usd": 2,
+        },
+        "consumer": {
+            "name": "Consumer IMU (BMI160 class)",
+            "gyro_drift_deg_hr": 3.0,
+            "accel_bias_mg": 3.0,
+            "gyro_noise_deg_rt_hr": 0.1,
+            "accel_noise_ug_rt_hz": 180.0,
+            "position_drift_m_per_s": 0.5,
+            "zupt_threshold": 0.04,
+            "cost_usd": 20,
+        },
+        "tactical": {
+            "name": "Tactical Grade (STIM300 class)",
+            "gyro_drift_deg_hr": 0.5,
+            "accel_bias_mg": 0.5,
+            "gyro_noise_deg_rt_hr": 0.015,
+            "accel_noise_ug_rt_hz": 50.0,
+            "position_drift_m_per_s": 0.03,
+            "zupt_threshold": 0.01,
+            "cost_usd": 5000,
+        },
+        "navigation": {
+            "name": "Navigation Grade (HG1700 class)",
+            "gyro_drift_deg_hr": 0.01,
+            "accel_bias_mg": 0.025,
+            "gyro_noise_deg_rt_hr": 0.003,
+            "accel_noise_ug_rt_hz": 10.0,
+            "position_drift_m_per_s": 0.0005,  # ~1.8 m/hour = ~1 nm/hour
+            "zupt_threshold": 0.002,
+            "cost_usd": 50000,
+        },
+        "strategic": {
+            "name": "Strategic Grade (submarine/ICBM class)",
+            "gyro_drift_deg_hr": 0.001,
+            "accel_bias_mg": 0.005,
+            "gyro_noise_deg_rt_hr": 0.001,
+            "accel_noise_ug_rt_hz": 3.0,
+            "position_drift_m_per_s": 0.00005,  # ~0.18 m/hour
+            "zupt_threshold": 0.0005,
+            "cost_usd": 500000,
+        },
+    }
+
+    @staticmethod
+    def get_profile(grade: str) -> Dict:
+        return IMUGrade.PROFILES.get(grade, IMUGrade.PROFILES["phone_mems"])
+
+    @staticmethod
+    def detect_grade_from_noise(accel_noise_std: float, gyro_noise_std: float) -> str:
+        """Auto-detect hardware grade from measured noise levels."""
+        # Compare noise to known profiles
+        accel_mg = accel_noise_std / 9.81 * 1000  # Convert to mg
+        gyro_dph = gyro_noise_std * 3600 * 180 / math.pi  # Convert to deg/hr
+
+        if gyro_dph < 0.005:
+            return "strategic"
+        elif gyro_dph < 0.05:
+            return "navigation"
+        elif gyro_dph < 2.0:
+            return "tactical"
+        elif gyro_dph < 5.0:
+            return "consumer"
+        else:
+            return "phone_mems"
+
+
 # ── Quaternion Math (for rotation tracking) ───────────────────────
 
 class Quaternion:
@@ -189,7 +273,14 @@ class StrapdownINS:
     """
 
     def __init__(self, initial_lat: float = 0.0, initial_lon: float = 0.0,
-                 initial_alt: float = 0.0, initial_heading: float = 0.0):
+                 initial_alt: float = 0.0, initial_heading: float = 0.0,
+                 hardware_grade: str = "auto"):
+        """
+        Initialize strapdown INS.
+
+        hardware_grade: "phone_mems", "consumer", "tactical", "navigation",
+                        "strategic", or "auto" (detect from sensor noise)
+        """
         # State
         self.state = INSState(
             latitude_rad=math.radians(initial_lat),
@@ -198,6 +289,13 @@ class StrapdownINS:
             heading_deg=initial_heading,
             timestamp=time.time(),
         )
+
+        # Hardware grade
+        self._grade_name = hardware_grade if hardware_grade != "auto" else "phone_mems"
+        self._grade = IMUGrade.get_profile(self._grade_name)
+        self._auto_detect = hardware_grade == "auto"
+        self._noise_samples_accel: deque = deque(maxlen=200)
+        self._noise_samples_gyro: deque = deque(maxlen=200)
 
         # Orientation quaternion (body → navigation frame)
         heading_rad = math.radians(initial_heading)
@@ -217,8 +315,11 @@ class StrapdownINS:
         self._zupt_count = 0
         self._drift_estimate_m = 0.0
         self._history: deque = deque(maxlen=500)
+        self._correction_count = 0
+        self._last_correction_time = 0.0
 
-        # ZUPT detector
+        # ZUPT detector — threshold adapts to hardware grade
+        self._zupt_threshold = self._grade["zupt_threshold"]
         self._accel_window: deque = deque(maxlen=50)
 
     def update(self, accel: Tuple[float, float, float],
@@ -308,12 +409,26 @@ class StrapdownINS:
         # Walking has accel_std ~0.3-1.0, stationary has <0.02
 
         self._accel_window.append(np.linalg.norm(accel_body))
-        if len(self._accel_window) >= 50:  # Need 50 samples (0.5s at 100Hz)
+        if len(self._accel_window) >= 50:
             accel_std = np.std(list(self._accel_window))
             accel_mean = np.mean(list(self._accel_window))
-            # Only ZUPT if acceleration is very stable AND near gravity
-            if accel_std < 0.02 and abs(accel_mean - g) < 0.1:
+            # ZUPT threshold adapts to hardware grade
+            if accel_std < self._zupt_threshold and abs(accel_mean - g) < self._zupt_threshold * 5:
                 self._apply_zupt()
+
+        # Auto-detect hardware grade from noise characteristics
+        if self._auto_detect and self._total_steps == 500:
+            self._noise_samples_accel.append(np.linalg.norm(accel_body))
+            self._noise_samples_gyro.append(np.linalg.norm(gyro_body))
+            if len(self._noise_samples_accel) >= 100:
+                detected = IMUGrade.detect_grade_from_noise(
+                    float(np.std(list(self._noise_samples_accel))),
+                    float(np.std(list(self._noise_samples_gyro))),
+                )
+                self._grade_name = detected
+                self._grade = IMUGrade.get_profile(detected)
+                self._zupt_threshold = self._grade["zupt_threshold"]
+                self._auto_detect = False  # Only detect once
 
         # ── Step 10: Schuler damping ──────────────────────────────
         # The Schuler oscillation (84.4 min period) causes INS errors
@@ -330,9 +445,10 @@ class StrapdownINS:
         if speed > max_speed:
             self._velocity[:2] *= max_speed / speed
 
-        # ── Step 12: Track drift ──────────────────────────────────
+        # ── Step 12: Track drift (grade-dependent) ─────────────────
 
-        self._drift_estimate_m += abs(speed) * dt * 0.001  # ~0.1% of distance
+        drift_rate = self._grade["position_drift_m_per_s"]
+        self._drift_estimate_m += drift_rate * dt
 
         # Store history
         self._history.append(self.state.to_dict())
@@ -364,8 +480,18 @@ class StrapdownINS:
         self.state.latitude_rad += lat_error * alpha
         self.state.longitude_rad += lon_error * alpha
 
+        # Correct velocity from position error (helps prevent repeating same drift)
+        if self._correction_count > 0:
+            dt_since_correction = max(0.1, time.time() - self._last_correction_time)
+            vel_correction_n = lat_error * alpha * (EARTH_RADIUS + self.state.altitude_m) / dt_since_correction
+            vel_correction_e = lon_error * alpha * (EARTH_RADIUS + self.state.altitude_m) * math.cos(self.state.latitude_rad) / dt_since_correction
+            self._velocity[0] += vel_correction_n * 0.3  # Gentle velocity correction
+            self._velocity[1] += vel_correction_e * 0.3
+
         # Reset drift estimate
-        self._drift_estimate_m *= 0.5
+        self._drift_estimate_m *= 0.3  # Corrections reduce drift significantly
+        self._correction_count += 1
+        self._last_correction_time = time.time()
 
     def get_position(self) -> Dict:
         """Get current position in UPIN-compatible format."""
@@ -375,10 +501,14 @@ class StrapdownINS:
             "alt_m": self.state.altitude_m,
             "heading_deg": self.state.heading_deg,
             "speed_mps": math.sqrt(self.state.velocity_north**2 + self.state.velocity_east**2),
-            "accuracy_m": max(1.0, self._drift_estimate_m),
-            "confidence": max(0.1, min(0.9, 1.0 - self._drift_estimate_m / 100)),
+            "accuracy_m": max(0.1, self._drift_estimate_m),
+            "confidence": max(0.1, min(0.95, 1.0 - self._drift_estimate_m / 100)),
             "source": "strapdown_ins",
+            "hardware_grade": self._grade_name,
+            "hardware_name": self._grade["name"],
+            "drift_rate_m_per_s": self._grade["position_drift_m_per_s"],
             "zupt_corrections": self._zupt_count,
+            "position_corrections": self._correction_count,
             "total_steps": self._total_steps,
         }
 
