@@ -675,6 +675,159 @@ class SimulationWorld:
             "flux_per_m2_min": 10000 + np.random.normal(0, 100),
         }
 
+    # ── Nautical chart & terrain database models ────────────────
+
+    def get_terrain_elevation(
+        self, lat: Optional[float] = None, lon: Optional[float] = None
+    ) -> float:
+        """Return ground elevation in metres at a position.
+
+        Deterministic function of lat/lon simulating SRTM/DTED data.
+        """
+        lat = lat if lat is not None else self.true_lat
+        lon = lon if lon is not None else self.true_lon
+        return (200.0
+                + 150.0 * math.sin(lat * 11.7)
+                + 100.0 * math.cos(lon * 15.3)
+                + 30.0 * math.sin(lat * 37.2 + lon * 23.1))
+
+    def get_bathymetry_depth(
+        self, lat: Optional[float] = None, lon: Optional[float] = None
+    ) -> float:
+        """Return seafloor depth in metres at a position.
+
+        Deterministic function simulating GEBCO/ETOPO bathymetric data.
+        """
+        lat = lat if lat is not None else self.true_lat
+        lon = lon if lon is not None else self.true_lon
+        return (100.0
+                + 50.0 * math.sin(lat * 17.3)
+                + 30.0 * math.cos(lon * 23.1)
+                + 15.0 * math.sin(lat * 41.7 + lon * 31.3))
+
+    def bathymetry_at_grid(self) -> dict[tuple[int, int], float]:
+        """Precomputed bathymetric depth grid for profile matching."""
+        grid = {}
+        for lat_i in range(int((self.true_lat - 0.5) * 100),
+                           int((self.true_lat + 0.5) * 100)):
+            for lon_i in range(int((self.true_lon - 0.5) * 100),
+                               int((self.true_lon + 0.5) * 100)):
+                lat = lat_i / 100.0
+                lon = lon_i / 100.0
+                grid[(lat_i, lon_i)] = self.get_bathymetry_depth(lat, lon)
+        return grid
+
+    def get_enc_chart_features(self) -> list[dict]:
+        """Return simulated Electronic Navigational Chart features.
+
+        Generates buoys, depth soundings, coastline points, and landmarks
+        near the current position — deterministic by position seed.
+        """
+        seed = int(abs(self.true_lat * 1000 + self.true_lon * 1000)) % (2**31)
+        rng = np.random.RandomState(seed)
+        features = []
+        n_features = rng.randint(20, 80)
+        feature_types = ["buoy", "depth_sounding", "coastline_point",
+                         "landmark", "light", "wreck", "anchorage"]
+        for i in range(n_features):
+            f_lat = self.true_lat + rng.uniform(-0.05, 0.05)
+            f_lon = self.true_lon + rng.uniform(-0.05, 0.05)
+            ftype = rng.choice(feature_types)
+            depth = self.get_bathymetry_depth(f_lat, f_lon) if ftype == "depth_sounding" else 0.0
+            bearing = math.degrees(math.atan2(
+                f_lon - self.true_lon, f_lat - self.true_lat
+            )) % 360.0
+            features.append({
+                "feature_id": f"ENC{i:04d}",
+                "type": ftype,
+                "lat": f_lat,
+                "lon": f_lon,
+                "depth_m": depth + rng.normal(0, 0.5),
+                "bearing_deg": bearing + rng.normal(0, 0.5),
+            })
+        return features
+
+    def get_ocean_current(
+        self, lat: Optional[float] = None, lon: Optional[float] = None
+    ) -> dict:
+        """Return ocean current vector at a position.
+
+        Simulates a current atlas with spatially varying flow.
+        """
+        lat = lat if lat is not None else self.true_lat
+        lon = lon if lon is not None else self.true_lon
+        speed = (0.5
+                 + 0.8 * abs(math.sin(lat * 5.3 + lon * 3.7))
+                 + 0.3 * abs(math.cos(lat * 11.1 - lon * 7.9)))
+        direction = (180.0 * math.sin(lat * 2.1)
+                     + 90.0 * math.cos(lon * 1.7)) % 360.0
+        return {
+            "speed_ms": speed,
+            "direction_deg": direction,
+        }
+
+    def get_tidal_signature(
+        self, lat: Optional[float] = None, lon: Optional[float] = None
+    ) -> dict:
+        """Return tidal signature at a position.
+
+        Each location has unique tidal harmonics (amplitude, phase offset).
+        """
+        lat = lat if lat is not None else self.true_lat
+        lon = lon if lon is not None else self.true_lon
+        t = self._elapsed
+        lunar_period_s = 12.4206 * 3600
+        # Position-dependent phase offset (key discriminator)
+        phase_offset = (lat * 7.3 + lon * 11.1) % (2 * math.pi)
+        phase = (t % lunar_period_s) / lunar_period_s * 2 * math.pi + phase_offset
+        # Position-dependent amplitude
+        amplitude = 1.0 + 0.8 * abs(math.sin(lat * 3.1 + lon * 2.7))
+        height = amplitude * math.sin(phase)
+        # Harmonic constituents (M2, S2, N2, K1)
+        harmonics = [
+            amplitude,
+            amplitude * 0.46 * math.sin(phase * 2 + lat * 1.3),
+            amplitude * 0.19 * math.sin(phase * 0.96 + lon * 2.1),
+            amplitude * 0.58 * math.sin(phase * 0.5 + lat * 4.7),
+        ]
+        return {
+            "height_m": height,
+            "phase": (phase % (2 * math.pi)) / (2 * math.pi),
+            "period_hours": 12.4206,
+            "amplitude_m": amplitude,
+            "harmonic_amplitudes": harmonics,
+        }
+
+    def get_stereo_camera_data(self) -> dict:
+        """Return simulated stereo camera overlap data for Eagle Eye.
+
+        Overlap ratio varies with altitude and terrain texture.
+        """
+        alt = max(self.true_alt, 1.0)
+        camera_sep = 0.3  # 30cm baseline
+        half_fov_deg = 35.0
+        half_fov_rad = math.radians(half_fov_deg)
+        # Ground footprint width per camera = 2 * alt * tan(half_fov)
+        footprint = 2.0 * alt * math.tan(half_fov_rad)
+        # Overlap ratio: 1 - separation/footprint
+        overlap = max(0.0, min(0.99, 1.0 - camera_sep / footprint))
+        # Texture density varies by terrain type (deterministic)
+        texture = 0.5 + 0.4 * abs(math.sin(self.true_lat * 23.0 + self.true_lon * 17.0))
+        # Known objects (cars, buildings) — more in urban areas
+        known_objects = int(3 * texture + np.random.poisson(2))
+        # Horizon angle (only meaningful at altitude)
+        horizon_angle_deg = 0.0
+        if alt > 100:
+            horizon_angle_deg = math.degrees(math.acos(R_EARTH / (R_EARTH + alt)))
+        return {
+            "overlap_ratio": overlap + np.random.normal(0, 0.002),
+            "texture_density": min(1.0, max(0.1, texture + np.random.normal(0, 0.05))),
+            "horizon_angle_deg": horizon_angle_deg,
+            "known_objects_detected": known_objects,
+            "camera_separation_m": camera_sep,
+            "half_fov_deg": half_fov_deg,
+        }
+
     def get_barometric_pressure(self) -> float:
         """Return barometric pressure at current altitude (hPa)."""
         # ISA standard atmosphere

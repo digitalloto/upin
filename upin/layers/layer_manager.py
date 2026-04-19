@@ -283,19 +283,25 @@ class LayerManager:
             "maritime": _CORE_GPS + _ACOUSTIC_WATER + [
                 "polwater_l25b", "latline_l48", "hydrowake_l37",
                 "depthpres_b10", "magano_l6", "tern_k05",
+                "enc_e14", "oceancurrent_h09", "tidaltiming_h10",
+                "bathymetry_f04",
             ],
             "submarine": _CORE_INTERNAL + _ACOUSTIC_WATER + [
                 "depthpres_b10", "latline_l48", "hydrowake_l37",
                 "polwater_l25b", "chemgrad_l26", "efield_c07",
+                "bathymetry_f04", "oceancurrent_h09", "tidaltiming_h10",
+                "enc_e14",
             ],
             "aerial": _CORE_GPS + [
                 "doppler_l12", "radaralt_b09", "baro_l11",
                 "magano_l6", "opticflow_l43", "startrack_l4",
                 "polsky_l25a", "vslam_l31", "monarch_e10",
+                "eagleeye_e13", "dted_e15",
             ],
             "gps_denied": _CORE_INTERNAL + [
                 "terrain_l5", "vslam_l31", "schumann_l59",
                 "tern_k05", "monarch_e10",
+                "eagleeye_e13", "dted_e15", "terrainfp_k07",
             ],
             "all": list(ALL_LAYER_CLASSES.keys()),
 

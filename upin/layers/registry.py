@@ -78,6 +78,18 @@ from upin.layers.biological.layers import (
     WolfPackCoordinationLayer, OwlSilentApproachLayer,
     SalmonHomingLayer, EagleThermalVisionLayer,
 )
+# New Group E layers — Eagle Eye stereo + ENC chart + DTED
+from upin.layers.optical.eagle_eye import (
+    EagleEyeStereoLayer, ENCChartMatchingLayer, DTEDMatchingLayer,
+)
+# New Group F layer — Bathymetric map matching
+from upin.layers.acoustic.bathymetry import BathymetricMatchingLayer
+# New Group H layers — Ocean current drift + Tidal timing position
+from upin.layers.chemical.nautical import (
+    OceanCurrentDriftLayer, TidalTimingPositionLayer,
+)
+# New Group K layer — Terrain fingerprint (mag+baro+cell+wifi)
+from upin.layers.systems.terrain_fp_layer import TerrainFingerprintLayer
 
 
 # Complete mapping of all 73 layers
@@ -166,6 +178,17 @@ ALL_LAYER_CLASSES: dict[str, type[NavigationLayer]] = {
     "owl_e11": OwlSilentApproachLayer,
     "salmon_h08": SalmonHomingLayer,
     "eagle_e12": EagleThermalVisionLayer,
+    # New Group E — Eagle Eye + ENC + DTED (3)
+    "eagleeye_e13": EagleEyeStereoLayer,
+    "enc_e14": ENCChartMatchingLayer,
+    "dted_e15": DTEDMatchingLayer,
+    # New Group F — Bathymetry (1)
+    "bathymetry_f04": BathymetricMatchingLayer,
+    # New Group H — Ocean current + Tidal timing (2)
+    "oceancurrent_h09": OceanCurrentDriftLayer,
+    "tidaltiming_h10": TidalTimingPositionLayer,
+    # New Group K — Terrain fingerprint (1)
+    "terrainfp_k07": TerrainFingerprintLayer,
 }
 
 

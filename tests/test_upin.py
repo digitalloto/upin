@@ -799,6 +799,251 @@ class TestMahalanobisDetector(unittest.TestCase):
         self.assertIn("baseline_established", summary)
         self.assertFalse(summary["baseline_established"])
 
+class TestEagleEye(unittest.TestCase):
+    def test_eagle_eye_reads(self):
+        from upin.layers.optical.eagle_eye import EagleEyeStereoLayer
+        from upin.simulation.world import SimulationWorld
+        w = SimulationWorld()
+        layer = EagleEyeStereoLayer()
+        layer.set_world(w)
+        layer.initialize()
+        reading = layer.read()
+        self.assertTrue(reading.is_valid)
+        self.assertIsNotNone(reading.position)
+        self.assertIn("stereo_altitude_m", reading.raw_data)
+
+    def test_enc_layer(self):
+        from upin.layers.optical.eagle_eye import ENCChartMatchingLayer
+        from upin.simulation.world import SimulationWorld
+        w = SimulationWorld()
+        layer = ENCChartMatchingLayer()
+        layer.set_world(w)
+        layer.initialize()
+        reading = layer.read()
+        self.assertTrue(reading.is_valid)
+        self.assertTrue(layer.is_underwater)
+
+    def test_dted_layer(self):
+        from upin.layers.optical.eagle_eye import DTEDMatchingLayer
+        from upin.simulation.world import SimulationWorld
+        w = SimulationWorld()
+        layer = DTEDMatchingLayer()
+        layer.set_world(w)
+        layer.initialize()
+        reading = layer.read()
+        self.assertTrue(reading.is_valid)
+        self.assertIn("terrain_elevation_m", reading.raw_data)
+
+class TestNauticalLayers(unittest.TestCase):
+    def test_bathymetry(self):
+        from upin.layers.acoustic.bathymetry import BathymetricMatchingLayer
+        from upin.simulation.world import SimulationWorld
+        w = SimulationWorld()
+        layer = BathymetricMatchingLayer()
+        layer.set_world(w)
+        layer.initialize()
+        for _ in range(10):
+            layer.read()
+        reading = layer.read()
+        self.assertTrue(reading.is_valid)
+        self.assertIn("current_depth_m", reading.raw_data)
+        self.assertTrue(layer.is_underwater)
+
+    def test_ocean_current(self):
+        from upin.layers.chemical.nautical import OceanCurrentDriftLayer
+        from upin.simulation.world import SimulationWorld
+        w = SimulationWorld()
+        layer = OceanCurrentDriftLayer()
+        layer.set_world(w)
+        layer.initialize()
+        reading = layer.read()
+        self.assertTrue(reading.is_valid)
+        self.assertIsNotNone(reading.velocity)
+        self.assertTrue(layer.is_underwater)
+
+    def test_tidal_timing(self):
+        from upin.layers.chemical.nautical import TidalTimingPositionLayer
+        from upin.simulation.world import SimulationWorld
+        w = SimulationWorld()
+        layer = TidalTimingPositionLayer()
+        layer.set_world(w)
+        layer.initialize()
+        reading = layer.read()
+        self.assertTrue(reading.is_valid)
+        self.assertTrue(layer.is_underwater)
+
+class TestTerrainFingerprint(unittest.TestCase):
+    def test_fp_map_records_and_matches(self):
+        from upin.core.terrain_fingerprint import TerrainFingerprint, TerrainFingerprintMap
+        m = TerrainFingerprintMap(sample_interval_m=1.0)
+        for i in range(5):
+            m.record(TerrainFingerprint(
+                lat=13.08 + i * 0.001, lon=80.27, timestamp=i,
+                mag_intensity_nt=45000 + i * 100, baro_pressure_hpa=1013,
+            ))
+        self.assertEqual(m.map_size, 5)
+        query = TerrainFingerprint(
+            lat=0, lon=0, timestamp=0,
+            mag_intensity_nt=45250, baro_pressure_hpa=1013,
+        )
+        est = m.estimate_position(query)
+        self.assertIsNotNone(est)
+        self.assertIn("lat", est)
+
+    def test_fp_layer(self):
+        from upin.layers.systems.terrain_fp_layer import TerrainFingerprintLayer
+        from upin.simulation.world import SimulationWorld
+        w = SimulationWorld()
+        layer = TerrainFingerprintLayer()
+        layer.set_world(w)
+        layer.initialize()
+        for _ in range(5):
+            w.step(0.1)
+            layer.read()
+        reading = layer.read()
+        self.assertTrue(reading.is_valid)
+
+class TestPUEConstraint(unittest.TestCase):
+    def test_radius_grows_with_time(self):
+        from upin.core.pue_constraint import PositionUncertaintyEnvelope
+        import time
+        pue = PositionUncertaintyEnvelope(max_accel_ms2=5.0, max_speed_ms=50.0)
+        pue.set_known_fix(13.08, 80.27, speed_ms=10.0)
+        time.sleep(0.05)
+        r1 = pue.get_max_radius()
+        time.sleep(0.05)
+        r2 = pue.get_max_radius()
+        self.assertGreater(r2, r1)
+
+    def test_smart_constraint_engine(self):
+        from upin.core.pue_constraint import (
+            PositionUncertaintyEnvelope, SmartConstraintEngine,
+        )
+        pue = PositionUncertaintyEnvelope()
+        pue.set_known_fix(13.08, 80.27, speed_ms=5.0)
+        sce = SmartConstraintEngine(pue)
+        result = sce.update_sensors(accel_magnitude_ms2=0.1,
+                                     cell_accuracy_m=20.0)
+        self.assertIn("final_radius_m", result)
+        self.assertIn("winner", result)
+
+class TestRouteDTW(unittest.TestCase):
+    def test_record_and_match(self):
+        from upin.core.route_dtw import RouteDTWLearning, RouteSample
+        r = RouteDTWLearning(sample_interval_m=1.0)
+        r.start_recording("route1", "test")
+        for i in range(5):
+            r.record_sample(RouteSample(
+                lat=13.08 + i * 0.001, lon=80.27, timestamp=i,
+                heading_deg=45, mag_intensity_nt=45000 + i * 50,
+                baro_pressure_hpa=1013,
+            ))
+        route = r.stop_recording()
+        self.assertIsNotNone(route)
+        self.assertEqual(len(route.samples), 5)
+        live = [
+            RouteSample(lat=0, lon=0, timestamp=0, heading_deg=45,
+                         mag_intensity_nt=45050, baro_pressure_hpa=1013),
+            RouteSample(lat=0, lon=0, timestamp=1, heading_deg=45,
+                         mag_intensity_nt=45100, baro_pressure_hpa=1013),
+        ]
+        result = r.match_live(live)
+        self.assertIsNotNone(result)
+        self.assertIn("lat", result)
+
+class TestManeuverRecognition(unittest.TestCase):
+    def test_turn_detection(self):
+        from upin.core.maneuver_recognition import ManeuverRecognizer
+        import time
+        mr = ManeuverRecognizer()
+        mr.feed_imu(gyro_z_rad_s=0.02, accel_magnitude_ms2=0.5)
+        for _ in range(30):
+            mr.feed_imu(gyro_z_rad_s=1.6, accel_magnitude_ms2=2.0,
+                         heading_deg=90)
+            time.sleep(0.02)
+        event = mr.feed_imu(gyro_z_rad_s=0.05, accel_magnitude_ms2=0.5)
+        self.assertIsNotNone(event)
+        self.assertIn("type", event)
+
+    def test_library_stats(self):
+        from upin.core.maneuver_recognition import ManeuverRecognizer
+        mr = ManeuverRecognizer()
+        stats = mr.get_library_stats()
+        self.assertIn("total", stats)
+        self.assertEqual(stats["total"], 0)
+
+class TestFormulaAgents(unittest.TestCase):
+    def test_agent_params_mutation(self):
+        from upin.core.formula_agents import AgentParams
+        p = AgentParams.random()
+        child = p.mutate()
+        self.assertIsInstance(child, AgentParams)
+        self.assertGreaterEqual(child.accel_scale, 0.5)
+        self.assertLessEqual(child.accel_scale, 1.5)
+
+    def test_pool_evolution(self):
+        from upin.core.formula_agents import FormulaAgentManager
+        fam = FormulaAgentManager(agents_per_formula=5)
+        fam.register_formula("kalman")
+        pool = fam.get_pool("kalman")
+        # Score with predictions around truth
+        preds = [(13.08 + i * 0.0001, 80.27) for i in range(5)]
+        for _ in range(12):
+            pool.score_all(13.08, 80.27, preds)
+        best = pool.best_agent()
+        self.assertIsNotNone(best)
+
+class TestAutoCombo(unittest.TestCase):
+    def test_combo_discovery(self):
+        from upin.core.auto_combo import AutoComboDiscovery
+        ac = AutoComboDiscovery(
+            ["vel_sma", "kalman", "step", "macd"],
+            population_size=10,
+            evolution_interval=5,
+        )
+        outputs = {
+            "vel_sma": (13.08, 80.27),
+            "kalman": (13.081, 80.271),
+            "step": (13.079, 80.269),
+            "macd": (13.082, 80.272),
+        }
+        for _ in range(10):
+            ac.score_and_evolve((13.08, 80.27), outputs)
+        stats = ac.get_stats()
+        self.assertGreater(stats["generation"], 0)
+        best = ac.best_combo()
+        self.assertTrue(len(best.formula_names) >= 2)
+
+class TestTrainingConstraint(unittest.TestCase):
+    def test_leash_pulls_outliers(self):
+        from upin.core.training_constraint import TrainingConstraint
+        tc = TrainingConstraint(leash_radius_m=10.0)
+        lat, lon, pulled = tc.apply(13.08, 80.27, 13.09, 80.28)
+        self.assertTrue(pulled)
+        lat, lon, pulled = tc.apply(13.08, 80.27, 13.08001, 80.27001)
+        self.assertFalse(pulled)
+
+class TestNLLSTrilateration(unittest.TestCase):
+    def test_nlls_converges(self):
+        from upin.core.nlls_trilateration import NLLSTrilateration
+        import math
+        nlls = NLLSTrilateration()
+        # Tower configs around truth at (13.08, 80.27)
+        true_lat, true_lon = 13.08, 80.27
+        # 4 towers — non-symmetric layout avoids mirror ambiguity
+        towers = [(13.07, 80.26), (13.09, 80.26), (13.09, 80.28), (13.07, 80.28)]
+        obs = []
+        for tl, tn in towers:
+            d = math.sqrt(((true_lat - tl) * 111320) ** 2
+                          + ((true_lon - tn) * 111320
+                             * math.cos(math.radians(true_lat))) ** 2)
+            obs.append((tl, tn, d))
+        result = nlls.solve(obs, initial_guess=(true_lat + 0.001,
+                                                   true_lon + 0.001))
+        self.assertIsNotNone(result)
+        self.assertAlmostEqual(result["lat"], true_lat, places=3)
+        self.assertAlmostEqual(result["lon"], true_lon, places=3)
+
 if __name__ == "__main__":
     loader = unittest.TestLoader()
     suite = loader.loadTestsFromModule(__import__(__name__))
