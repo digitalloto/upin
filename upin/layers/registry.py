@@ -94,6 +94,8 @@ from upin.layers.systems.terrain_fp_layer import TerrainFingerprintLayer
 from upin.layers.systems.predictive_tower_layer import PredictiveTowerVerificationLayer
 from upin.layers.systems.directional_tower_layer import DirectionalTowerLayer
 from upin.layers.systems.circumference_layer import CircumferenceIntersectionLayer
+# New Group K layer — Universal beacon (any signal → triangulation)
+from upin.layers.rf.universal_beacon import UniversalBeaconLayer
 
 
 # Complete mapping of all 73 layers
@@ -197,6 +199,8 @@ ALL_LAYER_CLASSES: dict[str, type[NavigationLayer]] = {
     "predtower_k08": PredictiveTowerVerificationLayer,
     "dirtower_k09": DirectionalTowerLayer,
     "circumfx_k10": CircumferenceIntersectionLayer,
+    # New — Universal beacon (any signal source)
+    "univbeacon_k11": UniversalBeaconLayer,
 }
 
 
