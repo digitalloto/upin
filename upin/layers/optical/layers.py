@@ -382,7 +382,7 @@ class VisualSLAMLayer(NavigationLayer):
     Works in complete GPS denial, underground, and underwater.
     """
 
-    def __init__(self):
+    def __init__(self, rfdetr_extractor=None):
         super().__init__(
             layer_id="vslam_l31",
             layer_number=31,
@@ -398,6 +398,8 @@ class VisualSLAMLayer(NavigationLayer):
         self._drift_lat = 0.0
         self._drift_lon = 0.0
         self._read_count = 0
+        # RF-DETR: planned default feature extractor for landmark detection
+        self._rfdetr = rfdetr_extractor
 
     def initialize(self) -> bool:
         self.status.is_active = True
@@ -513,7 +515,7 @@ class VisualOdometryLayer(NavigationLayer):
     Inspired by fly haltere gyroscope.
     """
 
-    def __init__(self):
+    def __init__(self, rfdetr_extractor=None):
         super().__init__(
             layer_id="vio_l32",
             layer_number=32,
@@ -526,6 +528,8 @@ class VisualOdometryLayer(NavigationLayer):
         self._vio_drift_lat = 0.0
         self._vio_drift_lon = 0.0
         self._read_count = 0
+        # RF-DETR: planned default feature extractor for frame tracking
+        self._rfdetr = rfdetr_extractor
 
     def initialize(self) -> bool:
         self.status.is_active = True

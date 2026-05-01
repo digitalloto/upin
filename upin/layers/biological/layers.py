@@ -277,7 +277,7 @@ class EagleThermalVisionLayer(NavigationLayer):
     - Altitude-dependent resolution scaling
     """
 
-    def __init__(self):
+    def __init__(self, rfdetr_extractor=None):
         super().__init__(
             layer_id="eagle_e12",
             layer_number=72,
@@ -291,6 +291,8 @@ class EagleThermalVisionLayer(NavigationLayer):
         self._visual_acuity = 8.0
         self._altitude_m = 100.0
         self._threats_detected: List[Dict] = []
+        # RF-DETR: planned default feature extractor for threat detection
+        self._rfdetr = rfdetr_extractor
 
     def initialize(self) -> bool:
         self.status.is_active = True

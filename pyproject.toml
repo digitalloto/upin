@@ -36,6 +36,9 @@ full = [
 ml = [
     "torch>=2.0.0",
 ]
+vision = [
+    "rfdetr>=1.0.0",
+]
 
 [project.scripts]
 upin-demo = "upin.simulation.demo:main"
