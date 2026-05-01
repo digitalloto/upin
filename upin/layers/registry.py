@@ -90,6 +90,10 @@ from upin.layers.chemical.nautical import (
 )
 # New Group K layer — Terrain fingerprint (mag+baro+cell+wifi)
 from upin.layers.systems.terrain_fp_layer import TerrainFingerprintLayer
+# New Group K layers — Predictive tower + Directional GDOP + Circumference intersection
+from upin.layers.systems.predictive_tower_layer import PredictiveTowerVerificationLayer
+from upin.layers.systems.directional_tower_layer import DirectionalTowerLayer
+from upin.layers.systems.circumference_layer import CircumferenceIntersectionLayer
 
 
 # Complete mapping of all 73 layers
@@ -189,6 +193,10 @@ ALL_LAYER_CLASSES: dict[str, type[NavigationLayer]] = {
     "tidaltiming_h10": TidalTimingPositionLayer,
     # New Group K — Terrain fingerprint (1)
     "terrainfp_k07": TerrainFingerprintLayer,
+    # New Group K — Predictive tower + Directional GDOP + Circumference (3)
+    "predtower_k08": PredictiveTowerVerificationLayer,
+    "dirtower_k09": DirectionalTowerLayer,
+    "circumfx_k10": CircumferenceIntersectionLayer,
 }
 
 
