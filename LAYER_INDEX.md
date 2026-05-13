@@ -6,14 +6,14 @@ Run `python generate_index.py` to regenerate.
 ## Summary
 
 - **Navigation Layers**: 86
-- **Core Modules**: 123 classes
+- **Core Modules**: 136 classes
 - **Swarm Modules**: 56 classes
 - **Detection Modules**: 11 classes
 - **Agent Modules**: 31 classes
 - **Vision Modules**: 15 classes
-- **Total Classes**: 523
-- **Total Python Files**: 133
-- **Total Lines of Code**: 43,057
+- **Total Classes**: 536
+- **Total Python Files**: 134
+- **Total Lines of Code**: 43,769
 
 ---
 ## Navigation Layers
@@ -197,6 +197,19 @@ Run `python generate_index.py` to regenerate.
 | `NavigationRecommendation` |  | `upin/core/navigation_confidence.py` | 18-22 |
 | `NavigationConfidence` | Navigation confidence calculator and mission advisor. | `upin/core/navigation_confidence.py` | 25-221 |
 | `NLLSTrilateration` | Gauss-Newton NLLS for multi-tower position estimation. | `upin/core/nlls_trilateration.py` | 23-98 |
+| `TowerPredictFusion` | Cross-validates predictor heading with tower RSSI changes. | `upin/core/phone_demo_layers.py` | 24-86 |
+| `CellDirectionEstimator` | Estimate heading from cell tower RSSI rate-of-change. | `upin/core/phone_demo_layers.py` | 93-171 |
+| `CellDopplerVelocity` | Estimate velocity from cell tower RSSI rate-of-change. | `upin/core/phone_demo_layers.py` | 178-219 |
+| `Landmark` |  | `upin/core/phone_demo_layers.py` | 227-231 |
+| `LandmarkTriangulation` | Position from known landmarks as fixed reference beacons. | `upin/core/phone_demo_layers.py` | 234-282 |
+| `SVMQualityGate` | Linear SVM that classifies sensor readings as reliable/unreliable. | `upin/core/phone_demo_layers.py` | 289-331 |
+| `RandomForestFusion` | 200 decision stumps that vote on position correction. | `upin/core/phone_demo_layers.py` | 338-397 |
+| `ManghnaniCone` | State machine constraint: GPS_OK → CONE_GROWING → CONE_REFINED. | `upin/core/phone_demo_layers.py` | 404-486 |
+| `FrozenGPSDetector` | Detect when GPS position stops updating but IMU shows motion. | `upin/core/phone_demo_layers.py` | 493-536 |
+| `SessionValidator` | 5-check session quality assessment → Grade A/B/C/D/F. | `upin/core/phone_demo_layers.py` | 543-592 |
+| `CoordinateBoundsCheck` | Reject phantom coordinates outside operational area + impossible speed... | `upin/core/phone_demo_layers.py` | 599-641 |
+| `CompassValidityGate` | Reject invalid compass readings. Returns last valid if current is bad. | `upin/core/phone_demo_layers.py` | 648-665 |
+| `CIDCollisionGuard` | Reject tower CID matches that are too far from calibration city. | `upin/core/phone_demo_layers.py` | 672-702 |
 | `PositionDomain` | Domain in which the position was determined. | `upin/core/position.py` | 17-24 |
 | `ThreatLevel` | Threat assessment levels. | `upin/core/position.py` | 27-33 |
 | `Position` | A position estimate from a single layer or the fusion engine. | `upin/core/position.py` | 37-76 |
@@ -374,4 +387,4 @@ Run `python generate_index.py` to regenerate.
 | `RealWiFiPositioningAgent` | Real WiFi positioning using device WiFi scan + Mozilla Location Servic... | `upin/agents/real_wifi_agent.py` | 50-385 |
 
 ---
-*Generated automatically. 86 layers, 523 classes, 43,057 lines of code.*
+*Generated automatically. 86 layers, 536 classes, 43,769 lines of code.*
