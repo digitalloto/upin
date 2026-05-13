@@ -5,15 +5,15 @@ Run `python generate_index.py` to regenerate.
 
 ## Summary
 
-- **Navigation Layers**: 86
+- **Navigation Layers**: 132
 - **Core Modules**: 136 classes
 - **Swarm Modules**: 56 classes
 - **Detection Modules**: 11 classes
 - **Agent Modules**: 31 classes
 - **Vision Modules**: 15 classes
-- **Total Classes**: 536
-- **Total Python Files**: 134
-- **Total Lines of Code**: 43,769
+- **Total Classes**: 582
+- **Total Python Files**: 140
+- **Total Lines of Code**: 45,107
 
 ---
 ## Navigation Layers
@@ -103,9 +103,55 @@ Run `python generate_index.py` to regenerate.
 | 86 | `dirtower_k09` | `DirectionalTowerLayer` | Layer 86 — Directional Tower Selection (GDOP Optimised). | `upin/layers/systems/directional_tower_layer.py` | 173-264 |
 | 87 | `circumfx_k10` | `CircumferenceIntersectionLayer` | Layer 87 — Circumference Intersection Position. | `upin/layers/systems/circumference_layer.py` | 165-256 |
 | 88 | `univbeacon_k11` | `UniversalBeaconLayer` | Layer 88 — Universal Beacon Positioning. | `upin/layers/rf/universal_beacon.py` | 328-425 |
+| 89 | `ais_d09` | `AISCooperativeLayer` | AIS — vessels broadcast position/identity on VHF. | `upin/layers/maritime/classical_nav.py` | 32-70 |
+| 90 | `lighthouse_e16` | `LighthouseSignatureLayer` | Lighthouse characteristic identification — unique flash patt... | `upin/layers/maritime/classical_nav.py` | 73-110 |
+| 91 | `buoy_e17` | `BuoyRecognitionLayer` | IALA buoy/sea mark recognition — coded markings identify pos... | `upin/layers/maritime/classical_nav.py` | 113-150 |
+| 92 | `threefix_e18` | `ThreePointFixLayer` | Three-point fix / cocked hat — three simultaneous bearings t... | `upin/layers/maritime/classical_nav.py` | 153-190 |
+| 93 | `pilotage_e19` | `CoastalPilotageLayer` | Coastal pilotage — visual identification of coastal features... | `upin/layers/maritime/classical_nav.py` | 193-231 |
+| 94 | `leadlight_e20` | `LeadingLightsLayer` | Range / leading lights (transit bearings) — two objects in l... | `upin/layers/maritime/classical_nav.py` | 234-271 |
+| 95 | `sextant_e21` | `SextantAngleLayer` | Horizontal/Vertical Sextant Angles — circle of position from... | `upin/layers/maritime/classical_nav.py` | 274-312 |
+| 96 | `seabed_f05` | `SeabedSampleLayer` | Sounding + bottom sample — depth + seabed composition matchi... | `upin/layers/maritime/classical_nav.py` | 315-354 |
+| 97 | `lunardist_a11` | `LunarDistanceLayer` | Lunar distance method — pre-chronometer longitude from Moon-... | `upin/layers/maritime/classical_nav.py` | 357-395 |
+| 98 | `chronometer_a12` | `MarineChronometerLayer` | Marine chronometer — longitude from precise Greenwich time. | `upin/layers/maritime/classical_nav.py` | 398-436 |
+| 99 | `tidalstream_h11` | `TidalStreamAtlasLayer` | Tidal stream atlas — predicted tidal currents from published... | `upin/layers/maritime/classical_nav.py` | 439-473 |
+| 100 | `polynesian_e22` | `PolynesianWayfindingLayer` | Polynesian wayfinding — wave patterns, cloud reading, bird b... | `upin/layers/maritime/classical_nav.py` | 476-518 |
+| 101 | `adsb_d10` | `ADSBCooperativeLayer` | ADS-B — aircraft broadcast position/velocity continuously. | `upin/layers/satellite/aviation_nav.py` | 22-59 |
+| 102 | `tacan_d11` | `TACANLayer` | TACAN — Tactical Air Navigation. Distance + bearing from bea... | `upin/layers/satellite/aviation_nav.py` | 62-101 |
+| 103 | `vordme_d12` | `VORDMELayer` | VOR/DME — civil VHF Omnidirectional Range + Distance Measuri... | `upin/layers/satellite/aviation_nav.py` | 104-143 |
+| 104 | `ils_d13` | `ILSLayer` | ILS — Instrument Landing System. Precision approach guidance... | `upin/layers/satellite/aviation_nav.py` | 146-185 |
+| 105 | `gagan_a13` | `GAGANLayer` | GAGAN — GPS Aided GEO Augmented Navigation. Indian SBAS. | `upin/layers/satellite/aviation_nav.py` | 188-227 |
+| 106 | `pseudolite_d14` | `PseudoliteLayer` | Pseudolite — ground-based GPS-like transmitters. | `upin/layers/satellite/aviation_nav.py` | 230-270 |
+| 107 | `omega_d15` | `OMEGALayer` | OMEGA VLF navigation (1971-1997). 8 stations, global coverag... | `upin/layers/rf/radio_historical.py` | 25-34 |
+| 108 | `decca_d16` | `DeccaNavigatorLayer` | Decca Navigator — phase-comparison radio (1946-2000). Mariti... | `upin/layers/rf/radio_historical.py` | 36-45 |
+| 109 | `consol_d17` | `ConsolSonneLayer` | Consol/Sonne — German WWII rotating-beacon system. | `upin/layers/rf/radio_historical.py` | 47-56 |
+| 110 | `rdf_d18` | `RDFBearingLayer` | Radio Direction Finding — bearing-only on known transmitters... | `upin/layers/rf/radio_historical.py` | 58-68 |
+| 111 | `aprs_d19` | `APRSLayer` | APRS — Amateur Packet Reporting System. Position via ham rad... | `upin/layers/rf/radio_historical.py` | 70-79 |
+| 112 | `dopbeacon_d20` | `DopplerBeaconLayer` | Doppler beacon localisation — Doppler shift on known-frequen... | `upin/layers/rf/radio_historical.py` | 81-90 |
+| 113 | `iriddop_a14` | `IridiumDopplerLayer` | Iridium/Globalstar LEO Doppler — position from LEO satellite... | `upin/layers/rf/radio_historical.py` | 92-101 |
+| 114 | `ecid_d21` | `ECIDLayer` | Enhanced Cell ID — single cell + signal strength + timing ad... | `upin/layers/rf/cellular_advanced.py` | 24-33 |
+| 115 | `otdoa_d22` | `OTDOALayer` | OTDOA — Observed Time Difference of Arrival (LTE/5G). | `upin/layers/rf/cellular_advanced.py` | 35-44 |
+| 116 | `fiveg_d23` | `FiveGNRPositioningLayer` | 5G NR Positioning — UTDOA/RTT/AoA built into 5G standard. | `upin/layers/rf/cellular_advanced.py` | 46-55 |
+| 117 | `wifirtt_d24` | `WiFiRTTLayer` | WiFi RTT (802.11mc Fine Time Measurement) — sub-metre indoor... | `upin/layers/rf/cellular_advanced.py` | 57-66 |
+| 118 | `rfid_d25` | `RFIDNFCLayer` | RFID/NFC localisation — short-range tag-and-reader fixes. | `upin/layers/rf/cellular_advanced.py` | 68-77 |
+| 119 | `vlc_d26` | `VLCLiFiLayer` | Visible Light Communication / Li-Fi — LED fixtures broadcast... | `upin/layers/rf/cellular_advanced.py` | 79-89 |
+| 120 | `rffingerprint_k12` | `RFEnvironmentFingerprintLayer` | RF environment fingerprinting — full spectrum signature = lo... | `upin/layers/rf/cellular_advanced.py` | 91-106 |
+| 121 | `polaris_a15` | `PolarisAltitudeLayer` | Polaris altitude → latitude directly. Simplest classical lat... | `upin/layers/satellite/celestial_classical.py` | 25-34 |
+| 122 | `noonsight_a16` | `SolarNoonSightLayer` | Solar meridian altitude (noon sight) — latitude from sun at ... | `upin/layers/satellite/celestial_classical.py` | 36-45 |
+| 123 | `sunazimuth_a17` | `SunAzimuthCompassLayer` | Sun compass — azimuth from sun bearing + accurate time. | `upin/layers/satellite/celestial_classical.py` | 47-65 |
+| 124 | `planets_a18` | `PlanetSightingLayer` | Planet sightings — Venus, Mars, Jupiter, Saturn for celestia... | `upin/layers/satellite/celestial_classical.py` | 67-76 |
+| 125 | `refraction_a19` | `AtmosphericRefractionLayer` | Atmospheric refraction correction — systematic error in cele... | `upin/layers/satellite/celestial_classical.py` | 78-87 |
+| 126 | `vhorizon_b11` | `VisualHorizonLayer` | Visual horizon reference — bubble horizon, pendulum, liquid ... | `upin/layers/satellite/celestial_classical.py` | 89-102 |
+| 127 | `qcompass_c08` | `QuantumCompassLayer` | Quantum compass / cold atom interferometer — measures rotati... | `upin/layers/exotic/frontier_nav.py` | 25-39 |
+| 128 | `magindoor_c09` | `MagneticIndoorFingerprintLayer` | Indoor magnetic fingerprinting — building steel creates uniq... | `upin/layers/exotic/frontier_nav.py` | 41-55 |
+| 129 | `infrasoundmap_i04` | `InfrasoundMapMatchingLayer` | Infrasound map matching — stable spatial patterns from volca... | `upin/layers/exotic/frontier_nav.py` | 57-72 |
+| 130 | `presspattern_i05` | `AtmosphericPressurePatternLayer` | Atmospheric pressure pattern matching — weather systems crea... | `upin/layers/exotic/frontier_nav.py` | 74-89 |
+| 131 | `sferics_i06` | `LightningSfericsLayer` | Lightning sferics geolocation — natural RF source from dista... | `upin/layers/exotic/frontier_nav.py` | 91-107 |
+| 132 | `plume_h12` | `ChemicalPlumeTrackingLayer` | Chemical plume tracking — dynamic source localisation from c... | `upin/layers/exotic/frontier_nav.py` | 109-125 |
+| 133 | `thermalmicro_h13` | `ThermalMicroclimateLayer` | Thermal microclimate signature — every location has a diurna... | `upin/layers/exotic/frontier_nav.py` | 127-138 |
+| 134 | `airsonar_f06` | `AcousticAirRangingLayer` | Cricket / ultrasonic acoustic ranging in air — indoor positi... | `upin/layers/exotic/frontier_nav.py` | 140-155 |
 |  | `` | `LayerEvent` | One layer management event. | `upin/layers/layer_manager.py` | 22-27 |
 |  | `` | `LayerManager` | Interactive layer management for UPIN. | `upin/layers/layer_manager.py` | 30-398 |
-|  | `` | `LayerRegistry` | Central registry for managing UPIN navigation layers. | `upin/layers/registry.py` | 207-284 |
+|  | `` | `LayerRegistry` | Central registry for managing UPIN navigation layers. | `upin/layers/registry.py` | 293-370 |
 
 ---
 ## Core Modules
@@ -387,4 +433,4 @@ Run `python generate_index.py` to regenerate.
 | `RealWiFiPositioningAgent` | Real WiFi positioning using device WiFi scan + Mozilla Location Servic... | `upin/agents/real_wifi_agent.py` | 50-385 |
 
 ---
-*Generated automatically. 86 layers, 536 classes, 43,769 lines of code.*
+*Generated automatically. 132 layers, 582 classes, 45,107 lines of code.*

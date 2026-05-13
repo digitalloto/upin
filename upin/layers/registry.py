@@ -96,6 +96,40 @@ from upin.layers.systems.directional_tower_layer import DirectionalTowerLayer
 from upin.layers.systems.circumference_layer import CircumferenceIntersectionLayer
 # New Group K layer — Universal beacon (any signal → triangulation)
 from upin.layers.rf.universal_beacon import UniversalBeaconLayer
+# Gap audit: Maritime classical navigation
+from upin.layers.maritime.classical_nav import (
+    AISCooperativeLayer, LighthouseSignatureLayer, BuoyRecognitionLayer,
+    ThreePointFixLayer, CoastalPilotageLayer, LeadingLightsLayer,
+    SextantAngleLayer, SeabedSampleLayer, LunarDistanceLayer,
+    MarineChronometerLayer, TidalStreamAtlasLayer, PolynesianWayfindingLayer,
+)
+# Gap audit: Aviation navigation
+from upin.layers.satellite.aviation_nav import (
+    ADSBCooperativeLayer, TACANLayer, VORDMELayer, ILSLayer,
+    GAGANLayer, PseudoliteLayer,
+)
+# Gap audit: Historical & specialist radio
+from upin.layers.rf.radio_historical import (
+    OMEGALayer, DeccaNavigatorLayer, ConsolSonneLayer, RDFBearingLayer,
+    APRSLayer, DopplerBeaconLayer, IridiumDopplerLayer,
+)
+# Gap audit: Advanced cellular & indoor
+from upin.layers.rf.cellular_advanced import (
+    ECIDLayer, OTDOALayer, FiveGNRPositioningLayer, WiFiRTTLayer,
+    RFIDNFCLayer, VLCLiFiLayer, RFEnvironmentFingerprintLayer,
+)
+# Gap audit: Classical celestial
+from upin.layers.satellite.celestial_classical import (
+    PolarisAltitudeLayer, SolarNoonSightLayer, SunAzimuthCompassLayer,
+    PlanetSightingLayer, AtmosphericRefractionLayer, VisualHorizonLayer,
+)
+# Gap audit: Exotic & frontier
+from upin.layers.exotic.frontier_nav import (
+    QuantumCompassLayer, MagneticIndoorFingerprintLayer,
+    InfrasoundMapMatchingLayer, AtmosphericPressurePatternLayer,
+    LightningSfericsLayer, ChemicalPlumeTrackingLayer,
+    ThermalMicroclimateLayer, AcousticAirRangingLayer,
+)
 
 
 # Complete mapping of all 73 layers
@@ -201,6 +235,58 @@ ALL_LAYER_CLASSES: dict[str, type[NavigationLayer]] = {
     "circumfx_k10": CircumferenceIntersectionLayer,
     # New — Universal beacon (any signal source)
     "univbeacon_k11": UniversalBeaconLayer,
+    # ── Gap Audit: Maritime Classical ──
+    "ais_d09": AISCooperativeLayer,
+    "lighthouse_e16": LighthouseSignatureLayer,
+    "buoy_e17": BuoyRecognitionLayer,
+    "threefix_e18": ThreePointFixLayer,
+    "pilotage_e19": CoastalPilotageLayer,
+    "leadlight_e20": LeadingLightsLayer,
+    "sextant_e21": SextantAngleLayer,
+    "seabed_f05": SeabedSampleLayer,
+    "lunardist_a11": LunarDistanceLayer,
+    "chronometer_a12": MarineChronometerLayer,
+    "tidalstream_h11": TidalStreamAtlasLayer,
+    "polynesian_e22": PolynesianWayfindingLayer,
+    # ── Gap Audit: Aviation ──
+    "adsb_d10": ADSBCooperativeLayer,
+    "tacan_d11": TACANLayer,
+    "vordme_d12": VORDMELayer,
+    "ils_d13": ILSLayer,
+    "gagan_a13": GAGANLayer,
+    "pseudolite_d14": PseudoliteLayer,
+    # ── Gap Audit: Radio Historical ──
+    "omega_d15": OMEGALayer,
+    "decca_d16": DeccaNavigatorLayer,
+    "consol_d17": ConsolSonneLayer,
+    "rdf_d18": RDFBearingLayer,
+    "aprs_d19": APRSLayer,
+    "dopbeacon_d20": DopplerBeaconLayer,
+    "iriddop_a14": IridiumDopplerLayer,
+    # ── Gap Audit: Cellular Advanced ──
+    "ecid_d21": ECIDLayer,
+    "otdoa_d22": OTDOALayer,
+    "fiveg_d23": FiveGNRPositioningLayer,
+    "wifirtt_d24": WiFiRTTLayer,
+    "rfid_d25": RFIDNFCLayer,
+    "vlc_d26": VLCLiFiLayer,
+    "rffingerprint_k12": RFEnvironmentFingerprintLayer,
+    # ── Gap Audit: Classical Celestial ──
+    "polaris_a15": PolarisAltitudeLayer,
+    "noonsight_a16": SolarNoonSightLayer,
+    "sunazimuth_a17": SunAzimuthCompassLayer,
+    "planets_a18": PlanetSightingLayer,
+    "refraction_a19": AtmosphericRefractionLayer,
+    "vhorizon_b11": VisualHorizonLayer,
+    # ── Gap Audit: Exotic & Frontier ──
+    "qcompass_c08": QuantumCompassLayer,
+    "magindoor_c09": MagneticIndoorFingerprintLayer,
+    "infrasoundmap_i04": InfrasoundMapMatchingLayer,
+    "presspattern_i05": AtmosphericPressurePatternLayer,
+    "sferics_i06": LightningSfericsLayer,
+    "plume_h12": ChemicalPlumeTrackingLayer,
+    "thermalmicro_h13": ThermalMicroclimateLayer,
+    "airsonar_f06": AcousticAirRangingLayer,
 }
 
 
