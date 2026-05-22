@@ -292,3 +292,13 @@ class PredictiveTowerVerificationLayer(NavigationLayer):
     def set_simulated_position(self, lat: float, lon: float, alt: float = 10.0):
         self._sim_lat = lat
         self._sim_lon = lon
+
+
+def _haversine_m(lat1, lon1, lat2, lon2) -> float:
+    R = 6_371_000.0
+    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = (math.sin(dlat / 2) ** 2
+         + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2)
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))

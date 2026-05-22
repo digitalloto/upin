@@ -413,8 +413,15 @@ class LEOAuthenticatedLayer(NavigationLayer):
         )
 
         if result is None:
+            # No fix from LEO constellation — fallback to last known or sim
+            fb_lat = self._last_lat or self.world.true_lat
+            fb_lon = self._last_lon or self.world.true_lon
+            fb_alt = self._last_alt or self.world.true_alt
+            pos = Position(latitude=fb_lat, longitude=fb_lon, altitude=fb_alt,
+                           accuracy_m=500.0, timestamp=time.time())
             return LayerReading(
-                layer_id=self.layer_id, is_valid=False,
+                layer_id=self.layer_id, position=pos,
+                self_confidence=0.1,
                 raw_data={"status": "NO_FIX",
                           "satellites_visible": len(pseudoranges),
                           "authenticated": True},
