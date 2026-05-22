@@ -56,8 +56,8 @@ class AISCooperativeLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            base_lat = getattr(self, "_sim_lat", 13.0827)
-            base_lon = getattr(self, "_sim_lon", 80.2707)
+            base_lat = self.world.true_lat if self.world else getattr(self, "_sim_lat", 13.0827)
+            base_lon = self.world.true_lon if self.world else getattr(self, "_sim_lon", 80.2707)
             pos = Position(latitude=base_lat + np.random.normal(0, 20 / 111_000),
                            longitude=base_lon + np.random.normal(0, 20 / 111_000),
                            accuracy_m=20.0, timestamp=time.time())
@@ -96,8 +96,8 @@ class LighthouseSignatureLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            base_lat = getattr(self, "_sim_lat", 13.0827)
-            base_lon = getattr(self, "_sim_lon", 80.2707)
+            base_lat = self.world.true_lat if self.world else getattr(self, "_sim_lat", 13.0827)
+            base_lon = self.world.true_lon if self.world else getattr(self, "_sim_lon", 80.2707)
             pos = Position(latitude=base_lat + np.random.normal(0, 50 / 111_000),
                            longitude=base_lon + np.random.normal(0, 50 / 111_000),
                            accuracy_m=50.0, timestamp=time.time())
@@ -136,8 +136,8 @@ class BuoyRecognitionLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            base_lat = getattr(self, "_sim_lat", 13.0827)
-            base_lon = getattr(self, "_sim_lon", 80.2707)
+            base_lat = self.world.true_lat if self.world else getattr(self, "_sim_lat", 13.0827)
+            base_lon = self.world.true_lon if self.world else getattr(self, "_sim_lon", 80.2707)
             pos = Position(latitude=base_lat + np.random.normal(0, 30 / 111_000),
                            longitude=base_lon + np.random.normal(0, 30 / 111_000),
                            accuracy_m=30.0, timestamp=time.time())
@@ -176,8 +176,8 @@ class ThreePointFixLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            base_lat = getattr(self, "_sim_lat", 13.0827)
-            base_lon = getattr(self, "_sim_lon", 80.2707)
+            base_lat = self.world.true_lat if self.world else getattr(self, "_sim_lat", 13.0827)
+            base_lon = self.world.true_lon if self.world else getattr(self, "_sim_lon", 80.2707)
             pos = Position(latitude=base_lat + np.random.normal(0, 15 / 111_000),
                            longitude=base_lon + np.random.normal(0, 15 / 111_000),
                            accuracy_m=15.0, timestamp=time.time())
@@ -217,8 +217,8 @@ class CoastalPilotageLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            base_lat = getattr(self, "_sim_lat", 13.0827)
-            base_lon = getattr(self, "_sim_lon", 80.2707)
+            base_lat = self.world.true_lat if self.world else getattr(self, "_sim_lat", 13.0827)
+            base_lon = self.world.true_lon if self.world else getattr(self, "_sim_lon", 80.2707)
             pos = Position(latitude=base_lat + np.random.normal(0, 25 / 111_000),
                            longitude=base_lon + np.random.normal(0, 25 / 111_000),
                            accuracy_m=25.0, timestamp=time.time())
@@ -257,8 +257,8 @@ class LeadingLightsLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            base_lat = getattr(self, "_sim_lat", 13.0827)
-            base_lon = getattr(self, "_sim_lon", 80.2707)
+            base_lat = self.world.true_lat if self.world else getattr(self, "_sim_lat", 13.0827)
+            base_lon = self.world.true_lon if self.world else getattr(self, "_sim_lon", 80.2707)
             pos = Position(latitude=base_lat + np.random.normal(0, 5 / 111_000),
                            longitude=base_lon + np.random.normal(0, 5 / 111_000),
                            accuracy_m=5.0, timestamp=time.time())
@@ -298,8 +298,8 @@ class SextantAngleLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            base_lat = getattr(self, "_sim_lat", 13.0827)
-            base_lon = getattr(self, "_sim_lon", 80.2707)
+            base_lat = self.world.true_lat if self.world else getattr(self, "_sim_lat", 13.0827)
+            base_lon = self.world.true_lon if self.world else getattr(self, "_sim_lon", 80.2707)
             pos = Position(latitude=base_lat + np.random.normal(0, 10 / 111_000),
                            longitude=base_lon + np.random.normal(0, 10 / 111_000),
                            accuracy_m=10.0, timestamp=time.time())
@@ -340,8 +340,8 @@ class SeabedSampleLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            base_lat = getattr(self, "_sim_lat", 13.0827)
-            base_lon = getattr(self, "_sim_lon", 80.2707)
+            base_lat = self.world.true_lat if self.world else getattr(self, "_sim_lat", 13.0827)
+            base_lon = self.world.true_lon if self.world else getattr(self, "_sim_lon", 80.2707)
             pos = Position(latitude=base_lat + np.random.normal(0, 200 / 111_000),
                            longitude=base_lon + np.random.normal(0, 200 / 111_000),
                            accuracy_m=200.0, timestamp=time.time())
@@ -381,8 +381,8 @@ class LunarDistanceLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            base_lat = getattr(self, "_sim_lat", 13.0827)
-            base_lon = getattr(self, "_sim_lon", 80.2707)
+            base_lat = self.world.true_lat if self.world else getattr(self, "_sim_lat", 13.0827)
+            base_lon = self.world.true_lon if self.world else getattr(self, "_sim_lon", 80.2707)
             pos = Position(latitude=base_lat + np.random.normal(0, 500 / 111_000),
                            longitude=base_lon + np.random.normal(0, 500 / 111_000),
                            accuracy_m=500.0, timestamp=time.time())
@@ -422,8 +422,8 @@ class MarineChronometerLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            base_lat = getattr(self, "_sim_lat", 13.0827)
-            base_lon = getattr(self, "_sim_lon", 80.2707)
+            base_lat = self.world.true_lat if self.world else getattr(self, "_sim_lat", 13.0827)
+            base_lon = self.world.true_lon if self.world else getattr(self, "_sim_lon", 80.2707)
             pos = Position(latitude=base_lat,
                            longitude=base_lon + np.random.normal(0, 100 / 111_000),
                            accuracy_m=100.0, timestamp=time.time())
@@ -502,8 +502,8 @@ class PolynesianWayfindingLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            base_lat = getattr(self, "_sim_lat", 13.0827)
-            base_lon = getattr(self, "_sim_lon", 80.2707)
+            base_lat = self.world.true_lat if self.world else getattr(self, "_sim_lat", 13.0827)
+            base_lon = self.world.true_lon if self.world else getattr(self, "_sim_lon", 80.2707)
             pos = Position(latitude=base_lat + np.random.normal(0, 1000 / 111_000),
                            longitude=base_lon + np.random.normal(0, 1000 / 111_000),
                            accuracy_m=1000.0, timestamp=time.time())

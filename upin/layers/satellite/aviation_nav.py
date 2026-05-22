@@ -45,8 +45,8 @@ class ADSBCooperativeLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            base_lat = getattr(self, "_sim_lat", 13.0827)
-            base_lon = getattr(self, "_sim_lon", 80.2707)
+            base_lat = self.world.true_lat if self.world else getattr(self, "_sim_lat", 13.0827)
+            base_lon = self.world.true_lon if self.world else getattr(self, "_sim_lon", 80.2707)
             pos = Position(latitude=base_lat + np.random.normal(0, 10 / 111_000),
                            longitude=base_lon + np.random.normal(0, 10 / 111_000),
                            accuracy_m=10.0, timestamp=time.time())
@@ -85,8 +85,8 @@ class TACANLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            base_lat = getattr(self, "_sim_lat", 13.0827)
-            base_lon = getattr(self, "_sim_lon", 80.2707)
+            base_lat = self.world.true_lat if self.world else getattr(self, "_sim_lat", 13.0827)
+            base_lon = self.world.true_lon if self.world else getattr(self, "_sim_lon", 80.2707)
             pos = Position(latitude=base_lat + np.random.normal(0, 15 / 111_000),
                            longitude=base_lon + np.random.normal(0, 15 / 111_000),
                            accuracy_m=15.0, timestamp=time.time())
@@ -127,8 +127,8 @@ class VORDMELayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            base_lat = getattr(self, "_sim_lat", 13.0827)
-            base_lon = getattr(self, "_sim_lon", 80.2707)
+            base_lat = self.world.true_lat if self.world else getattr(self, "_sim_lat", 13.0827)
+            base_lon = self.world.true_lon if self.world else getattr(self, "_sim_lon", 80.2707)
             pos = Position(latitude=base_lat + np.random.normal(0, 20 / 111_000),
                            longitude=base_lon + np.random.normal(0, 20 / 111_000),
                            accuracy_m=20.0, timestamp=time.time())
@@ -169,8 +169,8 @@ class ILSLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            base_lat = getattr(self, "_sim_lat", 13.0827)
-            base_lon = getattr(self, "_sim_lon", 80.2707)
+            base_lat = self.world.true_lat if self.world else getattr(self, "_sim_lat", 13.0827)
+            base_lon = self.world.true_lon if self.world else getattr(self, "_sim_lon", 80.2707)
             pos = Position(latitude=base_lat + np.random.normal(0, 2 / 111_000),
                            longitude=base_lon + np.random.normal(0, 2 / 111_000),
                            altitude=50.0, accuracy_m=2.0, timestamp=time.time())
@@ -212,8 +212,8 @@ class GAGANLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            base_lat = getattr(self, "_sim_lat", 13.0827)
-            base_lon = getattr(self, "_sim_lon", 80.2707)
+            base_lat = self.world.true_lat if self.world else getattr(self, "_sim_lat", 13.0827)
+            base_lon = self.world.true_lon if self.world else getattr(self, "_sim_lon", 80.2707)
             pos = Position(latitude=base_lat + np.random.normal(0, 1.5 / 111_000),
                            longitude=base_lon + np.random.normal(0, 1.5 / 111_000),
                            accuracy_m=1.5, timestamp=time.time())
@@ -255,8 +255,8 @@ class PseudoliteLayer(NavigationLayer):
 
     def read(self) -> LayerReading:
         if self._simulated:
-            base_lat = getattr(self, "_sim_lat", 13.0827)
-            base_lon = getattr(self, "_sim_lon", 80.2707)
+            base_lat = self.world.true_lat if self.world else getattr(self, "_sim_lat", 13.0827)
+            base_lon = self.world.true_lon if self.world else getattr(self, "_sim_lon", 80.2707)
             pos = Position(latitude=base_lat + np.random.normal(0, 3 / 111_000),
                            longitude=base_lon + np.random.normal(0, 3 / 111_000),
                            accuracy_m=3.0, timestamp=time.time())

@@ -14,6 +14,12 @@ from upin.core.layer_base import NavigationLayer, LayerGroup, LayerCapability, L
 from upin.core.position import Position
 
 def _stub_read(self, noise_m, confidence, raw_data):
+    if self.world is not None:
+        lat = self.world.true_lat + np.random.normal(0, noise_m / 111_000)
+        lon = self.world.true_lon + np.random.normal(0, noise_m / 111_000)
+        pos = Position(latitude=lat, longitude=lon, accuracy_m=noise_m, timestamp=time.time())
+        return LayerReading(layer_id=self.layer_id, position=pos,
+                            self_confidence=confidence, raw_data=raw_data)
     if self._simulated:
         lat = getattr(self, "_sim_lat", 13.0827) + np.random.normal(0, noise_m / 111_000)
         lon = getattr(self, "_sim_lon", 80.2707) + np.random.normal(0, noise_m / 111_000)
