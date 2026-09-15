@@ -7,3 +7,11 @@ build/
 *.egg
 .venv/
 .env
+
+# Credentials — never commit
+*recovery-code*
+*recovery_code*
+*.pem
+*.key
+secrets*
+credentials*

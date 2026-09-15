@@ -7,13 +7,13 @@ Run `python generate_index.py` to regenerate.
 
 - **Navigation Layers**: 132
 - **Core Modules**: 136 classes
-- **Swarm Modules**: 56 classes
+- **Swarm Modules**: 83 classes
 - **Detection Modules**: 11 classes
 - **Agent Modules**: 31 classes
 - **Vision Modules**: 15 classes
-- **Total Classes**: 582
-- **Total Python Files**: 140
-- **Total Lines of Code**: 45,107
+- **Total Classes**: 647
+- **Total Python Files**: 146
+- **Total Lines of Code**: 50,073
 
 ---
 ## Navigation Layers
@@ -38,7 +38,7 @@ Run `python generate_index.py` to regenerate.
 | 16 | `rfanomaly_l16` | `RFAnomalyDetectionLayer` | Layer 16 — RF Signal Anomaly Detection [NOVEL]. | `upin/layers/systems/layers.py` | 291-351 |
 | 17 | `dualqmag_l17` | `DualQuantumMagnetometerLayer` | Layer 17 — Dual Mechanism Quantum Magnetometer [NOVEL, UNDER... | `upin/layers/magnetic/layers.py` | 145-256 |
 | 18 | `laserdop_l18` | `LaserDopplerLayer` | Layer 18 — Laser Doppler Velocity Sensor [NOVEL]. | `upin/layers/inertial/layers.py` | 385-465 |
-| 19 | `leo_l19` | `LEOAuthenticatedLayer` | Layer 19 — LEO Authenticated Satellite Signals [NOVEL]. | `upin/layers/satellite/layers.py` | 349-446 |
+| 19 | `leo_l19` | `LEOAuthenticatedLayer` | Layer 19 — LEO Authenticated Satellite Signals [NOVEL]. | `upin/layers/satellite/layers.py` | 349-453 |
 | 20 | `beacon_l20` | `HumanBeaconNetworkLayer` | Layer 20 — Human Ground Beacon Network [NOVEL]. | `upin/layers/human/layers.py` | 21-130 |
 | 21 | `spoofmap_l21` | `CrowdsourcedSpoofingMapLayer` | Layer 21 — India Crowdsourced GPS Spoofing Map [NOVEL]. | `upin/layers/human/layers.py` | 133-206 |
 | 22 | `radius_l22` | `RadiusContainmentLayer` | Layer 22 — Radius Containment and Convergence Lock [NOVEL]. | `upin/layers/human/layers.py` | 209-313 |
@@ -51,7 +51,7 @@ Run `python generate_index.py` to regenerate.
 | 28 | `gravgrad_l28a` | `QuantumGravityGradiometerLayer` | Layer 28a — Quantum Gravity Gradiometer [NOVEL, UNDERWATER]. | `upin/layers/gravity/layers.py` | 19-101 |
 | 28 | `gravimeter_l28b` | `QuantumDualGravimeterLayer` | Layer 28b — Quantum Dual Gravimeter [NOVEL, UNDERWATER]. | `upin/layers/gravity/layers.py` | 104-181 |
 | 29 | `pulsar_l29b` | `PulsarExtendedLayer` | Layer 29b — Pulsar-Based Extended Navigation [NOVEL, UNDERWA... | `upin/layers/cosmic/layers.py` | 120-216 |
-| 29 | `xnav_l29` | `XRayPulsarLayer` | Layer 29 — X-Ray Pulsar Navigation (XNAV) [NOVEL, UNDERWATER... | `upin/layers/satellite/layers.py` | 449-577 |
+| 29 | `xnav_l29` | `XRayPulsarLayer` | Layer 29 — X-Ray Pulsar Navigation (XNAV) [NOVEL, UNDERWATER... | `upin/layers/satellite/layers.py` | 456-584 |
 | 30 | `nvdiamond_l30` | `NVDiamondMagnetometerLayer` | Layer 30 — Nitrogen-Vacancy Diamond Magnetometer [NOVEL, UND... | `upin/layers/magnetic/layers.py` | 473-544 |
 | 31 | `vslam_l31` | `VisualSLAMLayer` | Layer 31 — Visual SLAM Live Environment Mapping. | `upin/layers/optical/layers.py` | 377-504 |
 | 32 | `vio_l32` | `VisualOdometryLayer` | Layer 32 — Visual Odometry with IMU Fusion. | `upin/layers/optical/layers.py` | 511-605 |
@@ -68,8 +68,8 @@ Run `python generate_index.py` to regenerate.
 | 43 | `opticflow_l43` | `OpticFlowLayer` | Layer 43 — Optic Flow Velocity and Proximity Sensing [NOVEL]... | `upin/layers/inertial/layers.py` | 550-631 |
 | 44 | `bicoord_l44` | `BiocoordinateGeoChemMagLayer` | Layer 44 — Bicoordinate Geo-Chemical-Magnetic Positioning [N... | `upin/layers/magnetic/layers.py` | 551-646 |
 | 45 | `tactile_l45` | `TactilePressureLayer` | Layer 45 — Distributed Tactile Pressure Array [NOVEL, UNDERW... | `upin/layers/chemical/layers.py` | 215-258 |
-| 46 | `stellar_l46` | `StellarConstellationLayer` | Layer 46 — Stellar Constellation Pattern Navigation [NOVEL]. | `upin/layers/satellite/layers.py` | 580-681 |
-| 47 | `skygrad_l47` | `DiffuseSkyLayer` | Layer 47 — Diffuse Sky Brightness Gradient Navigation [NOVEL... | `upin/layers/satellite/layers.py` | 684-752 |
+| 46 | `stellar_l46` | `StellarConstellationLayer` | Layer 46 — Stellar Constellation Pattern Navigation [NOVEL]. | `upin/layers/satellite/layers.py` | 587-688 |
+| 47 | `skygrad_l47` | `DiffuseSkyLayer` | Layer 47 — Diffuse Sky Brightness Gradient Navigation [NOVEL... | `upin/layers/satellite/layers.py` | 691-759 |
 | 48 | `latline_l48` | `LateralLineLayer` | Layer 48 — Lateral Line Pressure Field Mapping [NOVEL, UNDER... | `upin/layers/chemical/layers.py` | 261-303 |
 | 49 | `ionosphere_l49` | `IonosphericDensityLayer` | Layer 49 — Ionospheric Electron Density Navigation [NOVEL]. | `upin/layers/chemical/layers.py` | 384-468 |
 | 57 | `nmrgyro_l57` | `NMRGyroscopeLayer` | Layer 57 — Nuclear Magnetic Resonance Gyroscope [NOVEL, UNDE... | `upin/layers/inertial/layers.py` | 634-709 |
@@ -121,37 +121,37 @@ Run `python generate_index.py` to regenerate.
 | 104 | `ils_d13` | `ILSLayer` | ILS — Instrument Landing System. Precision approach guidance... | `upin/layers/satellite/aviation_nav.py` | 146-185 |
 | 105 | `gagan_a13` | `GAGANLayer` | GAGAN — GPS Aided GEO Augmented Navigation. Indian SBAS. | `upin/layers/satellite/aviation_nav.py` | 188-227 |
 | 106 | `pseudolite_d14` | `PseudoliteLayer` | Pseudolite — ground-based GPS-like transmitters. | `upin/layers/satellite/aviation_nav.py` | 230-270 |
-| 107 | `omega_d15` | `OMEGALayer` | OMEGA VLF navigation (1971-1997). 8 stations, global coverag... | `upin/layers/rf/radio_historical.py` | 25-34 |
-| 108 | `decca_d16` | `DeccaNavigatorLayer` | Decca Navigator — phase-comparison radio (1946-2000). Mariti... | `upin/layers/rf/radio_historical.py` | 36-45 |
-| 109 | `consol_d17` | `ConsolSonneLayer` | Consol/Sonne — German WWII rotating-beacon system. | `upin/layers/rf/radio_historical.py` | 47-56 |
-| 110 | `rdf_d18` | `RDFBearingLayer` | Radio Direction Finding — bearing-only on known transmitters... | `upin/layers/rf/radio_historical.py` | 58-68 |
-| 111 | `aprs_d19` | `APRSLayer` | APRS — Amateur Packet Reporting System. Position via ham rad... | `upin/layers/rf/radio_historical.py` | 70-79 |
-| 112 | `dopbeacon_d20` | `DopplerBeaconLayer` | Doppler beacon localisation — Doppler shift on known-frequen... | `upin/layers/rf/radio_historical.py` | 81-90 |
-| 113 | `iriddop_a14` | `IridiumDopplerLayer` | Iridium/Globalstar LEO Doppler — position from LEO satellite... | `upin/layers/rf/radio_historical.py` | 92-101 |
-| 114 | `ecid_d21` | `ECIDLayer` | Enhanced Cell ID — single cell + signal strength + timing ad... | `upin/layers/rf/cellular_advanced.py` | 24-33 |
-| 115 | `otdoa_d22` | `OTDOALayer` | OTDOA — Observed Time Difference of Arrival (LTE/5G). | `upin/layers/rf/cellular_advanced.py` | 35-44 |
-| 116 | `fiveg_d23` | `FiveGNRPositioningLayer` | 5G NR Positioning — UTDOA/RTT/AoA built into 5G standard. | `upin/layers/rf/cellular_advanced.py` | 46-55 |
-| 117 | `wifirtt_d24` | `WiFiRTTLayer` | WiFi RTT (802.11mc Fine Time Measurement) — sub-metre indoor... | `upin/layers/rf/cellular_advanced.py` | 57-66 |
-| 118 | `rfid_d25` | `RFIDNFCLayer` | RFID/NFC localisation — short-range tag-and-reader fixes. | `upin/layers/rf/cellular_advanced.py` | 68-77 |
-| 119 | `vlc_d26` | `VLCLiFiLayer` | Visible Light Communication / Li-Fi — LED fixtures broadcast... | `upin/layers/rf/cellular_advanced.py` | 79-89 |
-| 120 | `rffingerprint_k12` | `RFEnvironmentFingerprintLayer` | RF environment fingerprinting — full spectrum signature = lo... | `upin/layers/rf/cellular_advanced.py` | 91-106 |
-| 121 | `polaris_a15` | `PolarisAltitudeLayer` | Polaris altitude → latitude directly. Simplest classical lat... | `upin/layers/satellite/celestial_classical.py` | 25-34 |
-| 122 | `noonsight_a16` | `SolarNoonSightLayer` | Solar meridian altitude (noon sight) — latitude from sun at ... | `upin/layers/satellite/celestial_classical.py` | 36-45 |
-| 123 | `sunazimuth_a17` | `SunAzimuthCompassLayer` | Sun compass — azimuth from sun bearing + accurate time. | `upin/layers/satellite/celestial_classical.py` | 47-65 |
-| 124 | `planets_a18` | `PlanetSightingLayer` | Planet sightings — Venus, Mars, Jupiter, Saturn for celestia... | `upin/layers/satellite/celestial_classical.py` | 67-76 |
-| 125 | `refraction_a19` | `AtmosphericRefractionLayer` | Atmospheric refraction correction — systematic error in cele... | `upin/layers/satellite/celestial_classical.py` | 78-87 |
-| 126 | `vhorizon_b11` | `VisualHorizonLayer` | Visual horizon reference — bubble horizon, pendulum, liquid ... | `upin/layers/satellite/celestial_classical.py` | 89-102 |
-| 127 | `qcompass_c08` | `QuantumCompassLayer` | Quantum compass / cold atom interferometer — measures rotati... | `upin/layers/exotic/frontier_nav.py` | 25-39 |
-| 128 | `magindoor_c09` | `MagneticIndoorFingerprintLayer` | Indoor magnetic fingerprinting — building steel creates uniq... | `upin/layers/exotic/frontier_nav.py` | 41-55 |
-| 129 | `infrasoundmap_i04` | `InfrasoundMapMatchingLayer` | Infrasound map matching — stable spatial patterns from volca... | `upin/layers/exotic/frontier_nav.py` | 57-72 |
-| 130 | `presspattern_i05` | `AtmosphericPressurePatternLayer` | Atmospheric pressure pattern matching — weather systems crea... | `upin/layers/exotic/frontier_nav.py` | 74-89 |
-| 131 | `sferics_i06` | `LightningSfericsLayer` | Lightning sferics geolocation — natural RF source from dista... | `upin/layers/exotic/frontier_nav.py` | 91-107 |
-| 132 | `plume_h12` | `ChemicalPlumeTrackingLayer` | Chemical plume tracking — dynamic source localisation from c... | `upin/layers/exotic/frontier_nav.py` | 109-125 |
-| 133 | `thermalmicro_h13` | `ThermalMicroclimateLayer` | Thermal microclimate signature — every location has a diurna... | `upin/layers/exotic/frontier_nav.py` | 127-138 |
-| 134 | `airsonar_f06` | `AcousticAirRangingLayer` | Cricket / ultrasonic acoustic ranging in air — indoor positi... | `upin/layers/exotic/frontier_nav.py` | 140-155 |
+| 107 | `omega_d15` | `OMEGALayer` | OMEGA VLF navigation (1971-1997). 8 stations, global coverag... | `upin/layers/rf/radio_historical.py` | 31-40 |
+| 108 | `decca_d16` | `DeccaNavigatorLayer` | Decca Navigator — phase-comparison radio (1946-2000). Mariti... | `upin/layers/rf/radio_historical.py` | 42-51 |
+| 109 | `consol_d17` | `ConsolSonneLayer` | Consol/Sonne — German WWII rotating-beacon system. | `upin/layers/rf/radio_historical.py` | 53-62 |
+| 110 | `rdf_d18` | `RDFBearingLayer` | Radio Direction Finding — bearing-only on known transmitters... | `upin/layers/rf/radio_historical.py` | 64-74 |
+| 111 | `aprs_d19` | `APRSLayer` | APRS — Amateur Packet Reporting System. Position via ham rad... | `upin/layers/rf/radio_historical.py` | 76-85 |
+| 112 | `dopbeacon_d20` | `DopplerBeaconLayer` | Doppler beacon localisation — Doppler shift on known-frequen... | `upin/layers/rf/radio_historical.py` | 87-96 |
+| 113 | `iriddop_a14` | `IridiumDopplerLayer` | Iridium/Globalstar LEO Doppler — position from LEO satellite... | `upin/layers/rf/radio_historical.py` | 98-107 |
+| 114 | `ecid_d21` | `ECIDLayer` | Enhanced Cell ID — single cell + signal strength + timing ad... | `upin/layers/rf/cellular_advanced.py` | 30-39 |
+| 115 | `otdoa_d22` | `OTDOALayer` | OTDOA — Observed Time Difference of Arrival (LTE/5G). | `upin/layers/rf/cellular_advanced.py` | 41-50 |
+| 116 | `fiveg_d23` | `FiveGNRPositioningLayer` | 5G NR Positioning — UTDOA/RTT/AoA built into 5G standard. | `upin/layers/rf/cellular_advanced.py` | 52-61 |
+| 117 | `wifirtt_d24` | `WiFiRTTLayer` | WiFi RTT (802.11mc Fine Time Measurement) — sub-metre indoor... | `upin/layers/rf/cellular_advanced.py` | 63-72 |
+| 118 | `rfid_d25` | `RFIDNFCLayer` | RFID/NFC localisation — short-range tag-and-reader fixes. | `upin/layers/rf/cellular_advanced.py` | 74-83 |
+| 119 | `vlc_d26` | `VLCLiFiLayer` | Visible Light Communication / Li-Fi — LED fixtures broadcast... | `upin/layers/rf/cellular_advanced.py` | 85-95 |
+| 120 | `rffingerprint_k12` | `RFEnvironmentFingerprintLayer` | RF environment fingerprinting — full spectrum signature = lo... | `upin/layers/rf/cellular_advanced.py` | 97-112 |
+| 121 | `polaris_a15` | `PolarisAltitudeLayer` | Polaris altitude → latitude directly. Simplest classical lat... | `upin/layers/satellite/celestial_classical.py` | 31-40 |
+| 122 | `noonsight_a16` | `SolarNoonSightLayer` | Solar meridian altitude (noon sight) — latitude from sun at ... | `upin/layers/satellite/celestial_classical.py` | 42-51 |
+| 123 | `sunazimuth_a17` | `SunAzimuthCompassLayer` | Sun compass — azimuth from sun bearing + accurate time. | `upin/layers/satellite/celestial_classical.py` | 53-71 |
+| 124 | `planets_a18` | `PlanetSightingLayer` | Planet sightings — Venus, Mars, Jupiter, Saturn for celestia... | `upin/layers/satellite/celestial_classical.py` | 73-82 |
+| 125 | `refraction_a19` | `AtmosphericRefractionLayer` | Atmospheric refraction correction — systematic error in cele... | `upin/layers/satellite/celestial_classical.py` | 84-93 |
+| 126 | `vhorizon_b11` | `VisualHorizonLayer` | Visual horizon reference — bubble horizon, pendulum, liquid ... | `upin/layers/satellite/celestial_classical.py` | 95-108 |
+| 127 | `qcompass_c08` | `QuantumCompassLayer` | Quantum compass / cold atom interferometer — measures rotati... | `upin/layers/exotic/frontier_nav.py` | 31-45 |
+| 128 | `magindoor_c09` | `MagneticIndoorFingerprintLayer` | Indoor magnetic fingerprinting — building steel creates uniq... | `upin/layers/exotic/frontier_nav.py` | 47-61 |
+| 129 | `infrasoundmap_i04` | `InfrasoundMapMatchingLayer` | Infrasound map matching — stable spatial patterns from volca... | `upin/layers/exotic/frontier_nav.py` | 63-78 |
+| 130 | `presspattern_i05` | `AtmosphericPressurePatternLayer` | Atmospheric pressure pattern matching — weather systems crea... | `upin/layers/exotic/frontier_nav.py` | 80-95 |
+| 131 | `sferics_i06` | `LightningSfericsLayer` | Lightning sferics geolocation — natural RF source from dista... | `upin/layers/exotic/frontier_nav.py` | 97-113 |
+| 132 | `plume_h12` | `ChemicalPlumeTrackingLayer` | Chemical plume tracking — dynamic source localisation from c... | `upin/layers/exotic/frontier_nav.py` | 115-131 |
+| 133 | `thermalmicro_h13` | `ThermalMicroclimateLayer` | Thermal microclimate signature — every location has a diurna... | `upin/layers/exotic/frontier_nav.py` | 133-144 |
+| 134 | `airsonar_f06` | `AcousticAirRangingLayer` | Cricket / ultrasonic acoustic ranging in air — indoor positi... | `upin/layers/exotic/frontier_nav.py` | 146-161 |
 |  | `` | `LayerEvent` | One layer management event. | `upin/layers/layer_manager.py` | 22-27 |
 |  | `` | `LayerManager` | Interactive layer management for UPIN. | `upin/layers/layer_manager.py` | 30-398 |
-|  | `` | `LayerRegistry` | Central registry for managing UPIN navigation layers. | `upin/layers/registry.py` | 293-370 |
+|  | `` | `LayerRegistry` | Central registry for managing UPIN navigation layers. | `upin/layers/registry.py` | 309-386 |
 
 ---
 ## Core Modules
@@ -213,14 +213,14 @@ Run `python generate_index.py` to regenerate.
 | `_NumpyNoiseNet` | Lightweight adaptive noise estimator (numpy only). | `upin/core/improved_adaptive_ekf.py` | 73-98 |
 | `ImprovedAdaptiveEKF` | Improved Adaptive Extended Kalman Filter with neural-network-based | `upin/core/improved_adaptive_ekf.py` | 123-377 |
 | `_TorchNoiseNet` |  | `upin/core/improved_adaptive_ekf.py` | 104-118 |
-| `LayerGroup` | Groups as defined in the patent specification Section 6.2. | `upin/core/layer_base.py` | 21-33 |
-| `LayerCapability` | What a layer can provide. | `upin/core/layer_base.py` | 36-44 |
-| `LayerStatus` | Runtime status of a layer. | `upin/core/layer_base.py` | 48-58 |
-| `LayerReading` | A single reading from a positioning layer. | `upin/core/layer_base.py` | 62-74 |
-| `NavigationLayer` | Abstract base class for all 60 UPIN navigation/positioning layers. | `upin/core/layer_base.py` | 77-194 |
-| `ThreatLayer` | Abstract base class for all 25 UPIN threat detection layers. | `upin/core/layer_base.py` | 197-240 |
-| `SwarmLayer` | Abstract base class for swarm architecture layers SW1-SW4. | `upin/core/layer_base.py` | 243-268 |
-| `MissionModule` | Abstract base class for mission capability modules MC1-MC4. | `upin/core/layer_base.py` | 271-296 |
+| `LayerGroup` | Groups as defined in the patent specification Section 6.2. | `upin/core/layer_base.py` | 21-34 |
+| `LayerCapability` | What a layer can provide. | `upin/core/layer_base.py` | 37-45 |
+| `LayerStatus` | Runtime status of a layer. | `upin/core/layer_base.py` | 49-59 |
+| `LayerReading` | A single reading from a positioning layer. | `upin/core/layer_base.py` | 63-75 |
+| `NavigationLayer` | Abstract base class for all 60 UPIN navigation/positioning layers. | `upin/core/layer_base.py` | 78-195 |
+| `ThreatLayer` | Abstract base class for all 25 UPIN threat detection layers. | `upin/core/layer_base.py` | 198-241 |
+| `SwarmLayer` | Abstract base class for swarm architecture layers SW1-SW4. | `upin/core/layer_base.py` | 244-269 |
+| `MissionModule` | Abstract base class for mission capability modules MC1-MC4. | `upin/core/layer_base.py` | 272-297 |
 | `PathDot` | A single dot on the predictive path. | `upin/core/live_predictive_path.py` | 49-62 |
 | `PredictivePath` | The complete dotted predictive path at one instant. | `upin/core/live_predictive_path.py` | 66-73 |
 | `LivePredictivePathEngine` | Generates and updates the predictive dotted path every tick. | `upin/core/live_predictive_path.py` | 76-316 |
@@ -311,6 +311,9 @@ Run `python generate_index.py` to regenerate.
 | `MasterBrainProtocol` | SW2 — Master Brain Upload Protocol. | `upin/swarm/beehive.py` | 128-195 | IMPLEMENTED |
 | `OffensivePostureMode` | SW3 — Offensive Posture Mode. | `upin/swarm/beehive.py` | 198-266 | IMPLEMENTED |
 | `AdaptiveFormationIntelligence` | SW4 — Adaptive Formation Intelligence. | `upin/swarm/beehive.py` | 269-362 | IMPLEMENTED |
+| `Gains` |  | `upin/swarm/consensus.py` | 106-117 | IMPLEMENTED |
+| `KCFState` |  | `upin/swarm/consensus.py` | 334-336 | IMPLEMENTED |
+| `SwarmState` |  | `upin/swarm/consensus.py` | 414-424 | IMPLEMENTED |
 | `RangingMethod` |  | `upin/swarm/cooperative_mesh.py` | 40-45 | IMPLEMENTED |
 | `PeerDevice` | A device in the cooperative mesh. | `upin/swarm/cooperative_mesh.py` | 49-58 | IMPLEMENTED |
 | `MeshRanging` | One distance measurement between two devices. | `upin/swarm/cooperative_mesh.py` | 62-71 | IMPLEMENTED |
@@ -321,14 +324,22 @@ Run `python generate_index.py` to regenerate.
 | `RoleProfile` | Complete profile for a drone role. | `upin/swarm/drone_roles.py` | 60-82 | IMPLEMENTED |
 | `DroneInstance` | A specific drone in the swarm with an assigned role. | `upin/swarm/drone_roles.py` | 359-376 | IMPLEMENTED |
 | `SwarmRoleManager` | Manages role assignment and specialisation for a drone swarm... | `upin/swarm/drone_roles.py` | 379-492 | IMPLEMENTED |
-| `(stub)` | Acoustic — 50m air / 5km underwater, unjammable. TODO: imple... | `upin/swarm/mesh_comms/acoustic.py` | 1-1 | STUB |
-| `(stub)` | Bluetooth 5 — 200m, low power mesh data. TODO: implement. | `upin/swarm/mesh_comms/bluetooth.py` | 1-1 | STUB |
-| `(stub)` | Frequency Hopping Spread Spectrum — anti-jam overlay for any... | `upin/swarm/mesh_comms/freq_hopping.py` | 1-1 | STUB |
-| `(stub)` | IR/Laser — 1km LOS, unjammable, stealth mode. TODO: implemen... | `upin/swarm/mesh_comms/ir_laser.py` | 1-1 | STUB |
-| `(stub)` | 915MHz ISM — 2km, medium bandwidth mesh backbone. TODO: impl... | `upin/swarm/mesh_comms/ism_915.py` | 1-1 | STUB |
-| `(stub)` | LoRa 900MHz — 15km, low bandwidth, frequency hopping. TODO: ... | `upin/swarm/mesh_comms/lora.py` | 1-1 | STUB |
-| `(stub)` | UWB (Ultra-Wideband) — 100m, 10cm ranging accuracy. TODO: im... | `upin/swarm/mesh_comms/uwb.py` | 1-1 | STUB |
-| `(stub)` | WiFi Direct — 300m, high bandwidth video/bulk relay. TODO: i... | `upin/swarm/mesh_comms/wifi_direct.py` | 1-1 | STUB |
+| `AcousticPacket` | One acoustic transmission. | `upin/swarm/mesh_comms/acoustic.py` | 20-30 | IMPLEMENTED |
+| `AcousticMeshRadio` | Acoustic mesh communication — sound-based data and ranging. | `upin/swarm/mesh_comms/acoustic.py` | 33-127 | IMPLEMENTED |
+| `BLEAdvertisement` | One BLE advertisement packet. | `upin/swarm/mesh_comms/bluetooth.py` | 19-24 | IMPLEMENTED |
+| `BluetoothMeshRadio` | Bluetooth 5 mesh for low-power data relay. | `upin/swarm/mesh_comms/bluetooth.py` | 27-78 | IMPLEMENTED |
+| `HopSequence` | A frequency hopping pattern. | `upin/swarm/mesh_comms/freq_hopping.py` | 28-34 | IMPLEMENTED |
+| `FrequencyHopper` | FHSS anti-jam overlay for any radio channel. | `upin/swarm/mesh_comms/freq_hopping.py` | 37-156 | IMPLEMENTED |
+| `LaserLink` | One IR/laser communication link. | `upin/swarm/mesh_comms/ir_laser.py` | 20-30 | IMPLEMENTED |
+| `IRLaserMeshRadio` | IR/laser free-space optical communication. | `upin/swarm/mesh_comms/ir_laser.py` | 33-105 | IMPLEMENTED |
+| `ISMLink` | An active ISM band link. | `upin/swarm/mesh_comms/ism_915.py` | 20-27 | IMPLEMENTED |
+| `ISM915MeshRadio` | 915MHz ISM band mesh — medium range, medium bandwidth backbo... | `upin/swarm/mesh_comms/ism_915.py` | 30-88 | IMPLEMENTED |
+| `LoRaPacket` | One LoRa transmission. | `upin/swarm/mesh_comms/lora.py` | 20-30 | IMPLEMENTED |
+| `LoRaMeshRadio` | LoRa 900MHz mesh for long-range low-bandwidth communication. | `upin/swarm/mesh_comms/lora.py` | 33-127 | IMPLEMENTED |
+| `UWBRanging` | One UWB range measurement between two nodes. | `upin/swarm/mesh_comms/uwb.py` | 20-27 | IMPLEMENTED |
+| `UWBMeshRadio` | UWB mesh radio — precise ranging + data transfer. | `upin/swarm/mesh_comms/uwb.py` | 30-87 | IMPLEMENTED |
+| `WiFiDirectLink` | A WiFi Direct peer-to-peer connection. | `upin/swarm/mesh_comms/wifi_direct.py` | 20-28 | IMPLEMENTED |
+| `WiFiDirectMeshRadio` | WiFi Direct for high-bandwidth mesh data transfer. | `upin/swarm/mesh_comms/wifi_direct.py` | 31-121 | IMPLEMENTED |
 | `MeshNodeStatus` |  | `upin/swarm/mesh_swarm_os.py` | 33-38 | IMPLEMENTED |
 | `MeshNode` | One drone in the swarm mesh. | `upin/swarm/mesh_swarm_os.py` | 42-62 | IMPLEMENTED |
 | `MeshMessage` | An encrypted message passed through the mesh. | `upin/swarm/mesh_swarm_os.py` | 66-76 | IMPLEMENTED |
@@ -341,11 +352,22 @@ Run `python generate_index.py` to regenerate.
 | `RadioConfig` |  | `upin/swarm/multi_radio_mesh.py` | 42-52 | IMPLEMENTED |
 | `CommLink` | An active communication link between two nodes. | `upin/swarm/multi_radio_mesh.py` | 75-82 | IMPLEMENTED |
 | `MultiRadioMesh` | Multi-radio mesh with automatic failover. | `upin/swarm/multi_radio_mesh.py` | 85-202 | IMPLEMENTED |
-| `(stub)` | Army Ant Tactics — living bridge, leaderless emergence. TODO... | `upin/swarm/nature_tactics/ant.py` | 1-1 | STUB |
-| `(stub)` | Cuttlefish Camouflage — dynamic signature morphing for decoy... | `upin/swarm/nature_tactics/cuttlefish.py` | 1-1 | STUB |
-| `(stub)` | Dolphin Tactics — mud ring jamming, echolocation nav. TODO: ... | `upin/swarm/nature_tactics/dolphin.py` | 1-1 | STUB |
-| `(stub)` | Firefly Synchronization — leaderless time sync across mesh. ... | `upin/swarm/nature_tactics/firefly.py` | 1-1 | STUB |
-| `(stub)` | Goose V-Formation — energy drafting, leadership rotation. TO... | `upin/swarm/nature_tactics/goose.py` | 1-1 | STUB |
+| `BridgeNode` | A drone acting as a relay node in the living bridge. | `upin/swarm/nature_tactics/ant.py` | 29-37 | IMPLEMENTED |
+| `AntLivingBridge` | Form a communication bridge across a dead zone. | `upin/swarm/nature_tactics/ant.py` | 40-117 | IMPLEMENTED |
+| `PheromoneTrail` | A signal trace left by a successful path. | `upin/swarm/nature_tactics/ant.py` | 121-128 | IMPLEMENTED |
+| `AntLeaderlessEmergence` | Leaderless swarm behaviour from simple local rules. | `upin/swarm/nature_tactics/ant.py` | 131-219 | IMPLEMENTED |
+| `ArmyAntTactics` | Combined army ant tactical suite. | `upin/swarm/nature_tactics/ant.py` | 222-233 | IMPLEMENTED |
+| `SignatureType` |  | `upin/swarm/nature_tactics/cuttlefish.py` | 24-29 | IMPLEMENTED |
+| `AircraftSignatureProfile` | The signature profile of an aircraft type to mimic. | `upin/swarm/nature_tactics/cuttlefish.py` | 33-40 | IMPLEMENTED |
+| `ActiveMimicry` | Current mimicry state of a decoy drone. | `upin/swarm/nature_tactics/cuttlefish.py` | 76-87 | IMPLEMENTED |
+| `CuttlefishCamouflage` | Dynamic signature morphing for decoy drones. | `upin/swarm/nature_tactics/cuttlefish.py` | 90-182 | IMPLEMENTED |
+| `DolphinMudRing` | Mud ring jamming — one EW drone creates a ring of electronic... | `upin/swarm/nature_tactics/dolphin.py` | 26-103 | IMPLEMENTED |
+| `DolphinEchoRelay` | Echolocation relay — share sensor detections across the mesh... | `upin/swarm/nature_tactics/dolphin.py` | 106-146 | IMPLEMENTED |
+| `DolphinTactics` | Combined dolphin tactical suite. | `upin/swarm/nature_tactics/dolphin.py` | 149-160 | IMPLEMENTED |
+| `ClockState` | One drone's internal clock state. | `upin/swarm/nature_tactics/firefly.py` | 29-35 | IMPLEMENTED |
+| `FireflyTimeSync` | Leaderless time synchronization — no GPS, no master clock. | `upin/swarm/nature_tactics/firefly.py` | 38-148 | IMPLEMENTED |
+| `FormationSlot` | One position slot in the V-formation. | `upin/swarm/nature_tactics/goose.py` | 26-32 | IMPLEMENTED |
+| `GooseVFormation` | V-formation with energy drafting and leadership rotation. | `upin/swarm/nature_tactics/goose.py` | 35-157 | IMPLEMENTED |
 | `WaveParticipant` | A drone participating in a wave wash attack. | `upin/swarm/nature_tactics/orca.py` | 37-43 | IMPLEMENTED |
 | `OrcaWaveWash` | Coordinated synchronized attack — EW resonance. | `upin/swarm/nature_tactics/orca.py` | 46-149 | IMPLEMENTED |
 | `CarouselSlot` | A position slot in the carousel rotation. | `upin/swarm/nature_tactics/orca.py` | 157-165 | IMPLEMENTED |
@@ -354,8 +376,13 @@ Run `python generate_index.py` to regenerate.
 | `SwarmKnowledge` | Transferable knowledge package from experienced swarm. | `upin/swarm/nature_tactics/orca.py` | 355-372 | IMPLEMENTED |
 | `OrcaTeaching` | Knowledge transfer between experienced and new swarm members... | `upin/swarm/nature_tactics/orca.py` | 375-449 | IMPLEMENTED |
 | `OrcaTactics` | Combined orca-inspired tactical suite. | `upin/swarm/nature_tactics/orca.py` | 456-502 | IMPLEMENTED |
-| `(stub)` | Starling Murmuration — 3-rule flocking, predator evasion flo... | `upin/swarm/nature_tactics/starling.py` | 1-1 | STUB |
-| `(stub)` | Wolf Pack Tactics — relay chase, flanking, howl coordination... | `upin/swarm/nature_tactics/wolf.py` | 1-1 | STUB |
+| `Boid` | One drone in the murmuration. | `upin/swarm/nature_tactics/starling.py` | 27-35 | IMPLEMENTED |
+| `StarlingMurmuration` | Three-rule flocking + predator evasion. | `upin/swarm/nature_tactics/starling.py` | 38-181 | IMPLEMENTED |
+| `PackMember` | One drone in the wolf pack. | `upin/swarm/nature_tactics/wolf.py` | 30-40 | IMPLEMENTED |
+| `WolfRelayChase` | Relay chase — rotate lead position to conserve battery/endur... | `upin/swarm/nature_tactics/wolf.py` | 43-126 | IMPLEMENTED |
+| `WolfFlanking` | Flanking maneuver — split pack to surround target from multi... | `upin/swarm/nature_tactics/wolf.py` | 129-192 | IMPLEMENTED |
+| `WolfHowlCoordination` | Long-range coordination — howl messages across the pack. | `upin/swarm/nature_tactics/wolf.py` | 195-226 | IMPLEMENTED |
+| `WolfPackTactics` | Combined wolf pack tactical suite. | `upin/swarm/nature_tactics/wolf.py` | 229-245 | IMPLEMENTED |
 
 ---
 ## Detection & Security
@@ -433,4 +460,4 @@ Run `python generate_index.py` to regenerate.
 | `RealWiFiPositioningAgent` | Real WiFi positioning using device WiFi scan + Mozilla Location Servic... | `upin/agents/real_wifi_agent.py` | 50-385 |
 
 ---
-*Generated automatically. 132 layers, 582 classes, 45,107 lines of code.*
+*Generated automatically. 132 layers, 647 classes, 50,073 lines of code.*

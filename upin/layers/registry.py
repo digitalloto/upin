@@ -124,6 +124,13 @@ from upin.layers.satellite.celestial_classical import (
     PlanetSightingLayer, AtmosphericRefractionLayer, VisualHorizonLayer,
 )
 # Gap audit: Exotic & frontier
+# Group Q — Quantum Navigation (the first quantum navigation system)
+from upin.quantum.layers import (
+    EntangledPhotonRangingLayer, DistributedQuantumSensingLayer,
+    QuantumClockNetworkLayer, AtomInterferometerGyroLayer,
+    SqueezedLightInterferometryLayer, QuantumIlluminationRadarLayer,
+    QuantumSecuredPositionLayer, QuantumEnhancedFusionLayer,
+)
 from upin.layers.exotic.frontier_nav import (
     QuantumCompassLayer, MagneticIndoorFingerprintLayer,
     InfrasoundMapMatchingLayer, AtmosphericPressurePatternLayer,
@@ -287,6 +294,15 @@ ALL_LAYER_CLASSES: dict[str, type[NavigationLayer]] = {
     "plume_h12": ChemicalPlumeTrackingLayer,
     "thermalmicro_h13": ThermalMicroclimateLayer,
     "airsonar_f06": AcousticAirRangingLayer,
+    # ── Group Q — Quantum Navigation (8) ──
+    "qrange_q01": EntangledPhotonRangingLayer,
+    "qsense_q02": DistributedQuantumSensingLayer,
+    "qclocknet_q03": QuantumClockNetworkLayer,
+    "atomgyro_q04": AtomInterferometerGyroLayer,
+    "qsqueeze_q05": SqueezedLightInterferometryLayer,
+    "qradar_q06": QuantumIlluminationRadarLayer,
+    "qsecpos_q07": QuantumSecuredPositionLayer,
+    "qfusion_q08": QuantumEnhancedFusionLayer,
 }
 
 

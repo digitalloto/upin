@@ -31,6 +31,7 @@ class LayerGroup(Enum):
     I_COSMIC_ATMOSPHERIC = "I"
     J_HUMAN_CROWD = "J"
     K_SYSTEMS_INTELLIGENCE = "K"
+    Q_QUANTUM = "Q"
 
 
 class LayerCapability(Enum):
