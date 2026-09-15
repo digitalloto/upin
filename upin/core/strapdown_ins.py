@@ -106,6 +106,23 @@ class IMUGrade:
             "zupt_threshold": 0.0005,
             "cost_usd": 500000,
         },
+        "quantum": {
+            # Cold-atom interferometer. Fed by Group Q layer atomgyro_q04.
+            # The matter-wave Sagnac phase is 2 m Omega A / hbar, and because
+            # a caesium atom's rest energy dwarfs a telecom photon's, the
+            # per-particle sensitivity ratio is ~1.5e11. That is what buys
+            # the drift figure below — four orders of magnitude better than
+            # navigation grade, which is the difference between holding a
+            # heading for minutes and holding it for days.
+            "name": "Quantum Grade (cold-atom interferometer)",
+            "gyro_drift_deg_hr": 0.000002,      # 2e-6, measured by atomgyro_q04
+            "accel_bias_mg": 0.0001,
+            "gyro_noise_deg_rt_hr": 0.00005,
+            "accel_noise_ug_rt_hz": 0.1,
+            "position_drift_m_per_s": 0.0000001,  # ~0.36 mm/hour
+            "zupt_threshold": 0.0001,
+            "cost_usd": 2_000_000,
+        },
     }
 
     @staticmethod
