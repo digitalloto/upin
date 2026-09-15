@@ -11,9 +11,9 @@ Run `python generate_index.py` to regenerate.
 - **Detection Modules**: 11 classes
 - **Agent Modules**: 31 classes
 - **Vision Modules**: 15 classes
-- **Total Classes**: 647
-- **Total Python Files**: 146
-- **Total Lines of Code**: 50,073
+- **Total Classes**: 658
+- **Total Python Files**: 151
+- **Total Lines of Code**: 51,251
 
 ---
 ## Navigation Layers
@@ -278,11 +278,11 @@ Run `python generate_index.py` to regenerate.
 | `CorrelationSample` | One recorded moment: all sensors + confirmed position + movement. | `upin/core/sensor_position_correlator.py` | 35-73 |
 | `SensorPositionLogger` | Logs every sensor reading alongside GPS position. | `upin/core/sensor_position_correlator.py` | 78-158 |
 | `SensorMovementCorrelator` | Learns the mapping: sensor_readings → actual_movement. | `upin/core/sensor_position_correlator.py` | 163-433 |
-| `IMUGrade` | Hardware grade profiles. The SAME math runs on all — | `upin/core/strapdown_ins.py` | 52-131 |
-| `Quaternion` | Unit quaternion for 3D rotation — no gimbal lock, unlike Euler angles. | `upin/core/strapdown_ins.py` | 136-201 |
-| `INSState` | Complete inertial navigation state. | `upin/core/strapdown_ins.py` | 227-260 |
-| `StrapdownINS` | Full strapdown inertial navigation system. | `upin/core/strapdown_ins.py` | 263-532 |
-| `GlobusINSReading` | Wraps StrapdownINS as a UPIN-compatible position source. | `upin/core/strapdown_ins.py` | 537-580 |
+| `IMUGrade` | Hardware grade profiles. The SAME math runs on all — | `upin/core/strapdown_ins.py` | 52-148 |
+| `Quaternion` | Unit quaternion for 3D rotation — no gimbal lock, unlike Euler angles. | `upin/core/strapdown_ins.py` | 153-218 |
+| `INSState` | Complete inertial navigation state. | `upin/core/strapdown_ins.py` | 244-277 |
+| `StrapdownINS` | Full strapdown inertial navigation system. | `upin/core/strapdown_ins.py` | 280-549 |
+| `GlobusINSReading` | Wraps StrapdownINS as a UPIN-compatible position source. | `upin/core/strapdown_ins.py` | 554-597 |
 | `UPINSystemIntegrator` | Central wiring that connects all UPIN modules. | `upin/core/system_integrator.py` | 25-379 |
 | `TerrainFingerprint` | A single fingerprint sample taken at a known GPS position. | `upin/core/terrain_fingerprint.py` | 27-61 |
 | `TerrainFingerprintMap` | Records and matches terrain fingerprints. | `upin/core/terrain_fingerprint.py` | 64-145 |
@@ -460,4 +460,4 @@ Run `python generate_index.py` to regenerate.
 | `RealWiFiPositioningAgent` | Real WiFi positioning using device WiFi scan + Mozilla Location Servic... | `upin/agents/real_wifi_agent.py` | 50-385 |
 
 ---
-*Generated automatically. 132 layers, 647 classes, 50,073 lines of code.*
+*Generated automatically. 132 layers, 658 classes, 51,251 lines of code.*
