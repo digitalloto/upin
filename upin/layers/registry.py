@@ -125,6 +125,8 @@ from upin.layers.satellite.celestial_classical import (
 )
 # Gap audit: Exotic & frontier
 # Group Q — Quantum Navigation (the first quantum navigation system)
+# Layer 2 — command-based dead reckoning (no-fabrication contract)
+from upin.layers.inertial.command_dr import CommandDeadReckoningLayer
 from upin.quantum.layers import (
     EntangledPhotonRangingLayer, DistributedQuantumSensingLayer,
     QuantumClockNetworkLayer, AtomInterferometerGyroLayer,
@@ -303,6 +305,8 @@ ALL_LAYER_CLASSES: dict[str, type[NavigationLayer]] = {
     "qradar_q06": QuantumIlluminationRadarLayer,
     "qsecpos_q07": QuantumSecuredPositionLayer,
     "qfusion_q08": QuantumEnhancedFusionLayer,
+    # ── Command-based dead reckoning ──
+    "cmddr_b12": CommandDeadReckoningLayer,
 }
 
 
