@@ -127,6 +127,7 @@ from upin.layers.satellite.celestial_classical import (
 # Group Q — Quantum Navigation (the first quantum navigation system)
 # Layer 2 — command-based dead reckoning (no-fabrication contract)
 from upin.layers.inertial.command_dr import CommandDeadReckoningLayer
+from upin.layers.optical.landmark_chain import LandmarkChainLayer
 from upin.quantum.layers import (
     EntangledPhotonRangingLayer, DistributedQuantumSensingLayer,
     QuantumClockNetworkLayer, AtomInterferometerGyroLayer,
@@ -307,6 +308,8 @@ ALL_LAYER_CLASSES: dict[str, type[NavigationLayer]] = {
     "qfusion_q08": QuantumEnhancedFusionLayer,
     # ── Command-based dead reckoning ──
     "cmddr_b12": CommandDeadReckoningLayer,
+    # ── Landmark chain navigation ──
+    "lmkchain_e23": LandmarkChainLayer,
 }
 
 
