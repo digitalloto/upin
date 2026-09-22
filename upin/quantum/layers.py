@@ -52,18 +52,43 @@ from upin.quantum.metrology import (
     phase_uncertainty, quantum_illumination_advantage, sagnac_phase_matter_wave,
     sagnac_phase_optical, spin_squeezing,
 )
+from upin.core.no_fabrication import NoFixReason, no_fix
 from upin.quantum.qkd import QKDMeshNetwork
 
 DEG_M = 111_320.0
 
 
-def _base_position(layer: NavigationLayer) -> tuple[float, float, float]:
-    """Truth source for simulation: the world if present, else the sim anchor."""
+def _base_position(layer: NavigationLayer):
+    """The reference these layers compute against, or None if there is none.
+
+    This used to end with a hardcoded Chennai coordinate as its default, and
+    that one line made all eight Group Q layers fabricate. With no world and
+    no anchor they reported 13.0827, 80.2707 as a measured position --
+    qsqueeze_q05 claiming zero metres of error on it -- and eight such layers
+    were enough to give the fusion engine a confident half-metre fix out of
+    nothing at all.
+
+    A quantum sensor measures a change against a reference. Without one there
+    is no measurement to report, so this returns None and every read() above
+    declines. Nothing here invents a starting point.
+    """
     if layer.world is not None:
         return (layer.world.true_lat, layer.world.true_lon, layer.world.true_alt)
-    return (getattr(layer, "_sim_lat", 13.0827),
-            getattr(layer, "_sim_lon", 80.2707),
-            getattr(layer, "_sim_alt", 100.0))
+    lat = getattr(layer, "_sim_lat", None)
+    lon = getattr(layer, "_sim_lon", None)
+    if lat is None or lon is None:
+        return None
+    return (lat, lon, getattr(layer, "_sim_alt", 100.0))
+
+
+def _no_reference(layer: NavigationLayer) -> LayerReading:
+    """What a Group Q layer returns when nothing has given it a reference."""
+    return no_fix(
+        layer.layer_id, NoFixReason.NO_ANCHOR,
+        "a quantum sensor measures against a reference; none has been "
+        "supplied by a world, an anchor or a prior fix",
+        hardware_ready=False,
+    )
 
 
 # =====================================================================
@@ -118,7 +143,10 @@ class EntangledPhotonRangingLayer(NavigationLayer):
             self._anchors.append(anchor_id)
 
     def read(self) -> LayerReading:
-        lat, lon, alt = _base_position(self)
+        _ref = _base_position(self)
+        if _ref is None:
+            return _no_reference(self)
+        lat, lon, alt = _ref
         self._dist._nodes["SELF"] = (lat, lon, alt)
 
         if not self._anchors:
@@ -254,7 +282,10 @@ class DistributedQuantumSensingLayer(NavigationLayer):
             self._dist.register_node(nid, lat, lon, alt)
 
     def read(self) -> LayerReading:
-        lat, lon, alt = _base_position(self)
+        _ref = _base_position(self)
+        if _ref is None:
+            return _no_reference(self)
+        lat, lon, alt = _ref
 
         if not self._nodes:
             self.register_swarm(
@@ -400,7 +431,10 @@ class QuantumClockNetworkLayer(NavigationLayer):
         self._clocks[node_id] = offset_ns
 
     def read(self) -> LayerReading:
-        lat, lon, alt = _base_position(self)
+        _ref = _base_position(self)
+        if _ref is None:
+            return _no_reference(self)
+        lat, lon, alt = _ref
 
         if not self._clocks:
             for i in range(8):
@@ -506,7 +540,10 @@ class AtomInterferometerGyroLayer(NavigationLayer):
         return 0.96
 
     def read(self) -> LayerReading:
-        lat, lon, alt = _base_position(self)
+        _ref = _base_position(self)
+        if _ref is None:
+            return _no_reference(self)
+        lat, lon, alt = _ref
         self._reads += 1
 
         omega_true = math.radians(
@@ -606,7 +643,10 @@ class SqueezedLightInterferometryLayer(NavigationLayer):
         return 0.93
 
     def read(self) -> LayerReading:
-        lat, lon, alt = _base_position(self)
+        _ref = _base_position(self)
+        if _ref is None:
+            return _no_reference(self)
+        lat, lon, alt = _ref
 
         n_photons = self._photon_rate * self._integration_s
         shot_noise_rad = 1.0 / math.sqrt(n_photons)
@@ -693,7 +733,10 @@ class QuantumIlluminationRadarLayer(NavigationLayer):
         return 0.85
 
     def read(self) -> LayerReading:
-        lat, lon, alt = _base_position(self)
+        _ref = _base_position(self)
+        if _ref is None:
+            return _no_reference(self)
+        lat, lon, alt = _ref
 
         self._tracks = []
         n_targets = int(np.random.choice([0, 0, 1, 1, 2], p=[.35, .25, .2, .13, .07]))
@@ -789,7 +832,10 @@ class QuantumSecuredPositionLayer(NavigationLayer):
         self._peers[peer_id] = (lat, lon, alt)
 
     def read(self) -> LayerReading:
-        lat, lon, alt = _base_position(self)
+        _ref = _base_position(self)
+        if _ref is None:
+            return _no_reference(self)
+        lat, lon, alt = _ref
 
         if not self._peers:
             for i in range(5):
@@ -901,7 +947,10 @@ class QuantumEnhancedFusionLayer(NavigationLayer):
         return 0.80
 
     def read(self) -> LayerReading:
-        lat, lon, alt = _base_position(self)
+        _ref = _base_position(self)
+        if _ref is None:
+            return _no_reference(self)
+        lat, lon, alt = _ref
 
         # Grover over a magnetic-anomaly grid
         if self.world is not None and hasattr(self.world, "get_magnetic_field"):

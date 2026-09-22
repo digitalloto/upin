@@ -10,11 +10,11 @@ This table is measured, not claimed. Every layer below was constructed with noth
 
 | Status | Layers | Meaning |
 |---|---:|---|
-| **DECLINES** | 2 | Reports no fix when it has no input, and says what is missing. Honours the no-fabrication contract. |
-| **PLACEHOLDER** | 15 | Returns the same fixed reading whenever nothing is connected. Not random, but not measured either. |
-| **FABRICATES** | 122 | Invents a reading when nothing is connected, and invents a different one each time it is read. |
+| **DECLINES** | 10 | Reports no fix when it has no input, and says what is missing. Honours the no-fabrication contract. |
+| **PLACEHOLDER** | 13 | Returns the same fixed reading whenever nothing is connected. Not random, but not measured either. |
+| **FABRICATES** | 116 | Invents a reading when nothing is connected, and invents a different one each time it is read. |
 
-**2 of 139 layers** currently refuse to invent a position. **2 of 139** have declared what hardware and data they need.
+**10 of 139 layers** currently refuse to invent a position. **2 of 139** have declared what hardware and data they need.
 
 The gap between those numbers and the total is the work tracked in [`FABRICATION_AUDIT.md`](FABRICATION_AUDIT.md), which explains what each fabricating layer does and what it would cost in flight.
 
@@ -218,18 +218,18 @@ The gap between those numbers and the total is the work tracked in [`FABRICATION
 | 88 | [Universal Beacon Positioning](docs/layers/univbeacon_k11.md) | `univbeacon_k11` | fabricates | no |
 | 120 | [RF Environment Fingerprint](docs/layers/rffingerprint_k12.md) | `rffingerprint_k12` | fabricates | no |
 
-### Group Q — Quantum Navigation (8 layers, 0 clean)
+### Group Q — Quantum Navigation (8 layers, 8 clean)
 
 | # | Layer | ID | Status | Needs declared |
 |---:|---|---|---|---|
-| 135 | [Entangled Photon Ranging](docs/layers/qrange_q01.md) | `qrange_q01` | fabricates | no |
-| 136 | [Distributed Quantum Sensing Network](docs/layers/qsense_q02.md) | `qsense_q02` | fabricates | no |
-| 137 | [Quantum Clock Network](docs/layers/qclocknet_q03.md) | `qclocknet_q03` | fabricates | no |
-| 138 | [Atom Interferometer Gyroscope](docs/layers/atomgyro_q04.md) | `atomgyro_q04` | fabricates | no |
-| 139 | [Squeezed Light Interferometry](docs/layers/qsqueeze_q05.md) | `qsqueeze_q05` | fabricates | no |
-| 140 | [Quantum Illumination Radar](docs/layers/qradar_q06.md) | `qradar_q06` | placeholder | no |
-| 141 | [Quantum-Secured Position Exchange](docs/layers/qsecpos_q07.md) | `qsecpos_q07` | fabricates | no |
-| 142 | [Quantum-Enhanced Fusion](docs/layers/qfusion_q08.md) | `qfusion_q08` | placeholder | no |
+| 135 | [Entangled Photon Ranging](docs/layers/qrange_q01.md) | `qrange_q01` | clean | no |
+| 136 | [Distributed Quantum Sensing Network](docs/layers/qsense_q02.md) | `qsense_q02` | clean | no |
+| 137 | [Quantum Clock Network](docs/layers/qclocknet_q03.md) | `qclocknet_q03` | clean | no |
+| 138 | [Atom Interferometer Gyroscope](docs/layers/atomgyro_q04.md) | `atomgyro_q04` | clean | no |
+| 139 | [Squeezed Light Interferometry](docs/layers/qsqueeze_q05.md) | `qsqueeze_q05` | clean | no |
+| 140 | [Quantum Illumination Radar](docs/layers/qradar_q06.md) | `qradar_q06` | clean | no |
+| 141 | [Quantum-Secured Position Exchange](docs/layers/qsecpos_q07.md) | `qsecpos_q07` | clean | no |
+| 142 | [Quantum-Enhanced Fusion](docs/layers/qfusion_q08.md) | `qfusion_q08` | clean | no |
 
 ---
 

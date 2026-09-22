@@ -8,7 +8,7 @@
 
 **FABRICATES** — Invents a reading when nothing is connected, and invents a different one each time it is read.
 
-Measured by constructing this layer with nothing attached and reading it three times: returned 49.60 m/s, then a different velocity on the very next read, from the same (absent) input.
+Measured by constructing this layer with nothing attached and reading it three times: returned 51.17 m/s, then a different velocity on the very next read, from the same (absent) input.
 
 With simulation switched off it raises NotImplementedError.
 

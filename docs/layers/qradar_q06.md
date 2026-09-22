@@ -6,11 +6,11 @@
 
 ## Current status
 
-**PLACEHOLDER** — Returns the same fixed reading whenever nothing is connected. Not random, but not measured either.
+**DECLINES** — Reports no fix when it has no input, and says what is missing. Honours the no-fabrication contract.
 
-Measured by constructing this layer with nothing attached and reading it three times: returns 13.08270, 80.27070 every time, with no input.
+Measured by constructing this layer with nothing attached and reading it three times: declines with `no_anchor` — a quantum sensor measures against a reference; none has been supplied by a world, an anchor or a prior fix.
 
-With simulation switched off it still returns a position.
+With simulation switched off it declines cleanly.
 
 ## What this layer needs
 

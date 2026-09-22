@@ -23,9 +23,9 @@ All 139 registered layers were constructed, initialised and read twice with no s
 
 | Outcome | Layers |
 |---|---:|
-| Reported a measured value anyway (position, velocity or heading) | 126 |
-| ...and the answer changed between two reads | 120 |
-| Declined and stated a reason | 2 |
+| Reported a measured value anyway (position, velocity or heading) | 118 |
+| ...and the answer changed between two reads | 115 |
+| Declined and stated a reason | 10 |
 | Raised an exception instead of declining | 0 |
 
 A layer whose answer changes while its inputs do not is manufacturing the difference. That is the mechanical proof of fabrication, and it needs no reading of the source.
@@ -37,24 +37,10 @@ Every layer was then run again with `set_simulation_mode(False)`. This is the nu
 | In live mode the layer | Layers | Cleanup |
 |---|---:|---|
 | raises NotImplementedError | 128 | mechanical — swap the raise for a `no_fix()` |
-| returns a position | 8 | needs a real sensor path written |
-| declines properly | 2 | already done |
+| declines properly | 10 | already done |
 | valid but no position | 1 | inspect individually |
 
 The good news is in that table. Most layers already have a path that knows it has no sensor — it just throws instead of saying so. Turning a `raise NotImplementedError` into `no_fix(layer_id, NoFixReason.SENSOR_UNAVAILABLE)` is a line-for-line change that cannot alter any working behaviour, because that path currently cannot return at all.
-
-### Layers whose cleanup is: needs a real sensor path
-
-| Layer | Class | In live mode |
-|---|---|---|
-| `atomgyro_q04` | AtomInterferometerGyroLayer | returns a position |
-| `qclocknet_q03` | QuantumClockNetworkLayer | returns a position |
-| `qfusion_q08` | QuantumEnhancedFusionLayer | returns a position |
-| `qradar_q06` | QuantumIlluminationRadarLayer | returns a position |
-| `qrange_q01` | EntangledPhotonRangingLayer | returns a position |
-| `qsecpos_q07` | QuantumSecuredPositionLayer | returns a position |
-| `qsense_q02` | DistributedQuantumSensingLayer | returns a position |
-| `qsqueeze_q05` | SqueezedLightInterferometryLayer | returns a position |
 
 ### Layers whose cleanup is: inspect
 
@@ -66,126 +52,121 @@ The good news is in that table. Most layers already have a path that knows it ha
 
 | Layer | Class | What it reported |
 |---|---|---|
-| `acoustic_l10` | PassiveAcousticLayer | 13.08236, 80.27059 |
-| `adsb_d10` | ADSBCooperativeLayer | 13.08276, 80.27070 |
+| `acoustic_l10` | PassiveAcousticLayer | 13.08289, 80.27070 |
+| `adsb_d10` | ADSBCooperativeLayer | 13.08275, 80.27070 |
 | `airsonar_f06` | AcousticAirRangingLayer | 13.08270, 80.27070 |
-| `ais_d09` | AISCooperativeLayer | 13.08288, 80.27040 |
-| `aprs_d19` | APRSLayer | 13.08280, 80.26979 |
-| `atomgyro_q04` | AtomInterferometerGyroLayer | 13.08270, 80.27070, heading 45.0 deg |
+| `ais_d09` | AISCooperativeLayer | 13.08298, 80.27077 |
+| `aprs_d19` | APRSLayer | 13.08317, 80.27081 |
 | `baro_l11` | BarometricAltitudeLayer | 0.00000, 0.00000 |
-| `bathymetry_f04` | BathymetricMatchingLayer | 13.08274, 80.27124 |
-| `beacon_l20` | HumanBeaconNetworkLayer | 13.08245, 80.27062 |
-| `beidou_a09` | BeiDouLayer | 13.08278, 80.27065 |
-| `bicoord_l44` | BiocoordinateGeoChemMagLayer | 13.08215, 80.26986 |
-| `bluetooth_d08` | BluetoothAoALayer | 13.08269, 80.27073 |
-| `buoy_e17` | BuoyRecognitionLayer | 13.08264, 80.27086 |
-| `celltower_l9` | CellTowerHostileLayer | 13.08006, 80.26985 |
-| `chemgrad_l26` | ChemicalGradientLayer | 13.08107, 80.27145 |
-| `chronometer_a12` | MarineChronometerLayer | 13.08270, 80.27130 |
-| `circumfx_k10` | CircumferenceIntersectionLayer | 13.08278, 80.27047 |
-| `consol_d17` | ConsolSonneLayer | 13.07028, 80.25930 |
-| `decca_d16` | DeccaNavigatorLayer | 13.07484, 80.27340 |
+| `bathymetry_f04` | BathymetricMatchingLayer | 13.08349, 80.27109 |
+| `beacon_l20` | HumanBeaconNetworkLayer | 13.08257, 80.27045 |
+| `beidou_a09` | BeiDouLayer | 13.08270, 80.27070 |
+| `bicoord_l44` | BiocoordinateGeoChemMagLayer | 13.08315, 80.27135 |
+| `bluetooth_d08` | BluetoothAoALayer | 13.08272, 80.27070 |
+| `buoy_e17` | BuoyRecognitionLayer | 13.08293, 80.27076 |
+| `celltower_l9` | CellTowerHostileLayer | 13.08256, 80.27102 |
+| `chemgrad_l26` | ChemicalGradientLayer | 13.08304, 80.26968 |
+| `chronometer_a12` | MarineChronometerLayer | 13.08270, 80.26961 |
+| `circumfx_k10` | CircumferenceIntersectionLayer | 13.08262, 80.27068 |
+| `consol_d17` | ConsolSonneLayer | 13.04532, 80.19981 |
+| `decca_d16` | DeccaNavigatorLayer | 13.08315, 80.26980 |
 | `depthpres_b10` | DepthPressureSensorLayer | 13.08270, 80.27070 |
-| `dirtower_k09` | DirectionalTowerLayer | 13.08211, 80.27120 |
-| `dopbeacon_d20` | DopplerBeaconLayer | 13.08311, 80.26956 |
-| `doppler_l12` | DopplerVelocityLayer | 50.10 m/s |
-| `dted_e15` | DTEDMatchingLayer | 13.08219, 80.27102 |
-| `dualqmag_l17` | DualQuantumMagnetometerLayer | 13.08254, 80.27070, heading 43.9 deg |
-| `eagle_e12` | EagleThermalVisionLayer | 13.08271, 80.27070 |
-| `eagleeye_e13` | EagleEyeStereoLayer | 13.08248, 80.27088 |
-| `ecid_d21` | ECIDLayer | 13.08037, 80.27157 |
-| `efield_c07` | ElectricFieldSensingLayer | 13.08289, 80.27098 |
-| `eloran_l41` | ELORANLayer | 13.08273, 80.27086 |
-| `eminduct_l24` | EMInductionLayer | 8.94 m/s, heading 44.8 deg |
-| `enc_e14` | ENCChartMatchingLayer | 13.08254, 80.27070 |
-| `fiveg_d23` | FiveGNRPositioningLayer | 13.08272, 80.27076 |
-| `gagan_a13` | GAGANLayer | 13.08270, 80.27070 |
-| `galileo_a08` | GalileoLayer | 13.08271, 80.27070 |
-| `glonass_a07` | GLONASSLayer | 13.08273, 80.27067 |
-| `gps_l1` | GPSLayer | 13.08272, 80.27070 |
-| `gravgrad_l28a` | QuantumGravityGradiometerLayer | 13.08247, 80.27050 |
-| `gravimeter_l28b` | QuantumDualGravimeterLayer | 13.08289, 80.26965 |
-| `groundrf_l7` | GroundEmitterLayer | 13.08255, 80.27049 |
-| `ils_d13` | ILSLayer | 13.08268, 80.27069 |
-| `infrasoundmap_i04` | InfrasoundMapMatchingLayer | 13.05684, 80.26622 |
-| `ins_l3` | INSDeadReckoningLayer | 13.08268, 80.27070, -0.15 m/s, heading 43.8 deg |
-| `ionosphere_l49` | IonosphericDensityLayer | 13.08442, 80.27163 |
-| `iriddop_a14` | IridiumDopplerLayer | 13.08221, 80.27086 |
-| `laserdop_l18` | LaserDopplerLayer | 50.70 m/s |
-| `leadlight_e20` | LeadingLightsLayer | 13.08272, 80.27067, heading 45.0 deg |
-| `leo_l19` | LEOAuthenticatedLayer | 13.08271, 80.27070 |
+| `dirtower_k09` | DirectionalTowerLayer | 13.08261, 80.27049 |
+| `dopbeacon_d20` | DopplerBeaconLayer | 13.08279, 80.27063 |
+| `doppler_l12` | DopplerVelocityLayer | 49.94 m/s |
+| `dted_e15` | DTEDMatchingLayer | 13.08211, 80.27119 |
+| `dualqmag_l17` | DualQuantumMagnetometerLayer | 13.08293, 80.27069, heading 46.2 deg |
+| `eagle_e12` | EagleThermalVisionLayer | 13.08269, 80.27070 |
+| `eagleeye_e13` | EagleEyeStereoLayer | 13.08275, 80.27075 |
+| `ecid_d21` | ECIDLayer | 13.08817, 80.27245 |
+| `efield_c07` | ElectricFieldSensingLayer | 13.08292, 80.27057 |
+| `eloran_l41` | ELORANLayer | 13.08283, 80.27065 |
+| `eminduct_l24` | EMInductionLayer | 9.21 m/s, heading 48.9 deg |
+| `enc_e14` | ENCChartMatchingLayer | 13.08169, 80.26986 |
+| `fiveg_d23` | FiveGNRPositioningLayer | 13.08271, 80.27070 |
+| `gagan_a13` | GAGANLayer | 13.08270, 80.27069 |
+| `galileo_a08` | GalileoLayer | 13.08272, 80.27069 |
+| `glonass_a07` | GLONASSLayer | 13.08260, 80.27088 |
+| `gps_l1` | GPSLayer | 13.08271, 80.27077 |
+| `gravgrad_l28a` | QuantumGravityGradiometerLayer | 13.08315, 80.27095 |
+| `gravimeter_l28b` | QuantumDualGravimeterLayer | 13.08272, 80.27226 |
+| `groundrf_l7` | GroundEmitterLayer | 13.08261, 80.27069 |
+| `ils_d13` | ILSLayer | 13.08266, 80.27069 |
+| `infrasoundmap_i04` | InfrasoundMapMatchingLayer | 13.07962, 80.26850 |
+| `ins_l3` | INSDeadReckoningLayer | 13.08274, 80.27071, 0.02 m/s, heading 44.9 deg |
+| `ionosphere_l49` | IonosphericDensityLayer | 13.09187, 80.26759 |
+| `iriddop_a14` | IridiumDopplerLayer | 13.08296, 80.27098 |
+| `laserdop_l18` | LaserDopplerLayer | 50.01 m/s |
+| `leadlight_e20` | LeadingLightsLayer | 13.08271, 80.27062, heading 45.0 deg |
+| `leo_l19` | LEOAuthenticatedLayer | 13.08269, 80.27070 |
 | `lidar_l33` | LiDARSLAMLayer | 13.08270, 80.27070 |
-| `lighthouse_e16` | LighthouseSignatureLayer | 13.08259, 80.27053 |
-| `lora_d07` | LoRaWANNodeLayer | 13.08289, 80.27070 |
-| `lunardist_a11` | LunarDistanceLayer | 13.08020, 80.27248 |
-| `magano_l6` | MagneticAnomalyLayer | 13.08316, 80.26943 |
-| `magindoor_c09` | MagneticIndoorFingerprintLayer | 13.08267, 80.27069 |
-| `magmap_l23` | MagneticMapMatchingLayer | 13.08128, 80.27013 |
-| `monarch_e10` | MonarchSunCompassLayer | heading 46.9 deg |
-| `muon_l40` | MuonNavigationLayer | 13.08281, 80.27065 |
-| `navic_l2` | NavICLayer | 13.08270, 80.27070 |
-| `nmrgyro_l57` | NMRGyroscopeLayer | heading 44.8 deg |
-| `noonsight_a16` | SolarNoonSightLayer | 13.08268, 80.27056 |
-| `nvdiamond_l30` | NVDiamondMagnetometerLayer | 13.08243, 80.27049 |
-| `oceancurrent_h09` | OceanCurrentDriftLayer | 13.08008, 80.27048, 0.50 m/s |
-| `odometer_l60` | LocomotionOdometerLayer | 15.00 m/s |
-| `omega_d15` | OMEGALayer | 13.11195, 80.28220 |
-| `opticflow_l43` | OpticFlowLayer | 9.69 m/s |
-| `otdoa_d22` | OTDOALayer | 13.08314, 80.27043 |
-| `owl_e11` | OwlSilentApproachLayer | 13.08246, 80.27062, heading 46.0 deg |
-| `pilotage_e19` | CoastalPilotageLayer | 13.08290, 80.27066 |
-| `planets_a18` | PlanetSightingLayer | 13.08196, 80.27115 |
-| `plume_h12` | ChemicalPlumeTrackingLayer | 13.08283, 80.27064 |
-| `polaris_a15` | PolarisAltitudeLayer | 13.08334, 80.27033 |
-| `polsky_l25a` | PolarisedSkyLayer | heading 44.2 deg |
-| `polwater_l25b` | UnderwaterPolarisedLayer | heading 41.3 deg |
-| `polynesian_e22` | PolynesianWayfindingLayer | 13.07722, 80.26557, heading 13.2 deg |
-| `predtower_k08` | PredictiveTowerVerificationLayer | 13.08254, 80.27106 |
-| `presspattern_i05` | AtmosphericPressurePatternLayer | 12.70812, 80.85753 |
-| `pseudolite_d14` | PseudoliteLayer | 13.08270, 80.27076 |
-| `pulsar_l29b` | PulsarExtendedLayer | 13.08084, 80.27196 |
-| `qclocknet_q03` | QuantumClockNetworkLayer | 13.08271, 80.27069 |
-| `qcompass_c08` | QuantumCompassLayer | 13.08266, 80.27074 |
-| `qrange_q01` | EntangledPhotonRangingLayer | 13.08269, 80.27077 |
-| `qsense_q02` | DistributedQuantumSensingLayer | 13.08270, 80.27070 |
-| `qsqueeze_q05` | SqueezedLightInterferometryLayer | 13.08270, 80.27070, 0.00 m/s |
-| `qzss_a10` | QZSSLayer | 13.08267, 80.27072 |
+| `lighthouse_e16` | LighthouseSignatureLayer | 13.08207, 80.26967 |
+| `lora_d07` | LoRaWANNodeLayer | 13.08227, 80.27039 |
+| `lunardist_a11` | LunarDistanceLayer | 13.08726, 80.26383 |
+| `magano_l6` | MagneticAnomalyLayer | 13.08394, 80.27235 |
+| `magindoor_c09` | MagneticIndoorFingerprintLayer | 13.08271, 80.27072 |
+| `magmap_l23` | MagneticMapMatchingLayer | 13.08154, 80.27131 |
+| `monarch_e10` | MonarchSunCompassLayer | heading 48.0 deg |
+| `muon_l40` | MuonNavigationLayer | 13.08267, 80.27078 |
+| `navic_l2` | NavICLayer | 13.08270, 80.27068 |
+| `nmrgyro_l57` | NMRGyroscopeLayer | heading 45.0 deg |
+| `noonsight_a16` | SolarNoonSightLayer | 13.08262, 80.27136 |
+| `nvdiamond_l30` | NVDiamondMagnetometerLayer | 13.08310, 80.27038 |
+| `oceancurrent_h09` | OceanCurrentDriftLayer | 13.08286, 80.27046, 0.50 m/s |
+| `odometer_l60` | LocomotionOdometerLayer | 22.50 m/s |
+| `omega_d15` | OMEGALayer | 13.05226, 80.30962 |
+| `opticflow_l43` | OpticFlowLayer | 10.33 m/s |
+| `otdoa_d22` | OTDOALayer | 13.08174, 80.27097 |
+| `owl_e11` | OwlSilentApproachLayer | 13.08260, 80.27090, heading 44.3 deg |
+| `pilotage_e19` | CoastalPilotageLayer | 13.08261, 80.27083 |
+| `planets_a18` | PlanetSightingLayer | 13.08149, 80.27283 |
+| `plume_h12` | ChemicalPlumeTrackingLayer | 13.08172, 80.27092 |
+| `polaris_a15` | PolarisAltitudeLayer | 13.08264, 80.27010 |
+| `polsky_l25a` | PolarisedSkyLayer | heading 44.9 deg |
+| `polwater_l25b` | UnderwaterPolarisedLayer | heading 42.1 deg |
+| `polynesian_e22` | PolynesianWayfindingLayer | 13.08139, 80.26712, heading 205.3 deg |
+| `predtower_k08` | PredictiveTowerVerificationLayer | 13.08271, 80.27078 |
+| `presspattern_i05` | AtmosphericPressurePatternLayer | 13.38913, 80.63116 |
+| `pseudolite_d14` | PseudoliteLayer | 13.08269, 80.27068 |
+| `pulsar_l29b` | PulsarExtendedLayer | 13.08404, 80.27251 |
+| `qcompass_c08` | QuantumCompassLayer | 13.08263, 80.27069 |
+| `qzss_a10` | QZSSLayer | 13.08270, 80.27069 |
 | `radaralt_b09` | RadarAltimeterLayer | 13.08270, 80.27070 |
-| `radius_l22` | RadiusContainmentLayer | 13.08269, 80.27069 |
-| `rdf_d18` | RDFBearingLayer | 13.08381, 80.26832 |
-| `refraction_a19` | AtmosphericRefractionLayer | 13.08279, 80.27052 |
-| `rffingerprint_k12` | RFEnvironmentFingerprintLayer | 13.08289, 80.27075 |
-| `rfid_d25` | RFIDNFCLayer | 13.08270, 80.27069 |
-| `salmon_h08` | SalmonHomingLayer | 13.08282, 80.27066, heading 16.7 deg |
-| `schumann_l59` | SchumannResonanceLayer | 13.08422, 80.26527 |
-| `seabed_f05` | SeabedSampleLayer | 13.08362, 80.26914 |
-| `serfgyro_l58` | SERFGyroscopeLayer | heading 45.1 deg |
-| `sextant_e21` | SextantAngleLayer | 13.08269, 80.27058 |
-| `sferics_i06` | LightningSfericsLayer | 13.08247, 80.26459 |
-| `skygrad_l47` | DiffuseSkyLayer | heading 41.2 deg |
-| `sonar_l34` | ActiveSonarLayer | 13.08275, 80.27075 |
-| `soop_l42` | CommercialSOOPLayer | 13.08252, 80.27075 |
-| `startrack_l4` | StarTrackingLayer | 13.08286, 80.27075, heading 44.5 deg |
-| `stellar_l46` | StellarConstellationLayer | heading 45.2 deg |
-| `sunazimuth_a17` | SunAzimuthCompassLayer | 13.08270, 80.27070, heading 49.8 deg |
-| `swarmrel_l15` | SwarmRelativePositionLayer | 13.08275, 80.27068 |
-| `tacan_d11` | TACANLayer | 13.08287, 80.27075, heading 83.6 deg |
-| `terrain_l5` | TerrainMatchingLayer | 13.08249, 80.27079 |
-| `thermal_l38` | ThermalIRLayer | 13.08239, 80.27071 |
-| `thermalmicro_h13` | ThermalMicroclimateLayer | 13.08222, 80.27164 |
-| `threefix_e18` | ThreePointFixLayer | 13.08259, 80.27064 |
-| `tidaltiming_h10` | TidalTimingPositionLayer | 13.09394, 80.27104 |
-| `univbeacon_k11` | UniversalBeaconLayer | 13.08281, 80.27089 |
+| `radius_l22` | RadiusContainmentLayer | 13.08268, 80.27068 |
+| `rdf_d18` | RDFBearingLayer | 13.08357, 80.27303 |
+| `refraction_a19` | AtmosphericRefractionLayer | 13.08272, 80.27085 |
+| `rffingerprint_k12` | RFEnvironmentFingerprintLayer | 13.08253, 80.27066 |
+| `rfid_d25` | RFIDNFCLayer | 13.08270, 80.27071 |
+| `salmon_h08` | SalmonHomingLayer | 13.08289, 80.27074, heading 16.5 deg |
+| `schumann_l59` | SchumannResonanceLayer | 13.08345, 80.27477 |
+| `seabed_f05` | SeabedSampleLayer | 13.08428, 80.27085 |
+| `serfgyro_l58` | SERFGyroscopeLayer | heading 44.9 deg |
+| `sextant_e21` | SextantAngleLayer | 13.08277, 80.27062 |
+| `sferics_i06` | LightningSfericsLayer | 13.06609, 80.30078 |
+| `skygrad_l47` | DiffuseSkyLayer | heading 40.8 deg |
+| `sonar_l34` | ActiveSonarLayer | 13.08275, 80.27067 |
+| `soop_l42` | CommercialSOOPLayer | 13.08269, 80.27029 |
+| `startrack_l4` | StarTrackingLayer | 13.08273, 80.27078, heading 45.4 deg |
+| `stellar_l46` | StellarConstellationLayer | heading 44.2 deg |
+| `sunazimuth_a17` | SunAzimuthCompassLayer | 13.08270, 80.27070, heading 76.8 deg |
+| `swarmrel_l15` | SwarmRelativePositionLayer | 13.08275, 80.27067 |
+| `tacan_d11` | TACANLayer | 13.08277, 80.27064, heading 193.7 deg |
+| `terrain_l5` | TerrainMatchingLayer | 13.08279, 80.27091 |
+| `thermal_l38` | ThermalIRLayer | 13.08245, 80.27076 |
+| `thermalmicro_h13` | ThermalMicroclimateLayer | 13.07912, 80.26964 |
+| `threefix_e18` | ThreePointFixLayer | 13.08283, 80.27075 |
+| `tidaltiming_h10` | TidalTimingPositionLayer | 13.05857, 80.27516 |
+| `univbeacon_k11` | UniversalBeaconLayer | 13.08199, 80.27057 |
 | `uwb_d06` | UWBPositioningLayer | 13.08270, 80.27070 |
-| `vhorizon_b11` | VisualHorizonLayer | 13.08266, 80.27076 |
-| `vio_l32` | VisualOdometryLayer | 13.08273, 80.27066, 9.92 m/s |
+| `vhorizon_b11` | VisualHorizonLayer | 13.08281, 80.27061 |
+| `vio_l32` | VisualOdometryLayer | 13.08266, 80.27071, 10.11 m/s |
 | `vlc_d26` | VLCLiFiLayer | 13.08270, 80.27070 |
-| `vordme_d12` | VORDMELayer | 13.08246, 80.27066, heading 335.4 deg |
-| `vslam_l31` | VisualSLAMLayer | 13.08273, 80.27069, heading 44.9 deg |
-| `wifi_l8` | WiFiMilitaryNavLayer | 13.08267, 80.27072 |
-| `wifirtt_d24` | WiFiRTTLayer | 13.08270, 80.27070 |
-| `wolf_k06` | WolfPackCoordinationLayer | 13.08271, 80.27071 |
-| `xnav_l29` | XRayPulsarLayer | 13.08241, 80.27023 |
+| `vordme_d12` | VORDMELayer | 13.08278, 80.27090, heading 66.4 deg |
+| `vslam_l31` | VisualSLAMLayer | 13.08271, 80.27069, heading 45.1 deg |
+| `wifi_l8` | WiFiMilitaryNavLayer | 13.08256, 80.27093 |
+| `wifirtt_d24` | WiFiRTTLayer | 13.08269, 80.27071 |
+| `wolf_k06` | WolfPackCoordinationLayer | 13.08270, 80.27071 |
+| `xnav_l29` | XRayPulsarLayer | 13.08140, 80.27051 |
 
 ## Staged remediation plan
 
@@ -246,9 +227,9 @@ Every layer inherits this. Fabrication is the default state and honesty is opt-i
 | `upin/layers/systems/directional_tower_layer.py` | 251 | `dirtower_k09` | `_read_fallback` | `pos = Position(` |
 | `upin/layers/systems/predictive_tower_layer.py` | 281 | `predtower_k08` | `_read_fallback` | `pos = Position(` |
 | `upin/missions/casevac.py` | 252 | CASEVACModule | `_assess_landing_zone` | `position=Position(` |
-| `upin/quantum/layers.py` | 317 | `qsense_q02` | `read` | `position=Position(` |
-| `upin/quantum/layers.py` | 438 | `qclocknet_q03` | `read` | `position=Position(` |
-| `upin/quantum/layers.py` | 626 | `qsqueeze_q05` | `read` | `position=Position(` |
+| `upin/quantum/layers.py` | 348 | `qsense_q02` | `read` | `position=Position(` |
+| `upin/quantum/layers.py` | 472 | `qclocknet_q03` | `read` | `position=Position(` |
+| `upin/quantum/layers.py` | 666 | `qsqueeze_q05` | `read` | `position=Position(` |
 
 ### HIGH — 55 finding(s)
 
@@ -478,15 +459,15 @@ Every layer inherits this. Fabrication is the default state and honesty is opt-i
 | `upin/layers/systems/predictive_tower_layer.py` | 281 | `predtower_k08` | `_read_fallback` | `pos = Position(` |
 | `upin/layers/systems/terrain_fp_layer.py` | 115 | `terrainfp_k07` | `_low_confidence_reading` | `pos = Position(` |
 | `upin/layers/systems/terrain_fp_layer.py` | 128 | `terrainfp_k07` | `_read_fallback` | `pos = Position(` |
-| `upin/quantum/layers.py` | 196 | `qrange_q01` | `_degraded` | `position=Position(latitude=lat, longitude=lon, altitude=alt,` |
-| `upin/quantum/layers.py` | 540 | `atomgyro_q04` | `read` | `position=Position(latitude=lat, longitude=lon, altitude=alt,` |
-| `upin/quantum/layers.py` | 544 | `atomgyro_q04` | `read` | `self_confidence=0.94,` |
-| `upin/quantum/layers.py` | 632 | `qsqueeze_q05` | `read` | `self_confidence=0.91,` |
-| `upin/quantum/layers.py` | 727 | `qradar_q06` | `read` | `position=Position(latitude=lat, longitude=lon, altitude=alt,` |
-| `upin/quantum/layers.py` | 729 | `qradar_q06` | `read` | `self_confidence=0.82,` |
-| `upin/quantum/layers.py` | 816 | `qsecpos_q07` | `read` | `position=Position(latitude=lat, longitude=lon, altitude=alt,` |
-| `upin/quantum/layers.py` | 818 | `qsecpos_q07` | `read` | `self_confidence=0.05, is_valid=True,` |
-| `upin/quantum/layers.py` | 939 | `qfusion_q08` | `read` | `self_confidence=0.72,` |
+| `upin/quantum/layers.py` | 224 | `qrange_q01` | `_degraded` | `position=Position(latitude=lat, longitude=lon, altitude=alt,` |
+| `upin/quantum/layers.py` | 577 | `atomgyro_q04` | `read` | `position=Position(latitude=lat, longitude=lon, altitude=alt,` |
+| `upin/quantum/layers.py` | 581 | `atomgyro_q04` | `read` | `self_confidence=0.94,` |
+| `upin/quantum/layers.py` | 672 | `qsqueeze_q05` | `read` | `self_confidence=0.91,` |
+| `upin/quantum/layers.py` | 770 | `qradar_q06` | `read` | `position=Position(latitude=lat, longitude=lon, altitude=alt,` |
+| `upin/quantum/layers.py` | 772 | `qradar_q06` | `read` | `self_confidence=0.82,` |
+| `upin/quantum/layers.py` | 862 | `qsecpos_q07` | `read` | `position=Position(latitude=lat, longitude=lon, altitude=alt,` |
+| `upin/quantum/layers.py` | 864 | `qsecpos_q07` | `read` | `self_confidence=0.05, is_valid=True,` |
+| `upin/quantum/layers.py` | 988 | `qfusion_q08` | `read` | `self_confidence=0.72,` |
 | `upin/services/fusion_microservice.py` | 200 | KalmanMicroservice | `_error_result` | `position=Position(0.0, 0.0, accuracy_m=1000.0),` |
 | `upin/services/fusion_microservice.py` | 312 | ParticleMicroservice | `_error_result` | `position=Position(0.0, 0.0, accuracy_m=1000.0),` |
 | `upin/swarm_fusion/fish_schooling.py` | 303 | FishSchoolingFusion | `fuse_readings` | `empty_pos = Position(0.0, 0.0, accuracy_m=1000.0)` |

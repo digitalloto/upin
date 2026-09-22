@@ -184,6 +184,39 @@ minimises uncertainty given that fidelity, and reports
 
 ---
 
+## 4a. Correction — these layers shipped fabricating
+
+The eight Group Q layers landed in CP1–CP6 computing genuine quantum
+metrology and reporting a **hardcoded position**. `_base_position()` in
+`upin/quantum/layers.py` ended with a Chennai default, so with no world and
+no anchor every layer returned 13.0827, 80.2707 as though it had measured it:
+
+| Layer | Reported | Claimed |
+|---|---|---|
+| `qsqueeze_q05` | 13.0827, 80.2707 | **0.00 m**, confidence 0.91 |
+| `qrange_q01` | 13.0827, 80.2708 | 0.09 m, 0.78 |
+| `qclocknet_q03` | 13.0827, 80.2707 | 0.73 m, 0.69 |
+| `atomgyro_q04` | 13.0827, 80.2707 | 1.00 m, 0.94 |
+| `qsense_q02`, `qfusion_q08`, `qsecpos_q07`, `qradar_q06` | same | 1.7–25 m |
+
+This was found by running every layer with simulation switched off and nothing
+connected, then fusing. These eight were the only survivors, and they were
+enough to hand the fusion engine a confident **half-metre fix on Chennai out
+of no sensors at all** — while the other 130 layers correctly raised and were
+dropped. A layer claiming zero metres of error on data that does not exist is
+the worst failure mode this project has.
+
+Fixed in Phase 0.3. `_base_position()` now returns `None` when nothing has
+supplied a reference, and all eight `read()` methods return
+`no_fix(NO_ANCHOR)` — a quantum sensor measures a change against a reference,
+and without one there is no measurement to report. The metrology is unchanged;
+only the invented position is gone.
+
+The lesson generalises: the quantum physics in this module was carefully
+modelled and separately tested, and none of that prevented the layer around
+it from reporting a coordinate nobody measured. Correct physics inside a
+fabricating wrapper is still a fabrication.
+
 ## 5. Honest physics — what the code does not pretend
 
 Three places where the naive textbook result is wrong and the code says so.

@@ -73,8 +73,13 @@ def create_full_system(lat: float = 13.0827, lon: float = 80.2707,
 
     # Register all 60 navigation layer agents
     # Each layer gets a reference to the world and computes independently
+    # The harness is the one thing that decides what feeds a layer. Converted
+    # layers are driven through their own input methods; the rest are kept
+    # running by the legacy bridge until they are converted too.
+    from upin.simulation.harness import Mode, NavigationHarness
     layers = create_all_layers(sim_lat=lat, sim_lon=lon, sim_alt=alt,
                                 world=world)
+    harness = NavigationHarness(layers, Mode.SIMULATION, world=world, seed=7)
     for layer in layers:
         engine.register_layer(layer)
 
@@ -85,7 +90,7 @@ def create_full_system(lat: float = 13.0827, lon: float = 80.2707,
         engine.register_threat_layer(cls())
 
     engine.initialize()
-    return engine, world
+    return engine, world, harness
 
 
 def demo_normal_operation():
@@ -96,13 +101,19 @@ def demo_normal_operation():
     print("  Mahalanobis distance validates agreement between all agents")
     print("  NavIC designated as PRIMARY signal")
 
-    engine, world = create_full_system()
+    engine, world, harness = create_full_system()
     print(f"\n  Layer agents registered: {len(engine.registered_layers)}")
+    cov = harness.coverage()
+    print(f"  Data source: {harness.feed.name} — {cov.summary()}")
+    print(f"  Fed through their own inputs: {', '.join(cov.native) or 'none'}")
+    if cov.legacy:
+        print(f"  Still simulating internally: {len(cov.legacy)} layers "
+              f"(see FABRICATION_AUDIT.md)")
     print(f"  Threat layers: {len(engine.registered_threat_layers)}")
 
     print_section("Running 10 fusion cycles (each agent computes independently)")
     for i in range(10):
-        world.step(0.1)  # Advance ground truth
+        harness.tick(0.1)  # Advance ground truth
         output = engine.cycle()
         if i % 3 == 0 or i == 9:
             print(f"\n  Cycle {i+1}:")
@@ -139,12 +150,12 @@ def demo_spoofing_attack():
     print("  But 50+ other agents disagree → Mahalanobis flags it")
     print("  The spoofed signal cannot fool independent physical principles")
 
-    engine, world = create_full_system()
+    engine, world, harness = create_full_system()
 
     # Run 5 normal cycles first
     print_section("Phase 1: Normal operation (5 cycles)")
     for i in range(5):
-        world.step(0.1)
+        harness.tick(0.1)
         output = engine.cycle()
     print(f"  Confidence: {output.confidence_score:.1f}% — {output.trust_level}")
     print(f"  All agents agreeing: {output.num_agreeing_layers}/{output.num_active_layers}")
@@ -165,7 +176,7 @@ def demo_spoofing_attack():
     # Run cycles under spoofing
     print_section("Phase 3: Mahalanobis cross-validation (10 cycles)")
     for i in range(10):
-        world.step(0.1)
+        harness.tick(0.1)
         output = engine.cycle()
         if i % 3 == 0 or i == 9:
             print(f"\n  Cycle {i+1}:")
@@ -194,11 +205,11 @@ def demo_total_jamming():
     print("    INS, magnetic, gravity, muon, pulsar, Schumann, SLAM, LiDAR")
     print("  These use physical principles that CANNOT be jammed")
 
-    engine, world = create_full_system()
+    engine, world, harness = create_full_system()
 
     # Normal operation first
     for _ in range(5):
-        world.step(0.1)
+        harness.tick(0.1)
         output = engine.cycle()
     print(f"\n  Pre-jamming confidence: {output.confidence_score:.1f}%")
     if output.position is None:
@@ -222,7 +233,7 @@ def demo_total_jamming():
             layer.status.is_active = False
 
     for i in range(10):
-        world.step(0.1)
+        harness.tick(0.1)
         output = engine.cycle()
         if i % 3 == 0 or i == 9:
             ref = engine.reference_tracker

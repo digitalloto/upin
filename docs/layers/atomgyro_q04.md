@@ -6,11 +6,11 @@
 
 ## Current status
 
-**FABRICATES** — Invents a reading when nothing is connected, and invents a different one each time it is read.
+**DECLINES** — Reports no fix when it has no input, and says what is missing. Honours the no-fabrication contract.
 
-Measured by constructing this layer with nothing attached and reading it three times: returned 13.08270, 80.27070, heading 45.0 deg, then a different heading on the very next read, from the same (absent) input.
+Measured by constructing this layer with nothing attached and reading it three times: declines with `no_anchor` — a quantum sensor measures against a reference; none has been supplied by a world, an anchor or a prior fix.
 
-With simulation switched off it still returns a position.
+With simulation switched off it declines cleanly.
 
 ## What this layer needs
 

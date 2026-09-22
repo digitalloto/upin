@@ -8,7 +8,7 @@
 
 **FABRICATES** — Invents a reading when nothing is connected, and invents a different one each time it is read.
 
-Measured by constructing this layer with nothing attached and reading it three times: returned heading 45.2 deg, then a different heading on the very next read, from the same (absent) input.
+Measured by constructing this layer with nothing attached and reading it three times: returned heading 42.6 deg, then a different heading on the very next read, from the same (absent) input.
 
 With simulation switched off it raises NotImplementedError.
 
