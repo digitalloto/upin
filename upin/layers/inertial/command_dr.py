@@ -65,6 +65,9 @@ from upin.core.layer_base import (
 )
 from upin.core.no_fabrication import NoFixReason, no_fix
 from upin.core.position import Position
+from upin.core.sensor_requirements import (
+    DataInput, Hardware, SensorRequirement,
+)
 
 G = 9.80665
 DEG_M = 111_320.0
@@ -343,6 +346,33 @@ class CommandDeadReckoningLayer(NavigationLayer):
 
     NO_FABRICATION = True
 
+    REQUIRES = SensorRequirement(
+        hardware=[
+            Hardware("flight controller with a readable command log",
+                     why="the commands it issued are the entire input",
+                     typical_part="Pixhawk / ArduPilot or PX4 telemetry log",
+                     approx_cost_usd=200, already_on_most_drones=True),
+        ],
+        inputs=[
+            DataInput("motor commands", feed_method="log_command",
+                      units="throttle 0-1, attitude in radians",
+                      why="throttle and attitude integrate into displacement"),
+            DataInput("trusted starting position", feed_method="set_anchor",
+                      units="degrees, metres",
+                      why="dead reckoning measures change, so it needs a "
+                          "point to measure change from"),
+        ],
+        preconditions=(
+            "an airframe model fitted by least squares to real flight logs",
+            "calibration flights reaching about 5 m/s, or the drag "
+            "coefficient is not identifiable",
+            "a recent anchor: accuracy degrades with every second since one",
+        ),
+        notes="Needs no sensor beyond the flight controller's own log, so it "
+              "survives total sensor and signal loss. It is a bridge between "
+              "fixes, not a solution -- it drifts and must be reset.",
+    )
+
     def __init__(self, model: Optional[AirframeModel] = None):
         super().__init__(
             layer_id="cmddr_b12", layer_number=143,
@@ -452,7 +482,9 @@ class CommandDeadReckoningLayer(NavigationLayer):
 
         if self._anchor is None:
             return no_fix(self.layer_id, NoFixReason.NO_ANCHOR,
-                          "no trusted position to dead reckon from")
+                          "no trusted position to dead reckon from; "
+                          "supply one via set_anchor()",
+                          feed_via=self.REQUIRES.feed_methods)
 
         if self._pending:
             step, self._velocity = propagate(

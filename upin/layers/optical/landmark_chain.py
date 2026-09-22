@@ -61,6 +61,9 @@ from upin.core.layer_base import (
 )
 from upin.core.no_fabrication import NoFixReason, no_fix
 from upin.core.position import Position
+from upin.core.sensor_requirements import (
+    DataInput, Hardware, ReferenceData, SensorRequirement,
+)
 
 DEG_M = 111_320.0
 
@@ -564,6 +567,38 @@ class LandmarkChainLayer(NavigationLayer):
 
     NO_FABRICATION = True
 
+    REQUIRES = SensorRequirement(
+        hardware=[
+            Hardware("camera", why="detects and identifies charted landmarks",
+                     typical_part="gimbal-stabilised, known field of view",
+                     approx_cost_usd=400, already_on_most_drones=True),
+            Hardware("attitude reference", why="turns a pixel offset into a "
+                                               "true-north bearing",
+                     typical_part="AHRS or a calibrated IMU",
+                     approx_cost_usd=800, already_on_most_drones=True),
+        ],
+        inputs=[
+            DataInput("landmark bearings", feed_method="observe",
+                      units="degrees true",
+                      why="each bearing is one line of position"),
+        ],
+        reference_data=[
+            ReferenceData("charted landmark positions",
+                          source="Survey of India, Bhuvan, NHO charts, "
+                                 "Cartosat or an operator DGPS survey",
+                          why="a bearing is only useful to a point whose "
+                              "coordinate is known",
+                          bundled=False),
+        ],
+        preconditions=(
+            "two independent observations (two bearings, or a bearing and a range)",
+            "a cut angle of at least 15 degrees between bearings",
+            "observations no older than 5 seconds",
+        ),
+        notes="Needs no radio of any kind, so it cannot be jammed or spoofed "
+              "by RF. Forging it would mean physically moving a landmark.",
+    )
+
     MIN_CUT_ANGLE_DEG = 15.0
     """Below this the lines of position are too near parallel to trust.
 
@@ -635,8 +670,9 @@ class LandmarkChainLayer(NavigationLayer):
 
         if not self._observations:
             return no_fix(self.layer_id, NoFixReason.NO_INPUT,
-                          "no landmark bearings observed",
-                          landmarks_charted=len(self._map))
+                          self.REQUIRES.describe_missing(),
+                          landmarks_charted=len(self._map),
+                          feed_via=self.REQUIRES.feed_methods)
 
         fresh = [o for o in self._observations
                  if now - o.timestamp <= self.MAX_OBSERVATION_AGE_S]
