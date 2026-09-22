@@ -50,7 +50,7 @@ Patent-pending. AIMCRS / Abheet Prem Manghnani.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from upin.core.layer_base import LayerReading
 
@@ -176,6 +176,75 @@ def audit_layer(layer, sample_inputs: Optional[Dict] = None) -> ComplianceResult
         compliant=compliant,
         detail="; ".join(bits) if bits else "compliant",
     )
+
+
+def fields_that_changed(a: Optional[LayerReading],
+                        b: Optional[LayerReading]) -> List[str]:
+    """Which measured fields differ between two reads of the same state.
+
+    This is the mechanical test the whole contract rests on. Nothing varied
+    on the way in, so whatever varied on the way out was manufactured inside
+    the layer.
+
+    It deliberately looks past the position. A layer reporting a velocity of
+    49.68 m/s having been given nothing is fabricating exactly as surely as
+    one reporting a latitude, and for a long time the audits only looked at
+    latitude and let the velocity layers through.
+    """
+    if a is None or b is None:
+        return [] if a is b else ["reading"]
+    changed: List[str] = []
+    if (a.position is None) != (b.position is None):
+        changed.append("position")
+    elif a.position is not None and b.position is not None:
+        if (a.position.latitude != b.position.latitude
+                or a.position.longitude != b.position.longitude
+                or a.position.altitude != b.position.altitude
+                or a.position.accuracy_m != b.position.accuracy_m):
+            changed.append("position")
+    if a.velocity != b.velocity:
+        changed.append("velocity")
+    if a.heading != b.heading:
+        changed.append("heading")
+    if a.self_confidence != b.self_confidence:
+        changed.append("confidence")
+    if a.is_valid != b.is_valid:
+        changed.append("validity")
+    return changed
+
+
+def probe_determinism(layer, reads: int = 3) -> List[str]:
+    """Read a layer several times unchanged and report what refused to hold still.
+
+    Two reads is the minimum, but it is not enough. A layer drawing from a
+    coarse distribution can return the same value twice by luck, and then a
+    fabricator is recorded as a placeholder. Reading three times and comparing
+    every read against the first makes that coincidence much less likely
+    without making the check any less mechanical.
+
+    Returns the union of fields that varied. Empty means the layer held still.
+    """
+    first = layer.read()
+    changed: List[str] = []
+    for _ in range(max(1, reads - 1)):
+        for f in fields_that_changed(first, layer.read()):
+            if f not in changed:
+                changed.append(f)
+    return changed
+
+
+def describe_reading(r: Optional[LayerReading]) -> str:
+    """The measured parts of a reading, in words."""
+    if r is None:
+        return "nothing"
+    bits = []
+    if r.position is not None:
+        bits.append(f"{r.position.latitude:.5f}, {r.position.longitude:.5f}")
+    if r.velocity is not None:
+        bits.append(f"{r.velocity:.2f} m/s")
+    if r.heading is not None:
+        bits.append(f"heading {r.heading:.1f} deg")
+    return ", ".join(bits) if bits else "a reading with no measured field"
 
 
 def _readings_match(a: Optional[LayerReading],

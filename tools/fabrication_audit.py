@@ -334,6 +334,9 @@ class Behaviour:
 
 def run_dynamic() -> List[Behaviour]:
     """Run every registered layer with no sensors and record what it returns."""
+    from upin.core.no_fabrication import (
+        describe_reading, probe_determinism,
+    )
     from upin.layers.registry import ALL_LAYER_CLASSES
 
     out: List[Behaviour] = []
@@ -348,14 +351,15 @@ def run_dynamic() -> List[Behaviour]:
             layer.initialize()
             a = layer.read()
             b = layer.read()
-            if a is not None and getattr(a, "position", None) is not None \
-                    and getattr(a, "is_valid", True):
+            if a is not None and getattr(a, "is_valid", True) and (
+                    a.position is not None or a.velocity is not None
+                    or a.heading is not None):
+                # "Answered" means it produced any measured value, not just a
+                # position. A layer reporting a velocity it was never given is
+                # fabricating too, and counting only positions let those pass.
                 answered = True
-                p = a.position
-                pos_str = f"{p.latitude:.5f},{p.longitude:.5f}"
-                if b is not None and b.position is not None:
-                    deterministic = (a.position.latitude == b.position.latitude
-                                     and a.position.longitude == b.position.longitude)
+                pos_str = describe_reading(a)
+                deterministic = not probe_determinism(layer, reads=3)
             elif a is not None and not getattr(a, "is_valid", True):
                 declines = bool(a.raw_data and a.raw_data.get("no_fix_reason"))
         except NotImplementedError:
@@ -433,7 +437,7 @@ def print_report(findings: List[Finding], behaviours: List[Behaviour]):
     declined = [b for b in behaviours if b.declines_cleanly]
     raised = [b for b in behaviours if b.raises]
     print(f"\nDynamic: {len(behaviours)} layers run with nothing connected")
-    print(f"  returned a position anyway      {len(answered):>4}")
+    print(f"  reported a measured value anyway{len(answered):>4}")
     print(f"    ... and it changed on re-read {len(nondet):>4}  (proof of invention)")
     print(f"  declined and said why           {len(declined):>4}")
     print(f"  raised instead of declining     {len(raised):>4}")
@@ -492,7 +496,7 @@ def write_markdown(path: Path, findings: List[Finding],
              "calibration.\n")
     L.append("| Outcome | Layers |")
     L.append("|---|---:|")
-    L.append(f"| Returned a position anyway | {len(answered)} |")
+    L.append(f"| Reported a measured value anyway (position, velocity or heading) | {len(answered)} |")
     L.append(f"| ...and the answer changed between two reads | {len(nondet)} |")
     L.append(f"| Declined and stated a reason | {len(declined)} |")
     L.append(f"| Raised an exception instead of declining | {len(raised)} |")
@@ -533,8 +537,8 @@ def write_markdown(path: Path, findings: List[Finding],
             L.append("")
 
     if nondet:
-        L.append("### Layers proven to invent their position\n")
-        L.append("| Layer | Class | First read |")
+        L.append("### Layers proven to invent what they report\n")
+        L.append("| Layer | Class | What it reported |")
         L.append("|---|---|---|")
         for b in sorted(nondet, key=lambda b: b.layer_id):
             L.append(f"| `{b.layer_id}` | {b.class_name} | {b.position} |")
