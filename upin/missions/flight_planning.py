@@ -725,7 +725,14 @@ class FlightPlanningModule(MissionModule):
             "corridors": len(self._corridors),
         }
 
-        if self._current_plan:
+        # A mission module that does not know where the aircraft is must not
+        # compute anything positional. It still reports its own state, so the
+        # operator sees a plan that is loaded but unflyable rather than silence.
+        result["position_available"] = nav_output.position is not None
+        if nav_output.position is None:
+            result["no_fix_reason"] = getattr(nav_output, "no_fix_reason", "")
+
+        if self._current_plan and nav_output.position is not None:
             current = nav_output.position
             remaining_wps = [wp for wp in self._current_plan.waypoints
                              if current.distance_to(wp.position) > 50]

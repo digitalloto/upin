@@ -464,6 +464,18 @@ class FusionEngine:
             print(output.position, output.confidence_score)
     """
 
+    PROPAGATION_DRIFT_M_PER_S = 2.0
+    """How fast the reported accuracy widens while the filter coasts.
+
+    With no measurement arriving, the position is the motion model's own
+    extrapolation. That is legitimate -- it is what a filter is for -- but its
+    error grows, and an accuracy figure frozen at the last real fix would
+    claim a precision the engine stopped earning the moment measurements
+    stopped. Two metres per second is deliberately pessimistic; it is a
+    placeholder until the drift is characterised against a real airframe.
+    """
+
+
     def __init__(
         self,
         cycle_rate_hz: float = 10.0,
@@ -493,6 +505,11 @@ class FusionEngine:
         self._layer_weights: dict[str, float] = {}
         self._layer_reliabilities: dict[str, float] = {}
         self._initialized = False
+        # Has any layer ever handed the filter a usable measurement? Until one
+        # has, the filter's state is its zero-initialised default and the
+        # engine has no position to report.
+        self._ever_measured = False
+        self._last_measurement_time = 0.0
 
     # ── Registration ──────────────────────────────────────────────
 
@@ -568,7 +585,22 @@ class FusionEngine:
 
         # ── STEP 2: COMPARE (EKF predict + update) ──
         self._ekf.predict(dt)
-        self._process_measurements(readings)
+        accepted = self._process_measurements(readings)
+        if accepted:
+            self._ever_measured = True
+            self._last_measurement_time = now
+        stale_s = (now - self._last_measurement_time
+                   if self._ever_measured else 0.0)
+
+        # Nothing has ever measured a position, so the engine does not have
+        # one. The filter's state here is its uninitialised default -- 0N 0E,
+        # in the Gulf of Guinea -- and handing that back dressed as a Position
+        # is indistinguishable downstream from a real fix. Say no instead.
+        if not self._ever_measured:
+            return self._no_fix_output(
+                readings, now,
+                "no layer has supplied a usable position measurement",
+            )
 
         consensus = self._ekf.position
 
@@ -682,7 +714,15 @@ class FusionEngine:
         gps_trusted = "gps_l1" not in anomaly.get("outlier_ids", [])
         navic_trusted = "navic_l2" not in anomaly.get("outlier_ids", [])
 
-        # Build final output
+        # Build final output. When no measurement arrived this cycle the
+        # position is the motion model's own propagation -- honest dead
+        # reckoning, but its uncertainty grows with every unmeasured second,
+        # so the accuracy has to grow with it rather than stay frozen at
+        # whatever the last real fix earned.
+        accuracy = self._estimate_accuracy(confidence.score)
+        if stale_s > 0:
+            accuracy += self.PROPAGATION_DRIFT_M_PER_S * stale_s
+
         position = Position(
             latitude=consensus[0],
             longitude=consensus[1],
@@ -690,7 +730,7 @@ class FusionEngine:
             heading=self._ekf.heading,
             velocity=float(np.linalg.norm(self._ekf.velocity[:2])),
             timestamp=now,
-            accuracy_m=self._estimate_accuracy(confidence.score),
+            accuracy_m=accuracy,
         )
 
         output = NavigationOutput(
@@ -703,6 +743,7 @@ class FusionEngine:
             layer_diagnostics=diagnostics,
             timestamp=now,
             cycle_hz=self.cycle_rate_hz,
+            seconds_since_measurement=stale_s,
             spoofing_detected=confidence.spoofing_suspected,
             jamming_detected=confidence.jamming_suspected,
             gps_trusted=gps_trusted,
@@ -734,8 +775,13 @@ class FusionEngine:
                     logger.warning(f"Layer {layer_id} marked unhealthy: {e}")
         return readings
 
-    def _process_measurements(self, readings: list[LayerReading]) -> None:
-        """STEP 2: Feed measurements into the EKF.
+    def _process_measurements(self, readings: list[LayerReading]) -> int:
+        """STEP 2: Feed measurements into the EKF. Returns how many were accepted.
+
+        The count matters as much as the filtering. A cycle that accepts zero
+        measurements has learned nothing, and the caller needs to know that so
+        it can tell a measured position from the filter coasting on its own
+        motion model.
 
         Each layer agent has independently computed its own coordinates.
         Before feeding into the EKF, we sanity-check: if a layer's
@@ -743,6 +789,7 @@ class FusionEngine:
         the layer claims <1km accuracy), it's rejected. This prevents
         a single bad computation from corrupting the fused state.
         """
+        accepted = 0
         for r in readings:
             if r.position is None or not r.is_valid:
                 continue
@@ -786,6 +833,7 @@ class FusionEngine:
                          acc ** 2 / max(w, 0.01)])
 
             self._ekf.update(z, H, R)
+            accepted += 1
 
             # Also update velocity/heading if available
             if r.heading is not None:
@@ -794,6 +842,8 @@ class FusionEngine:
                 H_h[0, 6] = 1.0
                 R_h = np.array([[0.1 / max(w, 0.01)]])
                 self._ekf.update(z_h, H_h, R_h)
+
+        return accepted
 
     def _adjust_weights(self, anomaly: dict) -> None:
         """STEP 3: Reduce weight of outlier/compromised layers."""
@@ -848,6 +898,60 @@ class FusionEngine:
                 spoofing_suspected=is_outlier,
             ))
         return diagnostics
+
+    def _no_fix_output(self, readings: list[LayerReading], now: float,
+                       reason: str) -> NavigationOutput:
+        """The output of a cycle that has no position to report.
+
+        position is None rather than the filter's uninitialised state. Every
+        other field is still populated, so an operator can see exactly which
+        layers were asked and what each of them said -- a no-fix output is a
+        diagnosis, not a blank.
+        """
+        # Account for every registered layer, not just the ones that answered.
+        # _collect_readings skips layers marked inactive or unhealthy, so a
+        # layer that knows it has no calibration never gets read at all and its
+        # reason would otherwise vanish. A no-fix output that cannot say why is
+        # only half a diagnosis.
+        tally: dict[str, int] = {}
+        answered = {r.layer_id for r in readings if r is not None}
+        for layer_id, layer in self._nav_layers.items():
+            if layer_id in answered:
+                continue
+            if not layer.status.is_active:
+                tally["layer_inactive"] = tally.get("layer_inactive", 0) + 1
+            else:
+                tally["layer_unhealthy"] = tally.get("layer_unhealthy", 0) + 1
+
+        for r in readings:
+            if r is None:
+                continue
+            why = (r.raw_data or {}).get("no_fix_reason")
+            if why:
+                tally[why] = tally.get(why, 0) + 1
+            elif r.position is None:
+                tally["no_position"] = tally.get("no_position", 0) + 1
+            elif not r.is_valid:
+                tally["reading_invalid"] = tally.get("reading_invalid", 0) + 1
+
+        detail = reason
+        if tally:
+            breakdown = ", ".join(f"{n} x {why}"
+                                  for why, n in sorted(tally.items()))
+            detail = f"{reason} ({len(self._nav_layers)} layers: {breakdown})"
+
+        return NavigationOutput(
+            position=None,
+            confidence_score=0.0,
+            num_active_layers=0,
+            num_agreeing_layers=0,
+            threat_level=ThreatLevel.NONE,
+            threat_alerts=[],
+            layer_diagnostics=self._build_diagnostics(readings, {}),
+            timestamp=now,
+            cycle_hz=self.cycle_rate_hz,
+            no_fix_reason=detail,
+        )
 
     def _estimate_accuracy(self, confidence_score: float) -> float:
         """Estimate position accuracy in metres from confidence score."""

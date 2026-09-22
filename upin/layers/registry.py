@@ -406,7 +406,14 @@ def create_all_layers(sim_lat: float = 13.0827,
     registry = LayerRegistry()
     layers = registry.create_all()
     for layer in layers:
-        layer.set_simulated_position(sim_lat, sim_lon, sim_alt)
+        # Layers held to the no-fabrication contract have no
+        # set_simulated_position, because they have no way to invent a reading
+        # to go with it -- they take real input or they decline. Skipping them
+        # here is the correct behaviour, not a gap: they will report no fix
+        # until something actually feeds them.
+        setter = getattr(layer, "set_simulated_position", None)
+        if callable(setter):
+            setter(sim_lat, sim_lon, sim_alt)
         if world is not None:
             layer.set_world(world)
     return layers

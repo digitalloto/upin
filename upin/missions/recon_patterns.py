@@ -576,6 +576,13 @@ class PatternGenerator(MissionModule):
                 1 for t in self._recon_targets.values() if t.observed),
         }
 
+        result["position_available"] = nav_output.position is not None
+        if nav_output.position is None:
+            # Patrol coverage is measured by where the aircraft has actually
+            # been. With no fix, nothing has been covered that we can prove.
+            result["no_fix_reason"] = getattr(nav_output, "no_fix_reason", "")
+            return result
+
         # Progress active patrols
         for p in active:
             self.check_patrol_progress(p.patrol_id, nav_output.position)

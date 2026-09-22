@@ -102,8 +102,13 @@ class IntelligenceEcosystem(MissionModule):
             summary=f"Position confidence {nav_output.confidence_score:.1f}%, "
                     f"{nav_output.num_agreeing_layers}/{nav_output.num_active_layers} layers",
             data={
-                "position": (nav_output.position.latitude,
-                             nav_output.position.longitude),
+                # None rather than a placeholder pair. An intelligence report
+                # carrying (0.0, 0.0) would be read as a position by whoever
+                # receives it, and it is not one.
+                "position": ((nav_output.position.latitude,
+                              nav_output.position.longitude)
+                             if nav_output.position is not None else None),
+                "position_available": nav_output.position is not None,
                 "confidence": nav_output.confidence_score,
                 "threats": len(nav_output.threat_alerts),
                 "spoofing": nav_output.spoofing_detected,

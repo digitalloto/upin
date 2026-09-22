@@ -106,9 +106,12 @@ def demo_normal_operation():
         output = engine.cycle()
         if i % 3 == 0 or i == 9:
             print(f"\n  Cycle {i+1}:")
-            print(f"    Fused position: {output.position.latitude:.6f}°N, "
-                  f"{output.position.longitude:.6f}°E")
-            print(f"    Altitude: {output.position.altitude:.1f} m")
+            if output.position is None:
+                print(f"    Fused position: NO FIX — {output.no_fix_reason}")
+            else:
+                print(f"    Fused position: {output.position.latitude:.6f}°N, "
+                      f"{output.position.longitude:.6f}°E")
+                print(f"    Altitude: {output.position.altitude:.1f} m")
             print(f"    Confidence: {output.confidence_score:.1f}% — "
                   f"{output.trust_level}")
             print(f"    Agreeing agents: {output.num_agreeing_layers}/"
@@ -198,8 +201,11 @@ def demo_total_jamming():
         world.step(0.1)
         output = engine.cycle()
     print(f"\n  Pre-jamming confidence: {output.confidence_score:.1f}%")
-    print(f"  Pre-jamming position: {output.position.latitude:.6f}°N, "
-          f"{output.position.longitude:.6f}°E")
+    if output.position is None:
+        print(f"  Pre-jamming position: NO FIX — {output.no_fix_reason}")
+    else:
+        print(f"  Pre-jamming position: {output.position.latitude:.6f}°N, "
+              f"{output.position.longitude:.6f}°E")
 
     # JAM EVERYTHING external
     print_section("ALL EXTERNAL SIGNALS JAMMED")
@@ -221,8 +227,11 @@ def demo_total_jamming():
         if i % 3 == 0 or i == 9:
             ref = engine.reference_tracker
             print(f"\n  Cycle {i+1}:")
-            print(f"    Fused position: {output.position.latitude:.6f}°N, "
-                  f"{output.position.longitude:.6f}°E")
+            if output.position is None:
+                print(f"    Fused position: NO FIX — {output.no_fix_reason}")
+            else:
+                print(f"    Fused position: {output.position.latitude:.6f}°N, "
+                      f"{output.position.longitude:.6f}°E")
             print(f"    Confidence: {output.confidence_score:.1f}% — "
                   f"{output.trust_level}")
             print(f"    Reference tracker: {ref._unjammable_count} "

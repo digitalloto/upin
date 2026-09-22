@@ -112,7 +112,7 @@ class NavigationOutput:
     Contains the fused position, confidence score, layer diagnostics, and
     any active threat alerts.
     """
-    position: Position
+    position: Optional[Position]
     confidence_score: float  # 0.0 to 100.0
     num_active_layers: int
     num_agreeing_layers: int
@@ -125,6 +125,28 @@ class NavigationOutput:
     jamming_detected: bool = False
     gps_trusted: bool = True
     navic_trusted: bool = True
+    # When no layer has ever supplied a usable measurement, the engine has no
+    # position to report. It says so with position=None rather than handing
+    # back the filter's uninitialised state, which is 0N 0E -- a coordinate in
+    # the Gulf of Guinea that looks exactly like a fix to everything
+    # downstream. A navigation system that does not know where it is must be
+    # able to say that.
+    no_fix_reason: str = ""
+    # Seconds since a real measurement last reached the filter. Zero while
+    # measurements are arriving. Above zero the position is propagated by the
+    # filter's own motion model -- legitimate dead reckoning, not invention,
+    # but the operator is entitled to know which one they are looking at.
+    seconds_since_measurement: float = 0.0
+
+    @property
+    def has_fix(self) -> bool:
+        """True when this output carries a position derived from a measurement."""
+        return self.position is not None
+
+    @property
+    def is_propagated(self) -> bool:
+        """True when the position is coasting on the motion model, unmeasured."""
+        return self.position is not None and self.seconds_since_measurement > 0.0
 
     @property
     def trust_level(self) -> str:

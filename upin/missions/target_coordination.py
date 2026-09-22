@@ -497,7 +497,11 @@ class TargetCoordinationModule(MissionModule):
                     tgt.position = predicted
                     tgt.time_of_fix = time.time()
 
-        zones_at_platform = self.check_engagement_zone(nav_output.position)
+        # Whether the platform sits inside an engagement zone is a question
+        # about where the platform is. With no fix it has no answer, and an
+        # invented one here would be answered with a weapon.
+        zones_at_platform = (self.check_engagement_zone(nav_output.position)
+                             if nav_output.position is not None else [])
 
         return {
             "module": "MC7",

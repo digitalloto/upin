@@ -521,7 +521,14 @@ class WaypointNavigationModule(MissionModule):
             "module": "MC5",
             "active_route": route.route_id if route else None,
             "routes_loaded": len(self._routes),
+            "position_available": current is not None,
         }
+        if current is None:
+            # Steering to a waypoint requires knowing where you are steering
+            # from. Without a fix there is no bearing to give and guessing one
+            # would fly the aircraft somewhere on the strength of nothing.
+            result["no_fix_reason"] = getattr(nav_output, "no_fix_reason", "")
+            return result
 
         if route is None:
             return result

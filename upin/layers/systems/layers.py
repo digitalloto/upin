@@ -55,7 +55,10 @@ class AntennaStabilisationLayer(NavigationLayer):
 
         Returns pointing correction data.
         """
-        if hasattr(nav_output, 'position') and nav_output.position.heading is not None:
+        # getattr, not hasattr: the attribute exists but is None when the
+        # engine has no fix, and None has no .heading.
+        _pos = getattr(nav_output, 'position', None)
+        if _pos is not None and _pos.heading is not None:
             correction = self._target_bearing - nav_output.position.heading
             self._current_pointing += correction * 0.1  # Smooth correction
             return {

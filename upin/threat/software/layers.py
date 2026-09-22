@@ -62,7 +62,9 @@ class FlightDynamicsAnomaly(ThreatLayer):
     def scan(self, layer_readings: list[LayerReading],
              nav_output: Optional[Any] = None) -> list[ThreatAlert]:
         threats = []
-        if nav_output and hasattr(nav_output, 'position'):
+        # position is None when the engine has no fix. hasattr() is true for
+        # a None attribute, so the guard has to test the value.
+        if nav_output is not None and getattr(nav_output, 'position', None) is not None:
             vel = nav_output.position.velocity or 0
             self._velocity_history.append(vel)
             if len(self._velocity_history) > 2:
@@ -210,7 +212,8 @@ class MissionDeviation(ThreatLayer):
     def scan(self, layer_readings: list[LayerReading],
              nav_output: Optional[Any] = None) -> list[ThreatAlert]:
         threats = []
-        if nav_output and self._planned_route and hasattr(nav_output, 'position'):
+        if (nav_output is not None and self._planned_route
+                and getattr(nav_output, 'position', None) is not None):
             pos = nav_output.position
             min_dist = float('inf')
             for wp in self._planned_route:
