@@ -66,6 +66,12 @@ class Observation:
     IONOSPHERIC_DENSITY = "ionospheric_density"
     SCHUMANN_RESONANCE = "schumann_resonance"
     MUON_FLUX = "muon_flux"
+    # Added for the layered-navigation spec. Each is something a real
+    # sensor reports, not ground truth.
+    GNSS_QUALITY = "gnss_quality"        # tracked vs visible, C/N0, noise floor
+    GNSS_VELOCITY = "gnss_velocity"      # Doppler ground velocity, None when denied
+    GROUND_IMAGE = "ground_image"        # downward camera frame
+    RANGEFINDER_AGL = "rangefinder_agl"  # height above the ground below
     # Real-side only, for now: a position an agent has already solved.
     AGENT_POSITION = "agent_position"
     IMU = "imu"
@@ -88,6 +94,10 @@ class TrueState:
     velocity_north: float = 0.0
     velocity_east: float = 0.0
     timestamp: float = field(default_factory=time.time)
+    # The wind actually blowing. Ground truth, like everything here: an
+    # adapter may use it to score a learner, never to feed one.
+    wind_north: float = 0.0
+    wind_east: float = 0.0
 
 
 class Feed:
@@ -126,11 +136,21 @@ class WorldFeed(Feed):
         self._map: Dict[str, Callable[[], Any]] = {
             # get_pseudoranges takes a constellation; a receiver sees all the
             # ones it is built for, so the observation carries each separately
-            # rather than silently picking one.
+            # rather than silently picking one. The key is "NavIC", exactly as
+            # the world spells it -- "NAVIC" returned an empty list without
+            # complaint, and for a while every NavIC satellite went missing.
             Observation.PSEUDORANGES: lambda: {
                 c: world.get_pseudoranges(c)
-                for c in ("GPS", "NAVIC", "LEO")
+                for c in ("GPS", "NavIC", "LEO")
             },
+            Observation.GNSS_QUALITY: lambda: {
+                c: world.get_gnss_quality(c)
+                for c in ("GPS", "NavIC", "LEO")
+            },
+            Observation.GNSS_VELOCITY: lambda: world.get_gnss_velocity(),
+            Observation.GROUND_IMAGE: lambda: world.get_ground_patch(),
+            Observation.RANGEFINDER_AGL: lambda: world.get_rangefinder_agl(),
+            Observation.IMU: lambda: world.get_imu(),
             Observation.MAGNETIC_FIELD: lambda: world.get_magnetic_field(),
             Observation.GRAVITY: lambda: world.get_gravity(),
             Observation.WIFI_RSSI: lambda: world.get_wifi_rssi(),
@@ -164,6 +184,8 @@ class WorldFeed(Feed):
             heading_deg=float(getattr(w, "true_heading", 0.0) or 0.0),
             velocity_north=float(getattr(w, "true_vn", 0.0) or 0.0),
             velocity_east=float(getattr(w, "true_ve", 0.0) or 0.0),
+            wind_north=float(w.wind.vector_ned[0]) if hasattr(w, "wind") else 0.0,
+            wind_east=float(w.wind.vector_ned[1]) if hasattr(w, "wind") else 0.0,
         )
 
     def available(self) -> bool:

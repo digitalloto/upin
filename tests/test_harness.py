@@ -56,7 +56,10 @@ def error_from(world, position):
 # ------------------------------------------------------------- the feeds
 
 def test_world_feed_produces_every_observation_it_claims():
-    feed = WorldFeed(fresh_world())
+    # Above the terrain, not at the legacy default: that one starts the
+    # platform 84 m underground, where a camera and a rangefinder correctly
+    # return nothing.
+    feed = WorldFeed(SimulationWorld.at_agl(START[0], START[1], 120.0, seed=1))
     kinds = feed.kinds()
     missing = [k for k in kinds if feed.observation(k) is None]
     assert not missing, f"claimed but did not produce: {missing}"

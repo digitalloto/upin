@@ -21,6 +21,11 @@ from typing import Optional
 
 import numpy as np
 
+from upin.simulation.environment import (
+    GLOBAL_JAM_DROP_DB, TRACKING_THRESHOLD_DBHZ, JammingField, JammingZone,
+    PlatformDynamics, WindField, G, ground_patch, nominal_cn0_dbhz,
+)
+
 
 # ── Earth constants ──────────────────────────────────────────────
 R_EARTH = 6_371_000.0  # metres
@@ -153,6 +158,7 @@ class SimulationWorld:
         start_alt: float = 100.0,
         start_heading: float = 45.0,
         start_velocity: float = 50.0,  # m/s
+        seed: Optional[int] = None,
     ):
         # ── True platform state ──
         self.true_lat = start_lat
@@ -192,11 +198,38 @@ class SimulationWorld:
         self.gps_jammed = False
         self.navic_jammed = False
 
+        # ── Added for the layered-navigation spec ──
+        # Everything below defaults to off. A world that nobody configures
+        # behaves exactly as it always did, draw for draw, so the legacy
+        # layers and their tests see no change.
+        #
+        # New observations draw from their own seeded generator rather than
+        # the module-level np.random the legacy code uses, so a seeded run of
+        # a new layer is reproducible and cannot perturb a legacy one.
+        self._rng = np.random.default_rng(seed)
+        self._origin = (start_lat, start_lon)
+        self.wind = WindField()
+        self.jamming = JammingField()
+        self._dynamics: Optional[PlatformDynamics] = None
+        self._last_accel = np.zeros(3)
+        self._texture_seed = 911
+
     # ── Time stepping ──────────────────────────────────────────
 
     def step(self, dt: float = 0.1) -> None:
-        """Advance ground truth by dt seconds along current heading."""
+        """Advance ground truth by dt seconds.
+
+        Two regimes. Without dynamics engaged the platform flies its heading
+        at its speed, as it always has, with the wind (if any) added to give
+        ground velocity. With dynamics engaged it flies whatever attitude the
+        autopilot last commanded, through the rigid-body model, and the wind
+        acts through drag.
+        """
         self._elapsed += dt
+        self.wind.step(dt)
+        prev_v = np.array([self.true_vn, self.true_ve, self.true_vd])
+        if self._dynamics is not None:
+            self._last_accel = self._dynamics.advance(self, dt)
 
         # Move position
         self.true_lat += (self.true_vn * dt / R_EARTH) * (180.0 / math.pi)
@@ -206,11 +239,21 @@ class SimulationWorld:
                               (R_EARTH * cos_lat)) * (180.0 / math.pi)
         self.true_alt -= self.true_vd * dt
 
-        # Slight random heading drift (wind)
-        self.true_heading += np.random.normal(0, 0.1)
-        self.true_heading %= 360.0
-        self.true_vn = self.true_velocity * math.cos(math.radians(self.true_heading))
-        self.true_ve = self.true_velocity * math.sin(math.radians(self.true_heading))
+        if self._dynamics is None:
+            # Kinematic regime. The heading jitter was once labelled "wind";
+            # it is not -- it turns the nose, it does not move the air. Real
+            # wind is self.wind, added to the air velocity below, and a calm
+            # WindField adds exactly zero, so legacy behaviour is untouched.
+            self.true_heading += np.random.normal(0, 0.1)
+            self.true_heading %= 360.0
+            self.true_vn = self.true_velocity * math.cos(math.radians(self.true_heading))
+            self.true_ve = self.true_velocity * math.sin(math.radians(self.true_heading))
+            wind = self.wind.vector_ned
+            self.true_vn += wind[0]
+            self.true_ve += wind[1]
+            if dt > 0:
+                now_v = np.array([self.true_vn, self.true_ve, self.true_vd])
+                self._last_accel = (now_v - prev_v) / dt
 
     @property
     def true_position(self) -> tuple[float, float, float]:
@@ -304,6 +347,15 @@ class SimulationWorld:
         # Platform position in ECEF (simplified)
         plat_ecef = self._lla_to_ecef(self.true_lat, self.true_lon, self.true_alt)
 
+        # Jamming lowers every satellite's C/N0 by the same amount at this
+        # place. A satellite whose C/N0 falls below the tracking threshold is
+        # lost; the rest get noisier, because code-tracking error grows as
+        # 1/sqrt(C/N0). When nothing is jamming, drop_db is zero, no
+        # satellite is lost, the noise scale is exactly 1, and the random
+        # draws are the same ones in the same order as before.
+        drop_db = self._gnss_drop_db(constellation)
+        noise_scale = 10.0 ** (drop_db / 20.0) if drop_db > 0 else 1.0
+
         results = []
         for sat in sats:
             sat_ecef = sat.get_ecef(self._elapsed)
@@ -327,8 +379,13 @@ class SimulationWorld:
             if elevation < mask_angle:
                 continue  # Below mask angle
 
+            cn0 = nominal_cn0_dbhz(elevation) - drop_db
+            if cn0 < TRACKING_THRESHOLD_DBHZ:
+                continue  # Jammed below the tracking threshold: lock lost
+
             # Add pseudorange noise and clock bias
-            pseudorange = true_range + np.random.normal(0, noise_std) + clock_bias_m
+            pseudorange = (true_range + np.random.normal(0, noise_std * noise_scale)
+                           + clock_bias_m)
 
             # Apply spoofing offset for GPS
             if constellation == "GPS" and self.gps_spoofed:
@@ -341,7 +398,8 @@ class SimulationWorld:
                 dx2 = sat_ecef[0] - spoof_ecef[0]
                 dy2 = sat_ecef[1] - spoof_ecef[1]
                 dz2 = sat_ecef[2] - spoof_ecef[2]
-                pseudorange = math.sqrt(dx2 ** 2 + dy2 ** 2 + dz2 ** 2) + np.random.normal(0, noise_std)
+                pseudorange = (math.sqrt(dx2 ** 2 + dy2 ** 2 + dz2 ** 2)
+                               + np.random.normal(0, noise_std * noise_scale))
 
             results.append({
                 "sat_id": sat.sat_id,
@@ -349,6 +407,7 @@ class SimulationWorld:
                 "pseudorange_m": pseudorange,
                 "elevation_deg": elevation,
                 "sat_ecef": sat_ecef,
+                "cn0_dbhz": cn0,
             })
 
         return results
@@ -686,6 +745,11 @@ class SimulationWorld:
         """
         lat = lat if lat is not None else self.true_lat
         lon = lon if lon is not None else self.true_lon
+        return SimulationWorld.terrain_at(lat, lon)
+
+    @staticmethod
+    def terrain_at(lat: float, lon: float) -> float:
+        """The terrain surface itself, independent of any platform."""
         return (200.0
                 + 150.0 * math.sin(lat * 11.7)
                 + 100.0 * math.cos(lon * 15.3)
@@ -862,7 +926,208 @@ class SimulationWorld:
         self.gps_spoof_offset = (0.0, 0.0, 0.0)
 
     def set_gps_jamming(self, jammed: bool = True) -> None:
+        """Jam GPS everywhere. Until the layered-navigation work this set a
+        flag nothing read; it now removes GPS from get_pseudoranges(), which
+        is what the flag always claimed to do."""
         self.gps_jammed = jammed
+
+    # ── Layered-navigation additions ──────────────────────────────
+
+    @classmethod
+    def at_agl(cls, lat: float, lon: float, agl_m: float,
+               heading_deg: float = 0.0, velocity_ms: float = 0.0,
+               seed: Optional[int] = None) -> "SimulationWorld":
+        """A world whose platform starts a stated height above the ground.
+
+        The default constructor starts at 100-120 m above sea level, which
+        over this world's terrain puts the platform tens of metres
+        underground -- invisible to layers that never look down, fatal to
+        ones that do. New scenarios should start here instead.
+        """
+        ground = cls.terrain_at(lat, lon)
+        return cls(start_lat=lat, start_lon=lon, start_alt=ground + agl_m,
+                   start_heading=heading_deg, start_velocity=velocity_ms,
+                   seed=seed)
+
+    def set_wind(self, north_ms: float, east_ms: float,
+                 gust_sigma_ms: float = 0.0, gust_tau_s: float = 8.0,
+                 seed: int = 0) -> WindField:
+        """Set the wind. Ground velocity picks it up immediately in the
+        kinematic regime; with dynamics engaged it acts through drag."""
+        old = self.wind.vector_ned
+        self.wind = WindField(north_ms, east_ms, gust_sigma_ms, gust_tau_s, seed)
+        if self._dynamics is None:
+            new = self.wind.vector_ned
+            self.true_vn += new[0] - old[0]
+            self.true_ve += new[1] - old[1]
+        return self.wind
+
+    def add_jamming_zone(self, lat: float, lon: float, radius_m: float,
+                         constellations=("GPS", "NavIC", "LEO"),
+                         name: str = "") -> JammingZone:
+        return self.jamming.add(JammingZone(lat, lon, radius_m,
+                                            tuple(constellations), True, name))
+
+    def engage_dynamics(self, airframe, command=None) -> PlatformDynamics:
+        """Hand the platform's motion to whatever commands it from now on."""
+        self._dynamics = PlatformDynamics(airframe, command)
+        return self._dynamics
+
+    def command_attitude(self, cmd) -> None:
+        if self._dynamics is None:
+            raise RuntimeError("dynamics are not engaged; call engage_dynamics() "
+                               "before commanding attitude")
+        self._dynamics.set_command(cmd)
+
+    @property
+    def dynamics_engaged(self) -> bool:
+        return self._dynamics is not None
+
+    @property
+    def airframe(self):
+        return self._dynamics.airframe if self._dynamics is not None else None
+
+    def local_en(self, lat: Optional[float] = None,
+                 lon: Optional[float] = None) -> tuple:
+        """East and north metres from the world's origin, flat-earth."""
+        lat = self.true_lat if lat is None else lat
+        lon = self.true_lon if lon is None else lon
+        north = (lat - self._origin[0]) * 111_320.0
+        east = ((lon - self._origin[1]) * 111_320.0
+                * math.cos(math.radians(self._origin[0])))
+        return east, north
+
+    def _gnss_drop_db(self, constellation: str) -> float:
+        drop = self.jamming.cn0_drop_db(self.true_lat, self.true_lon,
+                                        constellation)
+        if constellation == "GPS" and self.gps_jammed:
+            drop = max(drop, GLOBAL_JAM_DROP_DB)
+        if constellation == "NavIC" and self.navic_jammed:
+            drop = max(drop, GLOBAL_JAM_DROP_DB)
+        return drop
+
+    def get_gnss_quality(self, constellation: str = "GPS") -> dict:
+        """What a receiver reports about its own reception.
+
+        Only things a receiver can know: how many satellites its almanac says
+        should be up, how many it is tracking, their mean C/N0, and how far
+        its noise floor has risen (what the AGC sees). It does not say
+        "jammed" -- deciding that is the detector's job, not the world's.
+        """
+        if constellation == "GPS":
+            sats, mask = self.gps_satellites, 10.0
+        elif constellation == "NavIC":
+            sats, mask = self.navic_satellites, 5.0
+        elif constellation == "LEO":
+            sats, mask = self.leo_satellites, 10.0
+        else:
+            return {"constellation": constellation, "visible": 0, "tracked": 0,
+                    "cn0_mean_dbhz": None, "noise_floor_rise_db": 0.0}
+
+        drop = self._gnss_drop_db(constellation)
+        plat = np.array(self._lla_to_ecef(self.true_lat, self.true_lon,
+                                          self.true_alt))
+        up = plat / max(np.linalg.norm(plat), 1.0)
+        visible, tracked = 0, []
+        for sat in sats:
+            vec = np.array(sat.get_ecef(self._elapsed)) - plat
+            rng = float(np.linalg.norm(vec))
+            if rng < 1.0:
+                continue
+            elev = 90.0 - math.degrees(math.acos(
+                max(-1.0, min(1.0, float(np.dot(vec, up)) / rng))))
+            if elev < mask:
+                continue
+            visible += 1
+            cn0 = nominal_cn0_dbhz(elev) - drop
+            if cn0 >= TRACKING_THRESHOLD_DBHZ:
+                tracked.append(cn0)
+        return {
+            "constellation": constellation,
+            "visible": visible,
+            "tracked": len(tracked),
+            "cn0_mean_dbhz": float(np.mean(tracked)) if tracked else None,
+            "noise_floor_rise_db": float(drop),
+        }
+
+    def get_gnss_velocity(self, sigma_ms: float = 0.05) -> Optional[dict]:
+        """Doppler-derived ground velocity, as a receiver reports it.
+
+        Needs four tracked satellites in some constellation, like a position
+        fix. Under denial it returns None rather than a stale value. Noise
+        grows with the same C/N0 penalty the pseudoranges suffer.
+        """
+        best = None
+        for c in ("GPS", "NavIC"):
+            q = self.get_gnss_quality(c)
+            if q["tracked"] >= 4 and (best is None or q["tracked"] > best[1]["tracked"]):
+                best = (c, q)
+        if best is None:
+            return None
+        drop = best[1]["noise_floor_rise_db"]
+        scale = 10.0 ** (drop / 20.0) if drop > 0 else 1.0
+        noise = self._rng.normal(0.0, sigma_ms * scale, size=3)
+        return {
+            "north_ms": self.true_vn + float(noise[0]),
+            "east_ms": self.true_ve + float(noise[1]),
+            "down_ms": self.true_vd + float(noise[2]),
+            "sigma_ms": sigma_ms * scale,
+            "constellation": best[0],
+            "satellites": best[1]["tracked"],
+        }
+
+    def get_rangefinder_agl(self, max_range_m: float = 200.0,
+                            sigma_m: float = 0.05) -> Optional[float]:
+        """Height above the ground directly below, as a rangefinder reads it.
+
+        None when out of range, and None when the platform is below the
+        terrain -- which is a mis-set scenario, not a reading, and the
+        rangefinder should not paper over it with a number.
+        """
+        agl = self.true_alt - self.get_terrain_elevation()
+        if agl <= 0.0 or agl > max_range_m:
+            return None
+        return float(agl + self._rng.normal(0.0, sigma_m))
+
+    def get_ground_patch(self, size_px: int = 64, fov_deg: float = 40.0,
+                         pixel_noise: float = 0.01) -> Optional[dict]:
+        """One frame from a downward camera fixed to the airframe.
+
+        The texture is a pure function of ground position, so two frames of
+        the same ground agree, and the only thing that moves the image is the
+        aircraft moving. Pixel noise is sensor noise, drawn from the world's
+        own generator.
+        """
+        agl = self.true_alt - self.get_terrain_elevation()
+        if agl <= 0.0:
+            return None
+        east, north = self.local_en()
+        img, gsd = ground_patch(east, north, self.true_heading, agl, fov_deg,
+                                size_px, self._texture_seed)
+        if pixel_noise > 0:
+            img = img + self._rng.normal(0.0, pixel_noise, size=img.shape)
+        return {"image": img, "gsd_m": gsd, "agl_m": agl,
+                "heading_deg": self.true_heading, "fov_deg": fov_deg,
+                "timestamp": self._elapsed}
+
+    def get_imu(self) -> dict:
+        """Attitude and acceleration, as truth; adapters add sensor noise.
+
+        In the kinematic regime there is no attitude model -- the platform is
+        a point moving along a heading -- so roll and pitch are reported as
+        None rather than as a level attitude nobody computed.
+        """
+        a = np.array(self._last_accel, dtype=float)
+        dyn = self._dynamics
+        cmd = dyn.command if dyn is not None else None
+        return {
+            "accel_ned": a.tolist(),
+            "specific_force_ned": (a - np.array([0.0, 0.0, G])).tolist(),
+            "heading_deg": self.true_heading,
+            "roll_rad": cmd.roll_rad if cmd is not None else None,
+            "pitch_rad": cmd.pitch_rad if cmd is not None else None,
+            "attitude_modelled": cmd is not None,
+        }
 
     # ── Utility ────────────────────────────────────────────────
 
