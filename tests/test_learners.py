@@ -218,7 +218,8 @@ def test_it_freezes_when_gnss_is_lost():
     f0 = L.estimate(now=L._frozen.frozen_at)
     f5 = L.estimate(now=L._frozen.frozen_at + 300.0)
     assert (f0.north_ms, f0.east_ms) == (live.north_ms, live.east_ms)
-    assert f5.sigma_ms > f0.sigma_ms + 2.0, (f0.sigma_ms, f5.sigma_ms)
+    expected = math.hypot(f0.sigma_ms, L.WIND_CHANGE_MS_PER_MIN * 5.0)
+    assert abs(f5.sigma_ms - expected) < 1e-9, (f5.sigma_ms, expected)
     assert L.add_sample(FlightSample(w.elapsed + 1, 0, 10, 0, 0)) is False
     print(f"[ok] frozen at GNSS loss: wind held at ({f0.north_ms:.2f}, "
           f"{f0.east_ms:.2f}); sigma {f0.sigma_ms:.2f} -> {f5.sigma_ms:.2f} m/s "

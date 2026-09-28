@@ -10,11 +10,11 @@ This table is measured, not claimed. Every layer below was constructed with noth
 
 | Status | Layers | Meaning |
 |---|---:|---|
-| **DECLINES** | 10 | Reports no fix when it has no input, and says what is missing. Honours the no-fabrication contract. |
+| **DECLINES** | 11 | Reports no fix when it has no input, and says what is missing. Honours the no-fabrication contract. |
 | **PLACEHOLDER** | 13 | Returns the same fixed reading whenever nothing is connected. Not random, but not measured either. |
 | **FABRICATES** | 116 | Invents a reading when nothing is connected, and invents a different one each time it is read. |
 
-**10 of 139 layers** currently refuse to invent a position. **2 of 139** have declared what hardware and data they need.
+**11 of 140 layers** currently refuse to invent a position. **3 of 140** have declared what hardware and data they need.
 
 The gap between those numbers and the total is the work tracked in [`FABRICATION_AUDIT.md`](FABRICATION_AUDIT.md), which explains what each fabricating layer does and what it would cost in flight.
 
@@ -56,7 +56,7 @@ The gap between those numbers and the total is the work tracked in [`FABRICATION
 | 124 | [Planet Sighting Navigation](docs/layers/planets_a18.md) | `planets_a18` | fabricates | no |
 | 125 | [Atmospheric Refraction Correction](docs/layers/refraction_a19.md) | `refraction_a19` | fabricates | no |
 
-### Group B — Inertial & Timing (12 layers, 1 clean)
+### Group B — Inertial & Timing (13 layers, 2 clean)
 
 | # | Layer | ID | Status | Needs declared |
 |---:|---|---|---|---|
@@ -72,6 +72,7 @@ The gap between those numbers and the total is the work tracked in [`FABRICATION
 | 64 | [Depth Pressure Sensor](docs/layers/depthpres_b10.md) | `depthpres_b10` | fabricates | no |
 | 126 | [Visual Horizon Reference](docs/layers/vhorizon_b11.md) | `vhorizon_b11` | fabricates | no |
 | 143 | [Command-Based Dead Reckoning](docs/layers/cmddr_b12.md) | `cmddr_b12` | clean | yes |
+| 145 | [Map-Click Guided Navigation](docs/layers/mapclick_b13.md) | `mapclick_b13` | clean | yes |
 
 ### Group C — Magnetic & Quantum (9 layers, 0 clean)
 

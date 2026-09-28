@@ -128,6 +128,7 @@ from upin.layers.satellite.celestial_classical import (
 # Layer 2 — command-based dead reckoning (no-fabrication contract)
 from upin.layers.inertial.command_dr import CommandDeadReckoningLayer
 from upin.layers.optical.landmark_chain import LandmarkChainLayer
+from upin.layers.guidance.map_click import MapClickGuidedLayer
 from upin.quantum.layers import (
     EntangledPhotonRangingLayer, DistributedQuantumSensingLayer,
     QuantumClockNetworkLayer, AtomInterferometerGyroLayer,
@@ -310,6 +311,8 @@ ALL_LAYER_CLASSES: dict[str, type[NavigationLayer]] = {
     "cmddr_b12": CommandDeadReckoningLayer,
     # ── Landmark chain navigation ──
     "lmkchain_e23": LandmarkChainLayer,
+    # ── L2 Map-Click Guided (layered-navigation spec, section 1) ──
+    "mapclick_b13": MapClickGuidedLayer,
 }
 
 

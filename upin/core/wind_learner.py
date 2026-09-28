@@ -76,6 +76,19 @@ class WindEstimate:
     frozen_at: Optional[float] = None
     seconds_frozen: float = 0.0
     source: str = "learned"
+    # Turbulence, measured rather than assumed: the wind triangle's residuals
+    # are what the steady model could not explain, and in flight that is
+    # mostly gusts. Their spread and correlation time let a dead-reckoning
+    # layer budget for the drift gusts will cause once GNSS is gone.
+    gust_sigma_ms: float = 0.0
+    gust_tau_s: float = 0.0
+    # How far to trust the gust measurement itself. A learning window holds
+    # only so many independent looks at the turbulence -- about T / (2 tau) --
+    # and a variance measured from few looks is noisy. This is the one-sided
+    # 95% upper bound on the gust power, as a factor on the point estimate:
+    # nu / chi2_0.05(nu). Short learning costs confidence, as it should.
+    gust_looks: float = 0.0
+    gust_power_upper_factor: float = 1.0
 
     @property
     def vector_ned(self) -> np.ndarray:
@@ -119,13 +132,16 @@ class WindLearner:
     HEADING_CHANGE_DEG = 5.0
     """A heading change larger than this restarts the settle clock."""
 
-    WIND_CHANGE_MS_PER_MIN = 0.5
+    WIND_CHANGE_MS_PER_MIN = 0.15
     """How fast a frozen wind estimate is assumed to go stale.
 
     **An assumption, not a measurement.** Wind does change, and a frozen
-    estimate that never widened would claim it does not. Half a metre per
-    second per minute is a deliberately pessimistic placeholder; replace it
-    with a figure from the operating area's own records when one exists."""
+    estimate that never widened would claim it does not. 0.15 m/s per minute
+    is a mean-wind change of about 1.5 m/s over ten minutes, typical of the
+    lower boundary layer. It was 0.5 until the guided layer showed what that
+    costs: integrated over a flight it grows position error with the square
+    of time, and made the stated circle ten times larger than the real error.
+    Replace it with a figure from the operating area's own records."""
 
     def __init__(self, window_s: float = 180.0, tilt_bin_deg: float = 2.5,
                  wind_change_ms_per_min: Optional[float] = None):
@@ -205,7 +221,9 @@ class WindLearner:
                 f.north_ms, f.east_ms, math.hypot(f.sigma_ms, grown),
                 f.samples, f.span_s, f.heading_diversity, dict(f.airspeeds),
                 frozen=True, frozen_at=f.frozen_at, seconds_frozen=t,
-                source=f.source)
+                source=f.source, gust_sigma_ms=f.gust_sigma_ms,
+                gust_tau_s=f.gust_tau_s, gust_looks=f.gust_looks,
+                gust_power_upper_factor=f.gust_power_upper_factor)
         return self._solve()
 
     def why_not(self) -> str:
@@ -272,20 +290,65 @@ class WindLearner:
         if self._samples and self._samples[0].t < cutoff:
             self._samples = [s for s in self._samples if s.t >= cutoff]
 
+    MAX_CORRELATION_LAG_S = 60.0
+
     @staticmethod
-    def _correlation_inflation(resid: np.ndarray) -> float:
-        """Variance inflation for serially correlated residuals, AR(1)."""
-        factors = []
+    def _nominal_dt(samples) -> float:
+        if len(samples) < 2:
+            return 0.0
+        return float(np.median(np.diff([x.t for x in samples])))
+
+    @classmethod
+    def _integrated_time(cls, resid: np.ndarray, samples) -> tuple:
+        """Integrated autocorrelation time of the residuals, and their spread.
+
+        tau_int = dt (1/2 + sum over lags of rho(k)), summed until the
+        correlation dies out. For a first-order gust process it equals the
+        correlation time; for white noise it is dt/2. It replaces an estimate
+        from the lag-one correlation alone, which was fragile in two ways:
+        at half-second sampling an 8-second gust has rho near 0.94, where a
+        small error in rho is a large error in tau; and pairs were taken
+        across the twelve-second gaps at every turn, whose near-zero
+        correlation dragged the estimate down. That made the wind's stated
+        sigma up to three times too small in gusty air.
+
+        Correlation is computed only between samples that really are k
+        intervals apart, inside unbroken runs. Worst axis is reported.
+        """
+        if len(samples) < 4:
+            return 0.0, 0.0
+        t = np.array([x.t for x in samples])
+        dt = float(np.median(np.diff(t)))
+        if dt <= 0:
+            return 0.0, 0.0
+        breaks = np.where(np.diff(t) > 1.5 * dt)[0] + 1
+        runs = np.split(np.arange(len(samples)), breaks)
+        max_k = max(1, int(cls.MAX_CORRELATION_LAG_S / dt))
+
+        best_tau, best_sigma = 0.0, 0.0
         for comp in (resid[0::2], resid[1::2]):
-            if len(comp) < 3:
+            x = comp - comp.mean()
+            c0 = float(x @ x) / len(x)
+            if c0 <= 0:
                 continue
-            denom = float(comp @ comp)
-            if denom <= 0:
-                continue
-            rho = float(comp[:-1] @ comp[1:]) / denom
-            rho = min(max(rho, 0.0), 0.99)
-            factors.append((1.0 + rho) / (1.0 - rho))
-        return max(factors) if factors else 1.0
+            total = 0.0
+            for k in range(1, max_k + 1):
+                num, pairs = 0.0, 0
+                for r in runs:
+                    if len(r) > k:
+                        seg = x[r]
+                        num += float(seg[:-k] @ seg[k:])
+                        pairs += len(seg) - k
+                if pairs < 10:
+                    break
+                rho = num / pairs / c0
+                if rho <= 0.05:
+                    break
+                total += rho
+            tau = dt * (0.5 + total)
+            if tau * c0 > best_tau * best_sigma ** 2:
+                best_tau, best_sigma = tau, math.sqrt(c0)
+        return best_tau, best_sigma
 
     @staticmethod
     def _heading_diversity(samples: Sequence[FlightSample]) -> float:
@@ -334,16 +397,29 @@ class WindLearner:
         # correlation, converts the sample count into the number of
         # independent looks the data actually contain. Without it the stated
         # sigma was about five times too small in a 1.5 m/s gust field.
-        scale *= self._correlation_inflation(resid)
+        tau_int, gust_sigma = self._integrated_time(resid, s)
+        dt_nom = self._nominal_dt(s)
+        scale *= max(1.0, 2.0 * tau_int / dt_nom) if dt_nom > 0 else 1.0
         cov = np.linalg.inv(N) * scale
         sigma = math.sqrt(max(cov[0, 0], cov[1, 1]))
 
         airspeeds = {b: float(xhat[col[b]]) for b in bins}
-        self._last_inflation = self._correlation_inflation(resid)
+        gust_tau = tau_int
+        looks, upper = self._confidence_in_gusts(n, dt_nom, tau_int)
         if any(v <= 0 for v in airspeeds.values()):
             return None         # a negative airspeed is a failed solve, not wind
 
         return WindEstimate(
             north_ms=float(xhat[0]), east_ms=float(xhat[1]), sigma_ms=sigma,
             samples=n, span_s=s[-1].t - s[0].t, heading_diversity=diversity,
-            airspeeds=airspeeds)
+            airspeeds=airspeeds, gust_sigma_ms=gust_sigma, gust_tau_s=gust_tau,
+            gust_looks=looks, gust_power_upper_factor=upper)
+
+    @staticmethod
+    def _confidence_in_gusts(n: int, dt: float, tau: float) -> tuple:
+        """Independent looks at the turbulence, and the 95% upper factor."""
+        if n < 2 or dt <= 0 or tau <= 0:
+            return float(n), 1.0
+        looks = max(1.0, n * dt / (2.0 * max(tau, dt / 2.0)))
+        from scipy.stats import chi2
+        return looks, max(1.0, looks / float(chi2.ppf(0.05, looks)))

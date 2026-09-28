@@ -193,7 +193,9 @@ def test_legacy_bridge_keeps_unconverted_layers_running():
     h = fresh_harness()
     cov = h.tick(0.1)
     assert len(cov.legacy) > 100, f"only {len(cov.legacy)} on the bridge"
-    assert len(cov.legacy) + len(cov.native) + len(cov.unfed) == 139
+    from upin.layers.registry import ALL_LAYER_CLASSES
+    assert (len(cov.legacy) + len(cov.native) + len(cov.unfed)
+            == len(ALL_LAYER_CLASSES)), "a layer fell out of the partition"
     print(f"[ok] {len(cov.legacy)} unconverted layers still driven by the "
           f"bridge — the number left to convert")
     PASSED.append("legacy")
