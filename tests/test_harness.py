@@ -290,7 +290,8 @@ def test_seeded_runs_are_reproducible():
 
 def test_provisioning_is_reported_and_idempotent():
     h = fresh_harness()
-    assert set(h.provisioned) == set(ADAPTERS), h.provisioned
+    needs = {k for k, a in ADAPTERS.items() if a.provision is not None}
+    assert set(h.provisioned) == needs, (h.provisioned, needs)
     again = h.provision()
     assert again == [], f"re-provisioned layers that were already set up: {again}"
     print(f"[ok] provisioned {h.provisioned} once, and not again")

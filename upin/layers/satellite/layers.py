@@ -28,6 +28,10 @@ from upin.core.layer_base import (
     NavigationLayer, LayerGroup, LayerCapability, LayerReading,
 )
 from upin.core.position import Position
+from upin.core.sensor_requirements import (
+    DataInput, Hardware, SensorRequirement,
+)
+from upin.layers.satellite.gnss_layer import GNSSReceiverLayer
 
 if TYPE_CHECKING:
     from upin.simulation.world import SimulationWorld
@@ -91,259 +95,86 @@ def _trilaterate(world: "SimulationWorld", pseudoranges: list[dict],
 
 # ── Layer implementations ────────────────────────────────────────────
 
-class GPSLayer(NavigationLayer):
-    """Layer 1 — GPS GNSS.
+class GPSLayer(GNSSReceiverLayer):
+    """Layer 1 -- GPS, with jamming, RAIM and spoof checks (spec section 2).
 
-    Standard global navigation satellite system. Provides positioning
-    through timing of radio signals from MEO satellites (~20,000 km).
-    Vulnerable to jamming and spoofing — signals arrive below thermal noise.
-
-    Physics chain:
-        world.get_pseudoranges("GPS") → trilateration least-squares → (lat, lon, alt)
+    Fed pseudoranges and receiver quality through feed_gnss(); it never reads
+    the simulator. See upin/layers/satellite/gnss_layer.py for the receiver.
     """
 
+    CONSTELLATION = "GPS"
+    REQUIRES = SensorRequirement(
+        hardware=[
+            Hardware("GNSS receiver reporting raw pseudoranges and C/N0",
+                     why="the measurement itself, and the quality it is judged by",
+                     typical_part="multi-band GNSS module with raw-measurement output",
+                     approx_cost_usd=60, already_on_most_drones=True),
+            Hardware("GNSS antenna", why="receives the satellite signals",
+                     typical_part="active patch antenna",
+                     approx_cost_usd=15, already_on_most_drones=True),
+        ],
+        inputs=[
+            DataInput("pseudoranges, ephemeris positions and C/N0",
+                      feed_method="feed_gnss", units="metres, ECEF, dB-Hz",
+                      why="four or more satellites give a fix"),
+            DataInput("independent reference position", feed_method="set_reference",
+                      units="degrees, 1-sigma metres",
+                      why="spoof check, and validating a returning signal"),
+        ],
+        preconditions=(
+            "four or more satellites tracked",
+            "RAIM passes, or one faulty satellite can be excluded",
+            "agreement with an independent reference after any outage",
+        ),
+        notes="The most accurate sensor aboard until jammed or spoofed. "
+              "Jamming is detected from the receiver's own reports; spoofing "
+              "from disagreement with an independent reference.",
+    )
+
     def __init__(self):
-        super().__init__(
-            layer_id="gps_l1",
-            layer_number=1,
-            name="GPS GNSS",
-            group=LayerGroup.A_SATELLITE_CELESTIAL,
-            capabilities=[LayerCapability.POSITION, LayerCapability.VELOCITY,
-                          LayerCapability.TIMING],
-            description="Standard GPS L1/L2 satellite positioning",
-        )
-        self._last_fix: Position | None = None
-        self._jammed = False
-        self._spoofed = False
-        self._spoof_offset = (0.0, 0.0, 0.0)
-        self._last_lat: float | None = None
-        self._last_lon: float | None = None
-        self._last_alt: float | None = None
-
-    def initialize(self) -> bool:
-        self.status.is_active = True
-        self.status.is_healthy = True
-        return True
-
-    def get_accuracy_rating(self) -> float:
-        return 0.7  # Good but vulnerable
-
-    def read(self) -> LayerReading:
-        if self._jammed:
-            return LayerReading(
-                layer_id=self.layer_id, is_valid=False,
-                raw_data={"status": "JAMMED"},
-            )
-
-        if self._simulated:
-            if self.world is not None:
-                return self._read_from_world()
-
-            # Legacy fallback: noise around a base position
-            base_lat = getattr(self, '_sim_lat', 13.0827)
-            base_lon = getattr(self, '_sim_lon', 80.2707)
-            base_alt = getattr(self, '_sim_alt', 10.0)
-
-            noise_m = 5.0  # GPS typical accuracy ~5m
-            lat = base_lat + np.random.normal(0, noise_m / 111_000)
-            lon = base_lon + np.random.normal(0, noise_m / 111_000)
-            alt = base_alt + np.random.normal(0, 10.0)
-
-            if self._spoofed:
-                lat += self._spoof_offset[0]
-                lon += self._spoof_offset[1]
-                alt += self._spoof_offset[2]
-
-            pos = Position(
-                latitude=lat, longitude=lon, altitude=alt,
-                accuracy_m=5.0, timestamp=time.time(),
-            )
-            self._last_fix = pos
-            return LayerReading(
-                layer_id=self.layer_id, position=pos,
-                self_confidence=0.9,
-                raw_data={"satellites": 12, "hdop": 1.2},
-            )
-        else:
-            # Real hardware interface would go here
-            raise NotImplementedError("Live GPS requires hardware interface")
-
-    # ── Physics-based world reading ──────────────────────────────
-
-    def _read_from_world(self) -> LayerReading:
-        """Compute GPS fix from pseudoranges via trilateration."""
-        # Check jamming at the world level as well
-        if self.world.gps_jammed:
-            return LayerReading(
-                layer_id=self.layer_id, is_valid=False,
-                raw_data={"status": "JAMMED"},
-            )
-
-        pseudoranges = self.world.get_pseudoranges("GPS")
-        result = _trilaterate(
-            self.world, pseudoranges,
-            self._last_lat, self._last_lon, self._last_alt,
-        )
-
-        if result is None:
-            return LayerReading(
-                layer_id=self.layer_id, is_valid=False,
-                raw_data={"status": "NO_FIX", "satellites_visible": len(pseudoranges)},
-            )
-
-        lat, lon, alt = result
-        self._last_lat, self._last_lon, self._last_alt = lat, lon, alt
-
-        # Apply local spoofing offset (layer-level spoof, separate from
-        # the world-level GPS spoofing which is already baked into the
-        # pseudoranges).
-        if self._spoofed:
-            lat += self._spoof_offset[0]
-            lon += self._spoof_offset[1]
-            alt += self._spoof_offset[2]
-
-        pos = Position(
-            latitude=lat, longitude=lon, altitude=alt,
-            accuracy_m=5.0, timestamp=time.time(),
-        )
-        self._last_fix = pos
-
-        # Estimate DOP from satellite geometry
-        n_sats = len(pseudoranges)
-        hdop = max(0.8, 3.0 / math.sqrt(max(n_sats, 1)))
-
-        return LayerReading(
-            layer_id=self.layer_id, position=pos,
-            self_confidence=min(0.95, 0.5 + 0.05 * n_sats),
-            raw_data={"satellites": n_sats, "hdop": round(hdop, 2)},
-        )
-
-    # ── Simulation helpers ───────────────────────────────────────
-
-    def simulate_jamming(self, jammed: bool = True) -> None:
-        self._jammed = jammed
-
-    def simulate_spoofing(self, offset_lat: float = 0.01,
-                          offset_lon: float = 0.01) -> None:
-        self._spoofed = True
-        self._spoof_offset = (offset_lat, offset_lon, 0.0)
-
-    def clear_spoofing(self) -> None:
-        self._spoofed = False
-        self._spoof_offset = (0.0, 0.0, 0.0)
-
-    def set_simulated_position(self, lat: float, lon: float, alt: float = 10.0):
-        self._sim_lat = lat
-        self._sim_lon = lon
-        self._sim_alt = alt
+        super().__init__("gps_l1", 1, "GPS GNSS",
+                         "GPS with jamming detection, RAIM and spoof checks")
 
 
-class NavICLayer(NavigationLayer):
-    """Layer 2 — NavIC Indian Sovereign Signal [NOVEL].
+class NavICLayer(GNSSReceiverLayer):
+    """Layer 2 -- NavIC, India's regional system, with the same receiver checks.
 
-    India's indigenous IRNSS/NavIC system. PRIMARY positioning signal
-    for all Indian applications. Military restricted service provides
-    1.5m accuracy within India and 1,500km beyond borders.
-
-    Designated as primary to eliminate foreign dependency.
-
-    Physics chain:
-        world.get_pseudoranges("NavIC") → trilateration least-squares → (lat, lon, alt)
+    Regional by design: excellent geometry over India, poor at the edge of
+    its service area, nothing far outside it -- and the layer reports exactly
+    that rather than a fix it cannot compute.
     """
 
+    CONSTELLATION = "NavIC"
+    REQUIRES = SensorRequirement(
+        hardware=[
+            Hardware("NavIC-capable GNSS receiver (L5)",
+                     why="sovereign ranging that does not depend on GPS",
+                     typical_part="multi-constellation module with NavIC L5",
+                     approx_cost_usd=100, already_on_most_drones=False),
+            Hardware("L5-capable antenna", why="NavIC transmits on L5",
+                     typical_part="multi-band active antenna",
+                     approx_cost_usd=40, already_on_most_drones=False),
+        ],
+        inputs=[
+            DataInput("pseudoranges, ephemeris positions and C/N0",
+                      feed_method="feed_gnss", units="metres, ECEF, dB-Hz",
+                      why="four or more NavIC satellites give a fix"),
+            DataInput("independent reference position", feed_method="set_reference",
+                      units="degrees, 1-sigma metres",
+                      why="spoof check, and validating a returning signal"),
+        ],
+        preconditions=(
+            "inside the NavIC service area",
+            "four or more NavIC satellites tracked",
+            "agreement with an independent reference after any outage",
+        ),
+        notes="Independent of GPS: a GPS-only jammer or spoofer leaves it "
+              "working.",
+    )
+
     def __init__(self):
-        super().__init__(
-            layer_id="navic_l2",
-            layer_number=2,
-            name="NavIC Indian Sovereign Signal",
-            group=LayerGroup.A_SATELLITE_CELESTIAL,
-            capabilities=[LayerCapability.POSITION, LayerCapability.VELOCITY,
-                          LayerCapability.TIMING],
-            is_novel=True,
-            description="India sovereign primary positioning — NavIC restricted service",
-        )
-        self._coverage_region = {
-            "lat_min": -5.0, "lat_max": 40.0,
-            "lon_min": 55.0, "lon_max": 110.0,
-        }
-        self._last_lat: float | None = None
-        self._last_lon: float | None = None
-        self._last_alt: float | None = None
-
-    def initialize(self) -> bool:
-        self.status.is_active = True
-        self.status.is_healthy = True
-        return True
-
-    def get_accuracy_rating(self) -> float:
-        return 0.85  # Military-grade restricted service
-
-    def read(self) -> LayerReading:
-        if self._simulated:
-            if self.world is not None:
-                return self._read_from_world()
-
-            # Legacy fallback
-            base_lat = getattr(self, '_sim_lat', 13.0827)
-            base_lon = getattr(self, '_sim_lon', 80.2707)
-            base_alt = getattr(self, '_sim_alt', 10.0)
-
-            noise_m = 1.5  # NavIC restricted service accuracy
-            lat = base_lat + np.random.normal(0, noise_m / 111_000)
-            lon = base_lon + np.random.normal(0, noise_m / 111_000)
-            alt = base_alt + np.random.normal(0, 3.0)
-
-            pos = Position(
-                latitude=lat, longitude=lon, altitude=alt,
-                accuracy_m=1.5, timestamp=time.time(),
-            )
-            return LayerReading(
-                layer_id=self.layer_id, position=pos,
-                self_confidence=0.95,
-                raw_data={"satellites": 4, "service": "restricted"},
-            )
-        raise NotImplementedError("Live NavIC requires hardware")
-
-    def _read_from_world(self) -> LayerReading:
-        """Compute NavIC fix from pseudoranges via trilateration."""
-        pseudoranges = self.world.get_pseudoranges("NavIC")
-        result = _trilaterate(
-            self.world, pseudoranges,
-            self._last_lat, self._last_lon, self._last_alt,
-        )
-
-        if result is None:
-            return LayerReading(
-                layer_id=self.layer_id, is_valid=False,
-                raw_data={"status": "NO_FIX",
-                          "satellites_visible": len(pseudoranges),
-                          "service": "restricted"},
-            )
-
-        lat, lon, alt = result
-        self._last_lat, self._last_lon, self._last_alt = lat, lon, alt
-
-        pos = Position(
-            latitude=lat, longitude=lon, altitude=alt,
-            accuracy_m=1.5, timestamp=time.time(),
-        )
-        n_sats = len(pseudoranges)
-
-        return LayerReading(
-            layer_id=self.layer_id, position=pos,
-            self_confidence=min(0.98, 0.7 + 0.07 * n_sats),
-            raw_data={"satellites": n_sats, "service": "restricted"},
-        )
-
-    def is_in_coverage(self, lat: float, lon: float) -> bool:
-        r = self._coverage_region
-        return (r["lat_min"] <= lat <= r["lat_max"] and
-                r["lon_min"] <= lon <= r["lon_max"])
-
-    def set_simulated_position(self, lat: float, lon: float, alt: float = 10.0):
-        self._sim_lat = lat
-        self._sim_lon = lon
-        self._sim_alt = alt
+        super().__init__("navic_l2", 2, "NavIC Indian Sovereign Signal",
+                         "NavIC with jamming detection, RAIM and spoof checks")
 
 
 class LEOAuthenticatedLayer(NavigationLayer):

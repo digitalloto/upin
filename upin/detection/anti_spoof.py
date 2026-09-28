@@ -60,9 +60,17 @@ class AntiSpoofDetector:
               cell_lon: Optional[float] = None,
               imu_accel_magnitude: float = 0.0,
               gps_speed_ms: float = 0.0,
-              gps_heading_deg: float = 0.0) -> Dict:
-        """Run all spoof checks against current GPS reading."""
-        now = time.time()
+              gps_heading_deg: float = 0.0,
+              now: Optional[float] = None) -> Dict:
+        """Run all spoof checks against current GPS reading.
+
+        `now` is the measurement time. It defaults to the wall clock, which
+        is right for live data and wrong for simulated or replayed data:
+        epochs a tenth of a second apart in the scenario arrive microseconds
+        apart in wall time, and every honest movement then looks like a
+        teleport.
+        """
+        now = time.time() if now is None else now
         self._alerts = []
         self._spoof_score *= self._decay_rate
 

@@ -2,19 +2,47 @@
 
 `gps_l1` · Layer 1 · Group A — Satellite & Celestial
 
-> Standard GPS L1/L2 satellite positioning
+> GPS with jamming detection, RAIM and spoof checks
 
 ## Current status
 
-**FABRICATES** — Invents a reading when nothing is connected, and invents a different one each time it is read.
+**DECLINES** — Reports no fix when it has no input, and says what is missing. Honours the no-fabrication contract.
 
-Measured by constructing this layer with nothing attached and reading it three times: returned 13.08260, 80.27067, then a different position on the very next read, from the same (absent) input.
+Measured by constructing this layer with nothing attached and reading it three times: declines with `no_input` — needs GNSS receiver reporting raw pseudoranges and C/N0, GNSS antenna; no pseudoranges, ephemeris positions and C/N0 [metres, ECEF, dB-Hz] via feed_gnss(), independent reference position [degrees, 1-sigma metres] via set_reference().
 
-With simulation switched off it raises NotImplementedError.
+With simulation switched off it declines cleanly.
+
+This layer declares `NO_FABRICATION = True` and is held to the contract in [`upin/core/no_fabrication.py`](../../upin/core/no_fabrication.py) by tests.
 
 ## What this layer needs
 
-**Not yet declared.** This layer has no `REQUIRES` declaration, so the repo cannot say what hardware or data would bring it to life. Adding one is part of cleaning the layer up — see [`FABRICATION_AUDIT.md`](../../FABRICATION_AUDIT.md).
+### Hardware
+
+| Component | Why | Typical part | Approx cost | Common on drones |
+|---|---|---|---|---|
+| GNSS receiver reporting raw pseudoranges and C/N0 | the measurement itself, and the quality it is judged by | multi-band GNSS module with raw-measurement output | $60 | yes |
+| GNSS antenna | receives the satellite signals | active patch antenna | $15 | yes |
+
+**Approximate hardware cost: $75.**  Every component is already carried by a typical drone, so this layer could be brought up today.
+
+### Live inputs
+
+| Input | Units | Supplied via | Why |
+|---|---|---|---|
+| pseudoranges, ephemeris positions and C/N0 | metres, ECEF, dB-Hz | `feed_gnss()` | four or more satellites give a fix |
+| independent reference position | degrees, 1-sigma metres | `set_reference()` | spoof check, and validating a returning signal |
+
+### Conditions that must hold
+
+Even with every sensor attached, this layer declines unless:
+
+- four or more satellites tracked
+- RAIM passes, or one faulty satellite can be excluded
+- agreement with an independent reference after any outage
+
+### Notes
+
+The most accurate sensor aboard until jammed or spoofed. Jamming is detected from the receiver's own reports; spoofing from disagreement with an independent reference.
 
 ## Details
 
@@ -22,21 +50,17 @@ With simulation switched off it raises NotImplementedError.
 |---|---|
 | Class | `GPSLayer` |
 | Source | [`upin/layers/satellite/layers.py`](../../upin/layers/satellite/layers.py) |
-| Capabilities | POSITION, VELOCITY, TIMING |
+| Capabilities | POSITION, TIMING |
 | Accuracy rating | 0.70 |
 | Novel | no |
 
 ## How it works
 
 ```
-Layer 1 — GPS GNSS.
+Layer 1 -- GPS, with jamming, RAIM and spoof checks (spec section 2).
 
-Standard global navigation satellite system. Provides positioning
-through timing of radio signals from MEO satellites (~20,000 km).
-Vulnerable to jamming and spoofing — signals arrive below thermal noise.
-
-Physics chain:
-    world.get_pseudoranges("GPS") → trilateration least-squares → (lat, lon, alt)
+Fed pseudoranges and receiver quality through feed_gnss(); it never reads
+the simulator. See upin/layers/satellite/gnss_layer.py for the receiver.
 ```
 
 ---

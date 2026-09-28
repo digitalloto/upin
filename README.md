@@ -10,11 +10,11 @@ This table is measured, not claimed. Every layer below was constructed with noth
 
 | Status | Layers | Meaning |
 |---|---:|---|
-| **DECLINES** | 11 | Reports no fix when it has no input, and says what is missing. Honours the no-fabrication contract. |
+| **DECLINES** | 13 | Reports no fix when it has no input, and says what is missing. Honours the no-fabrication contract. |
 | **PLACEHOLDER** | 13 | Returns the same fixed reading whenever nothing is connected. Not random, but not measured either. |
-| **FABRICATES** | 116 | Invents a reading when nothing is connected, and invents a different one each time it is read. |
+| **FABRICATES** | 114 | Invents a reading when nothing is connected, and invents a different one each time it is read. |
 
-**11 of 140 layers** currently refuse to invent a position. **3 of 140** have declared what hardware and data they need.
+**13 of 140 layers** currently refuse to invent a position. **5 of 140** have declared what hardware and data they need.
 
 The gap between those numbers and the total is the work tracked in [`FABRICATION_AUDIT.md`](FABRICATION_AUDIT.md), which explains what each fabricating layer does and what it would cost in flight.
 
@@ -32,12 +32,12 @@ The gap between those numbers and the total is the work tracked in [`FABRICATION
 
 ## The layers
 
-### Group A — Satellite & Celestial (19 layers, 0 clean)
+### Group A — Satellite & Celestial (19 layers, 2 clean)
 
 | # | Layer | ID | Status | Needs declared |
 |---:|---|---|---|---|
-| 1 | [GPS GNSS](docs/layers/gps_l1.md) | `gps_l1` | fabricates | no |
-| 2 | [NavIC Indian Sovereign Signal](docs/layers/navic_l2.md) | `navic_l2` | fabricates | no |
+| 1 | [GPS GNSS](docs/layers/gps_l1.md) | `gps_l1` | clean | yes |
+| 2 | [NavIC Indian Sovereign Signal](docs/layers/navic_l2.md) | `navic_l2` | clean | yes |
 | 19 | [LEO Authenticated Satellite Signals](docs/layers/leo_l19.md) | `leo_l19` | fabricates | no |
 | 29 | [X-Ray Pulsar Navigation](docs/layers/xnav_l29.md) | `xnav_l29` | fabricates | no |
 | 46 | [Stellar Constellation Pattern Navigation](docs/layers/stellar_l46.md) | `stellar_l46` | fabricates | no |

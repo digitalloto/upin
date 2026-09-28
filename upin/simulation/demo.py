@@ -162,13 +162,11 @@ def demo_spoofing_attack():
 
     # Activate GPS spoofing in the simulation world
     print_section("Phase 2: GPS SPOOFING ACTIVATED")
+    # Spoofing lives in the world's pseudoranges, where a real spoofer puts
+    # it. The GPS layer used to have its own simulate_spoofing() that shifted
+    # its output -- a layer inventing a wrong answer on request -- and that
+    # has gone with its fabricating path.
     world.set_gps_spoofing(offset_lat=0.01, offset_lon=0.01)
-    # Also spoof the GPS layer directly for fallback mode
-    gps_layer = engine.get_layer("gps_l1")
-    if gps_layer:
-        from upin.layers.satellite.layers import GPSLayer
-        if isinstance(gps_layer, GPSLayer):
-            gps_layer.simulate_spoofing(offset_lat=0.01, offset_lon=0.01)
     print("  GPS spoofed: pseudoranges modified to shift position ~1.1 km")
     print("  GPS agent now trilaterate a FALSE position")
     print("  All other agents (INS, magnetic, gravity, SLAM, etc.) unaffected")

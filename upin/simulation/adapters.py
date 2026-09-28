@@ -361,3 +361,37 @@ register(Adapter(
     needs=[Observation.TRUE_STATE],
     note="derives camera bearings to the layer's own charted landmarks",
 ))
+
+
+# ---------------------------------------------------------------------------
+# L0 -- GNSS receivers (gps_l1, navic_l2)
+# ---------------------------------------------------------------------------
+
+def _gnss_driver(constellation: str):
+    def drive(layer, feed: Feed, dt: float, rng: np.random.Generator) -> bool:
+        ranges = feed.observation(Observation.PSEUDORANGES)
+        if not ranges:
+            return False
+        quality = feed.observation(Observation.GNSS_QUALITY) or {}
+        # The simulator attaches each satellite's true range for scoring.
+        # A receiver never has it; strip it before the layer sees the data.
+        clean = [{k: v for k, v in p.items() if k != "true_range_m"}
+                 for p in ranges.get(constellation, [])]
+        world = getattr(feed, "world", None)
+        t = world.elapsed if world is not None else None
+        layer.feed_gnss(clean, quality.get(constellation), t)
+        return True
+    return drive
+
+
+register(Adapter(
+    layer_id="gps_l1", drive=_gnss_driver("GPS"),
+    needs=[Observation.PSEUDORANGES, Observation.GNSS_QUALITY],
+    note="GPS pseudoranges and receiver quality, true ranges stripped",
+))
+
+register(Adapter(
+    layer_id="navic_l2", drive=_gnss_driver("NavIC"),
+    needs=[Observation.PSEUDORANGES, Observation.GNSS_QUALITY],
+    note="NavIC pseudoranges and receiver quality, true ranges stripped",
+))

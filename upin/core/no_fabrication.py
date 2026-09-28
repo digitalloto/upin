@@ -70,6 +70,7 @@ class NoFixReason:
     POOR_GEOMETRY = "poor_geometry"            # solvable in principle, ill-conditioned
     DIVERGED = "diverged"                      # solver failed to converge
     SENSOR_UNAVAILABLE = "sensor_unavailable"  # hardware absent or failed
+    FAILED_VALIDATION = "failed_validation"    # a solution exists but is not trusted
 
 
 @dataclass
