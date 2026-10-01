@@ -6,6 +6,15 @@ CIN: U62011TN2026PTC191992 | Chennai, India | savelives@aimcrs.com
 Repository: `github.com/digitalloto/upin`
 Branch: `claude/patent-application-spec-sEgOc`
 
+> **Correction, 1 October 2026.** Parts of this document predate the
+> fabrication audit and overstate what works. A two-pass audit found that
+> most layers return an invented position when nothing is connected, and in
+> real mode they correctly decline rather than "keep working". Measured,
+> current status is in [`README.md`](README.md); what each layer needs is on
+> its own page under [`docs/layers/`](docs/layers/); what is built and what
+> is left is in [`ROADMAP.md`](ROADMAP.md). Where this document and those
+> disagree, those are right.
+
 ---
 
 ## 1. What We Are Building
@@ -30,7 +39,7 @@ The flight controller literally does not know what to do without GPS. DJI drones
 
 ### The Answer
 
-UPIN never loses position awareness, because **GPS is only one of 129 inputs**. Jam GPS and 128 other layers keep working. Every layer runs on a different physical principle — satellite, inertial, magnetic, RF, optical, acoustic, gravity, chemical, cosmic, human, systems, biological. An adversary would have to defeat all of them simultaneously, using contradictory physics, to blind the platform.
+UPIN is designed so that **GPS is only one of many inputs** -- jam GPS and the other layers carry on. *That is the design goal, not today's state: most layers still have no real input path (see the correction above).* Every layer runs on a different physical principle — satellite, inertial, magnetic, RF, optical, acoustic, gravity, chemical, cosmic, human, systems, biological. An adversary would have to defeat all of them simultaneously, using contradictory physics, to blind the platform.
 
 ### Core Design Principle
 
@@ -522,14 +531,16 @@ Install: `pip install -e .[vision]` — Jetson Nano minimum, Raspberry Pi 5 with
 | Stub files remaining | **0** |
 | Commits on branch | 50 |
 
-### Implementation Depth — The Honest Breakdown
+### Implementation Depth — superseded
 
-| Category | Count | Meaning |
-|---|---|---|
-| **FULL** | 69 | Real algorithm driven by `SimulationWorld` physics |
-| **PARTIAL** | 32 | Correct by design — velocity / heading / environment-only layers that legitimately do not output lat-lon |
-| **BASIC** | 28 | World-aware position with correct accuracy envelope and diagnostics. Needs real signal receivers to go deeper. Mostly the completeness-audit additions (OMEGA, Decca, Consol, RFID, VLC, etc.) |
-| **FAIL** | 0 | — |
+The FULL / PARTIAL / BASIC breakdown that stood here (69 / 32 / 28) was
+self-assessed and did not survive measurement. The current, measured status
+-- each layer constructed with nothing connected and read three times -- is
+in [`README.md`](README.md): at the time of this correction, **13 of 140
+layers decline honestly, 13 return a fixed placeholder, and 114 invent a
+different reading each time they are read.** Every layer's operating class
+(drone-ready, specialist, laboratory, platform-specific, needs
+infrastructure, support function, no longer operational) is on its page.
 
 ### What "Simulated" Means Here
 
@@ -542,7 +553,7 @@ The audit flags 396 instances of simulation-related code. This is **architectura
 ### Known Gaps
 
 1. **Fish schooling is not wired to every layer.** `MasterOptimizer` and `FormulaAgentManager` evolve top-level formula parameters, but each of the 129 layers does not yet have its own per-layer evolving agent pool. This is the highest-value next connection.
-2. **28 BASIC layers need real receivers.** An OMEGA or Decca layer cannot do better than a correct accuracy envelope without an actual VLF receiver.
+2. **Most layers need real input paths and drivers** -- see `ROADMAP.md`. The OMEGA, Decca and Consol layers cannot be made real at all: those transmitter networks were shut down (OMEGA 1997, Decca 2000).
 3. **RF-DETR not installed.** Deliberate — it installs on Jetson / Pi 5 hardware, not in this container.
 4. **No live hardware loop yet.** Everything is proven against the physics simulation; the ESP32-S3 prototype is the bridge.
 

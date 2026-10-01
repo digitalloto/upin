@@ -110,6 +110,8 @@ class LayerFacts:
     status: str
     behaviour_detail: str
     live_mode: str
+    operating_class: str = ""
+    has_adapter: bool = False
 
 
 def probe(layer_id: str, cls) -> LayerFacts:
@@ -184,13 +186,25 @@ def probe(layer_id: str, cls) -> LayerFacts:
         status=status,
         behaviour_detail=detail,
         live_mode=live,
+        operating_class=_class_of(layer_id),
+        has_adapter=_adapter_exists(layer_id),
     )
+
+
+def _class_of(layer_id: str) -> str:
+    from upin.layers.requirements_catalog import operating_class
+    return operating_class(layer_id) or "unclassified"
+
+
+def _adapter_exists(layer_id: str) -> bool:
+    from upin.simulation.adapters import adapter_for
+    return adapter_for(layer_id) is not None
 
 
 def requirements_section(req: Optional[SensorRequirement]) -> List[str]:
     if req is None:
         return [
-            "## What this layer needs",
+            "## Sensors and data it needs",
             "",
             "**Not yet declared.** This layer has no `REQUIRES` declaration, so "
             "the repo cannot say what hardware or data would bring it to life. "
@@ -199,8 +213,12 @@ def requirements_section(req: Optional[SensorRequirement]) -> List[str]:
             "",
         ]
 
-    L = ["## What this layer needs", ""]
+    L = ["## Sensors and data it needs", ""]
 
+    if not req.hardware:
+        L += ["### Hardware", "",
+              "None of its own. It works on other layers' outputs or on "
+              "reference data, listed below.", ""]
     if req.hardware:
         L += ["### Hardware", "",
               "| Component | Why | Typical part | Approx cost | Common on drones |",
@@ -246,6 +264,43 @@ def requirements_section(req: Optional[SensorRequirement]) -> List[str]:
     return L
 
 
+def how_to_run(f: LayerFacts) -> List[str]:
+    """How the layer is driven today, and what it would take to make it real."""
+    L = ["## How to run it", ""]
+    feeds = f.requirement.feed_methods if f.requirement else []
+    if f.declares_contract:
+        L.append("This layer takes real input through its own methods and never "
+                 "invents a reading:")
+        L.append("")
+        for m in feeds:
+            L.append(f"- `{m}()`")
+        L.append("")
+        if f.has_adapter:
+            L.append("**Simulation:** the harness (`upin/simulation/harness.py`) "
+                     "drives it through those same methods from `SimulationWorld`. "
+                     "**Real mode:** connect the hardware above and call the same "
+                     "methods from a driver; with nothing connected it declines and "
+                     "names what is missing.")
+        else:
+            L.append("Call those methods from a driver or the application. With "
+                     "nothing supplied it declines and names what is missing.")
+    elif f.operating_class == "no longer operational":
+        L.append("It cannot be run for real: the system it depends on has been "
+                 "shut down. It remains in the repo as a record of the method.")
+    else:
+        L.append("**Today:** in simulation mode it still generates its own "
+                 "readings internally (see Current status). In real mode its "
+                 "simulation is switched off and it declines.")
+        L.append("")
+        L.append("**To make it real:** give it an input method for the live "
+                 "inputs listed above, write a driver for the hardware, remove "
+                 "its internal simulation, and hold it to the no-fabrication "
+                 "contract — the pattern followed by `gps_l1`, `lmkchain_e23` and "
+                 "`mapclick_b13`. This is tracked in [`ROADMAP.md`](../../ROADMAP.md).")
+    L.append("")
+    return L
+
+
 def render_layer(f: LayerFacts) -> str:
     L: List[str] = []
     L.append(f"# {f.name}")
@@ -267,7 +322,12 @@ def render_layer(f: LayerFacts) -> str:
               "contract in [`upin/core/no_fabrication.py`]"
               "(../../upin/core/no_fabrication.py) by tests.", ""]
 
+    from upin.layers.requirements_catalog import CLASS_MEANING
+    L += ["## Operating class", "",
+          f"**{f.operating_class}** — {CLASS_MEANING.get(f.operating_class, '')}", ""]
+
     L += requirements_section(f.requirement)
+    L += how_to_run(f)
 
     L += ["## Details", "",
           "| | |", "|---|---|",
@@ -325,6 +385,8 @@ def render_root(facts: List[LayerFacts]) -> str:
           "say so, per layer, on their own page.", "",
           "## Documents", "",
           "| | |", "|---|---|",
+          "| [`ROADMAP.md`](ROADMAP.md) | What is built, what is left, and the "
+          "path to hardware |",
           "| [`FABRICATION_AUDIT.md`](FABRICATION_AUDIT.md) | Every place the "
           "code invents a number, what it costs, and the staged plan to remove it |",
           "| [`UPIN_MASTER.md`](UPIN_MASTER.md) | The full project document |",
@@ -332,7 +394,17 @@ def render_root(facts: List[LayerFacts]) -> str:
           "sequencing |",
           "| [`LAYER_GUIDE.md`](LAYER_GUIDE.md) | Layer-by-layer narrative guide |",
           "| [`LAYER_INDEX.md`](LAYER_INDEX.md) | Generated code index |", "",
-          "## The layers", ""]
+          "## By operating class", "",
+          "What it would take for each layer to work for real, independent of "
+          "whether it works today.", "",
+          "| Class | Layers | Meaning |", "|---|---:|---|"]
+    from upin.layers.requirements_catalog import CLASS_MEANING
+    by_class = defaultdict(int)
+    for f in facts:
+        by_class[f.operating_class] += 1
+    for cls, n in sorted(by_class.items(), key=lambda kv: -kv[1]):
+        L.append(f"| {cls} | {n} | {CLASS_MEANING.get(cls, '')} |")
+    L += ["", "## The layers", ""]
 
     badge = {"DECLINES": "clean", "PLACEHOLDER": "placeholder",
              "FABRICATES": "fabricates", "UNKNOWN": "unknown"}
@@ -342,12 +414,12 @@ def render_root(facts: List[LayerFacts]) -> str:
         clean = sum(1 for f in group_layers if f.status == "DECLINES")
         L += [f"### Group {g} — {GROUP_NAMES.get(g, 'Unclassified')} "
               f"({len(group_layers)} layers, {clean} clean)", "",
-              "| # | Layer | ID | Status | Needs declared |",
+              "| # | Layer | ID | Status | Operating class |",
               "|---:|---|---|---|---|"]
         for f in group_layers:
             L.append(f"| {f.number} | [{f.name}](docs/layers/{f.layer_id}.md) | "
                      f"`{f.layer_id}` | {badge[f.status]} | "
-                     f"{'yes' if f.requirement else 'no'} |")
+                     f"{f.operating_class} |")
         L.append("")
 
     L += ["---", "",

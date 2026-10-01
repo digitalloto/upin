@@ -202,6 +202,13 @@ class SensorRequirement:
 
 
 def requirement_of(layer) -> Optional[SensorRequirement]:
-    """The declaration on a layer, or None if it has not made one yet."""
+    """The layer's own declaration, else its entry in the requirements
+    catalogue (upin/layers/requirements_catalog.py), else None."""
     req = getattr(layer, "REQUIRES", None)
-    return req if isinstance(req, SensorRequirement) else None
+    if isinstance(req, SensorRequirement):
+        return req
+    layer_id = getattr(layer, "layer_id", None)
+    if not layer_id:
+        return None
+    from upin.layers.requirements_catalog import catalogue_requirement
+    return catalogue_requirement(layer_id)

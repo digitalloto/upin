@@ -14,7 +14,11 @@ With simulation switched off it declines cleanly.
 
 This layer declares `NO_FABRICATION = True` and is held to the contract in [`upin/core/no_fabrication.py`](../../upin/core/no_fabrication.py) by tests.
 
-## What this layer needs
+## Operating class
+
+**drone-ready** — Hardware a drone commonly carries or can easily add.
+
+## Sensors and data it needs
 
 ### Hardware
 
@@ -45,6 +49,16 @@ Even with every sensor attached, this layer declines unless:
 ### Notes
 
 Guidance first. Its position is a propagation of the last trusted fix and is marked not independent, so it is never fused back into the estimate it came from.
+
+## How to run it
+
+This layer takes real input through its own methods and never invents a reading:
+
+- `set_target()`
+- `set_fix()`
+- `attach()`
+
+Call those methods from a driver or the application. With nothing supplied it declines and names what is missing.
 
 ## Details
 

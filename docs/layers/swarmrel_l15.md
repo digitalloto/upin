@@ -8,13 +8,43 @@
 
 **FABRICATES** — Invents a reading when nothing is connected, and invents a different one each time it is read.
 
-Measured by constructing this layer with nothing attached and reading it three times: returned 13.08273, 80.27064, then a different position on the very next read, from the same (absent) input.
+Measured by constructing this layer with nothing attached and reading it three times: returned 13.08268, 80.27070, then a different position on the very next read, from the same (absent) input.
 
 With simulation switched off it raises NotImplementedError.
 
-## What this layer needs
+## Operating class
 
-**Not yet declared.** This layer has no `REQUIRES` declaration, so the repo cannot say what hardware or data would bring it to life. Adding one is part of cleaning the layer up — see [`FABRICATION_AUDIT.md`](../../FABRICATION_AUDIT.md).
+**needs infrastructure** — Needs beacons, networks or other people's equipment in place first.
+
+## Sensors and data it needs
+
+### Hardware
+
+| Component | Why | Typical part | Approx cost | Common on drones |
+|---|---|---|---|---|
+| UWB radio | time-of-flight ranging | UWB transceiver module | — | no |
+
+### Live inputs
+
+| Input | Units | Supplied via | Why |
+|---|---|---|---|
+| peer ranges | — | — | — |
+
+### Conditions that must hold
+
+Even with every sensor attached, this layer declines unless:
+
+- other drones in range
+
+### Notes
+
+To be rebuilt for swarm ranging (spec item 11).
+
+## How to run it
+
+**Today:** in simulation mode it still generates its own readings internally (see Current status). In real mode its simulation is switched off and it declines.
+
+**To make it real:** give it an input method for the live inputs listed above, write a driver for the hardware, remove its internal simulation, and hold it to the no-fabrication contract — the pattern followed by `gps_l1`, `lmkchain_e23` and `mapclick_b13`. This is tracked in [`ROADMAP.md`](../../ROADMAP.md).
 
 ## Details
 

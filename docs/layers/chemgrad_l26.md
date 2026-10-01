@@ -8,13 +8,43 @@
 
 **FABRICATES** — Invents a reading when nothing is connected, and invents a different one each time it is read.
 
-Measured by constructing this layer with nothing attached and reading it three times: returned 13.08133, 80.27219, then a different position on the very next read, from the same (absent) input.
+Measured by constructing this layer with nothing attached and reading it three times: returned 13.08410, 80.27080, then a different position on the very next read, from the same (absent) input.
 
 With simulation switched off it raises NotImplementedError.
 
-## What this layer needs
+## Operating class
 
-**Not yet declared.** This layer has no `REQUIRES` declaration, so the repo cannot say what hardware or data would bring it to life. Adding one is part of cleaning the layer up — see [`FABRICATION_AUDIT.md`](../../FABRICATION_AUDIT.md).
+**platform-specific** — Works only on a particular platform -- ships, submarines, ground vehicles.
+
+## Sensors and data it needs
+
+### Hardware
+
+| Component | Why | Typical part | Approx cost | Common on drones |
+|---|---|---|---|---|
+| chemical sensor | concentration of a chemical species | gas or water-chemistry sensor | — | no |
+
+### Live inputs
+
+| Input | Units | Supplied via | Why |
+|---|---|---|---|
+| chemical concentrations | — | — | — |
+
+### Reference data
+
+| Data | Source | Ships with the repo | Why |
+|---|---|---|---|
+| chemical gradient map | — | **no — must be supplied** | — |
+
+### Notes
+
+Marine.
+
+## How to run it
+
+**Today:** in simulation mode it still generates its own readings internally (see Current status). In real mode its simulation is switched off and it declines.
+
+**To make it real:** give it an input method for the live inputs listed above, write a driver for the hardware, remove its internal simulation, and hold it to the no-fabrication contract — the pattern followed by `gps_l1`, `lmkchain_e23` and `mapclick_b13`. This is tracked in [`ROADMAP.md`](../../ROADMAP.md).
 
 ## Details
 

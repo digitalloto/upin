@@ -796,7 +796,7 @@ class RadarAltimeterLayer(NavigationLayer):
 
     def __init__(self):
         super().__init__(
-            layer_id="radar_alt_b09",
+            layer_id="radaralt_b09",
             layer_number=63,
             name="Radar Altimeter",
             group=LayerGroup.B_INERTIAL_TIMING,
@@ -863,7 +863,7 @@ class DepthPressureSensorLayer(NavigationLayer):
 
     def __init__(self):
         super().__init__(
-            layer_id="depth_pressure_b10",
+            layer_id="depthpres_b10",
             layer_number=64,
             name="Depth Pressure Sensor",
             group=LayerGroup.B_INERTIAL_TIMING,

@@ -8,13 +8,46 @@
 
 **FABRICATES** — Invents a reading when nothing is connected, and invents a different one each time it is read.
 
-Measured by constructing this layer with nothing attached and reading it three times: returned 13.08400, 80.27414, then a different position on the very next read, from the same (absent) input.
+Measured by constructing this layer with nothing attached and reading it three times: returned 13.08153, 80.27413, then a different position on the very next read, from the same (absent) input.
 
 With simulation switched off it raises NotImplementedError.
 
-## What this layer needs
+## Operating class
 
-**Not yet declared.** This layer has no `REQUIRES` declaration, so the repo cannot say what hardware or data would bring it to life. Adding one is part of cleaning the layer up — see [`FABRICATION_AUDIT.md`](../../FABRICATION_AUDIT.md).
+**specialist** — Real, buyable hardware that typical drones do not carry.
+
+## Sensors and data it needs
+
+### Hardware
+
+| Component | Why | Typical part | Approx cost | Common on drones |
+|---|---|---|---|---|
+| star camera | images of stars | narrow-field low-noise camera | — | no |
+| stable clock | precise time | GNSS-disciplined or TCXO oscillator | — | yes |
+
+### Live inputs
+
+| Input | Units | Supplied via | Why |
+|---|---|---|---|
+| Moon-star angular distances | degrees | — | — |
+
+### Reference data
+
+| Data | Source | Ships with the repo | Why |
+|---|---|---|---|
+| lunar and star almanac | — | **no — must be supplied** | — |
+
+### Conditions that must hold
+
+Even with every sensor attached, this layer declines unless:
+
+- Moon and stars visible
+
+## How to run it
+
+**Today:** in simulation mode it still generates its own readings internally (see Current status). In real mode its simulation is switched off and it declines.
+
+**To make it real:** give it an input method for the live inputs listed above, write a driver for the hardware, remove its internal simulation, and hold it to the no-fabrication contract — the pattern followed by `gps_l1`, `lmkchain_e23` and `mapclick_b13`. This is tracked in [`ROADMAP.md`](../../ROADMAP.md).
 
 ## Details
 

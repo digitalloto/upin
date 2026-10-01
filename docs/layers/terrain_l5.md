@@ -8,13 +8,49 @@
 
 **FABRICATES** — Invents a reading when nothing is connected, and invents a different one each time it is read.
 
-Measured by constructing this layer with nothing attached and reading it three times: returned 13.08285, 80.27077, then a different position on the very next read, from the same (absent) input.
+Measured by constructing this layer with nothing attached and reading it three times: returned 13.08269, 80.27067, then a different position on the very next read, from the same (absent) input.
 
 With simulation switched off it raises NotImplementedError.
 
-## What this layer needs
+## Operating class
 
-**Not yet declared.** This layer has no `REQUIRES` declaration, so the repo cannot say what hardware or data would bring it to life. Adding one is part of cleaning the layer up — see [`FABRICATION_AUDIT.md`](../../FABRICATION_AUDIT.md).
+**drone-ready** — Hardware a drone commonly carries or can easily add.
+
+## Sensors and data it needs
+
+### Hardware
+
+| Component | Why | Typical part | Approx cost | Common on drones |
+|---|---|---|---|---|
+| downward camera | images of the ground below | downward camera or optical-flow module | — | yes |
+
+### Live inputs
+
+| Input | Units | Supplied via | Why |
+|---|---|---|---|
+| ground images | — | — | — |
+
+### Reference data
+
+| Data | Source | Ships with the repo | Why |
+|---|---|---|---|
+| georeferenced imagery | Survey of India, Bhuvan or Cartosat (never Google) | **no — must be supplied** | — |
+
+### Conditions that must hold
+
+Even with every sensor attached, this layer declines unless:
+
+- daylight, textured terrain
+
+### Notes
+
+To be rebuilt as landmark matching (spec item 9).
+
+## How to run it
+
+**Today:** in simulation mode it still generates its own readings internally (see Current status). In real mode its simulation is switched off and it declines.
+
+**To make it real:** give it an input method for the live inputs listed above, write a driver for the hardware, remove its internal simulation, and hold it to the no-fabrication contract — the pattern followed by `gps_l1`, `lmkchain_e23` and `mapclick_b13`. This is tracked in [`ROADMAP.md`](../../ROADMAP.md).
 
 ## Details
 

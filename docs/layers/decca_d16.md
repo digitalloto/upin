@@ -8,13 +8,29 @@
 
 **FABRICATES** — Invents a reading when nothing is connected, and invents a different one each time it is read.
 
-Measured by constructing this layer with nothing attached and reading it three times: returned 13.07795, 80.27451, then a different position on the very next read, from the same (absent) input.
+Measured by constructing this layer with nothing attached and reading it three times: returned 13.08194, 80.26799, then a different position on the very next read, from the same (absent) input.
 
 With simulation switched off it raises NotImplementedError.
 
-## What this layer needs
+## Operating class
 
-**Not yet declared.** This layer has no `REQUIRES` declaration, so the repo cannot say what hardware or data would bring it to life. Adding one is part of cleaning the layer up — see [`FABRICATION_AUDIT.md`](../../FABRICATION_AUDIT.md).
+**no longer operational** — The transmitters or infrastructure it depends on no longer exist.
+
+## Sensors and data it needs
+
+### Hardware
+
+| Component | Why | Typical part | Approx cost | Common on drones |
+|---|---|---|---|---|
+| Decca receiver | phase comparison | — | — | no |
+
+### Notes
+
+Decca Navigator closed in 2000. No transmitters exist.
+
+## How to run it
+
+It cannot be run for real: the system it depends on has been shut down. It remains in the repo as a record of the method.
 
 ## Details
 

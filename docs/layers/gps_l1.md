@@ -14,7 +14,11 @@ With simulation switched off it declines cleanly.
 
 This layer declares `NO_FABRICATION = True` and is held to the contract in [`upin/core/no_fabrication.py`](../../upin/core/no_fabrication.py) by tests.
 
-## What this layer needs
+## Operating class
+
+**drone-ready** — Hardware a drone commonly carries or can easily add.
+
+## Sensors and data it needs
 
 ### Hardware
 
@@ -43,6 +47,15 @@ Even with every sensor attached, this layer declines unless:
 ### Notes
 
 The most accurate sensor aboard until jammed or spoofed. Jamming is detected from the receiver's own reports; spoofing from disagreement with an independent reference.
+
+## How to run it
+
+This layer takes real input through its own methods and never invents a reading:
+
+- `feed_gnss()`
+- `set_reference()`
+
+**Simulation:** the harness (`upin/simulation/harness.py`) drives it through those same methods from `SimulationWorld`. **Real mode:** connect the hardware above and call the same methods from a driver; with nothing connected it declines and names what is missing.
 
 ## Details
 
