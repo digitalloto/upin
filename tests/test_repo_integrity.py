@@ -111,8 +111,13 @@ def test_no_partner_names():
     pattern = re.compile(r"algobotix|\bzipi\b|elena\s*geo|\bubix\b|stigmergix|\bishan\b",
                          re.I)
     hits = []
+    this_file = Path(__file__).resolve()
     for f in _tracked_files():
         if f.suffix not in (".py", ".md", ".txt", ".html", ".js", ".json"):
+            continue
+        # This file holds the pattern itself. It passed on first run only
+        # because it was not yet tracked; once committed it matched itself.
+        if f.resolve() == this_file:
             continue
         try:
             text = f.read_text(encoding="utf-8")

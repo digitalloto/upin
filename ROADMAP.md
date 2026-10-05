@@ -99,6 +99,20 @@ as a sensor front end feeding the Pi.
    replayed to measure real error. Those figures fill the spec's §13.2
    blanks.
 
+## Fusion: HonestKalman option (awaiting decision)
+
+`upin/fusion/honest_kalman.py` is a separate, honest Kalman filter built
+beside the live engine without changing it. `FUSION_COMPARISON.md` measures
+it against every fusion option in the repo on identical inputs;
+`docs/KALMAN.md` explains the method and its limits. **Which option runs
+live is the user's decision.** Wiring it in is a separate step.
+
+**Backup:** the state before this work is commit `44b41a2`, pushed to
+GitHub. Restore with `git checkout 44b41a2`. A named tag
+`backup/pre-kalman-2026-10-05` exists locally; this session cannot push
+tags, so to name it on GitHub use Releases → "Draft a new release" →
+create the tag on commit `44b41a2`.
+
 ## Decisions on record
 
 - **INSLIB (github.com/jnz/INSLIB): not adopted as code.** AGPL-3.0 would
