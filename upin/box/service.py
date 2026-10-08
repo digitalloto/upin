@@ -6,6 +6,10 @@ The program the Pi runs: receiver in, flight controller in and out.
 
   python -m upin.box.service --config box.toml
   python -m upin.box.service --config box.toml --deny-gnss   # GNSS denied in software
+  python -m upin.box.service --config box.toml --deny-after 60 --deny-for 120
+      # trusted GNSS for 60 s, then denied in software for 120 s, then back:
+      # the GPS-denied test. UPIN can only coast after a trusted fix, so
+      # denying from the start shows nothing but NO_FIX.
   python -m upin.box.service --config box.toml --no-send     # listen and log only
 
 Every epoch is one JSON line in the log: what the receiver said, what the
@@ -193,7 +197,38 @@ class Box:
         }
 
 
-def run(cfg: BoxConfig, deny_gnss: bool = False, send: bool = True) -> None:
+class DenySchedule:
+    """Software GNSS denial for tests: after GNSS has been TRUSTED for
+    `after_s` seconds, deny it for `for_s` seconds, then let it back once."""
+
+    def __init__(self, after_s: Optional[float], for_s: float = 60.0):
+        self.after_s = after_s
+        self.for_s = for_s
+        self._trusted_since: Optional[float] = None
+        self._denied_from: Optional[float] = None
+        self.finished = False
+
+    def denied(self, last_mode: Optional[str], now: float) -> bool:
+        if self.after_s is None or self.finished:
+            return False
+        if self._denied_from is not None:
+            if now - self._denied_from >= self.for_s:
+                self.finished = True
+                return False
+            return True
+        if last_mode == TRUSTED:
+            if self._trusted_since is None:
+                self._trusted_since = now
+            if now - self._trusted_since >= self.after_s:
+                self._denied_from = now
+                return True
+        else:
+            self._trusted_since = None
+        return False
+
+
+def run(cfg: BoxConfig, deny_gnss: bool = False, send: bool = True,
+        schedule: Optional[DenySchedule] = None) -> None:
     """The live loop. UNTESTED: needs pyserial, pymavlink, a receiver and a
     flight controller or SITL."""
     try:
@@ -221,6 +256,12 @@ def run(cfg: BoxConfig, deny_gnss: bool = False, send: bool = True) -> None:
         while True:
             data = rx.read(rx.in_waiting or 1)
             now, unix_s = time.monotonic(), time.time()
+            if schedule is not None:
+                was = box.deny_gnss
+                box.deny_gnss = schedule.denied(box._last_mode, now)
+                if box.deny_gnss != was:
+                    print(f"{time.strftime('%H:%M:%S')} --- GNSS "
+                          f"{'DENIED in software' if box.deny_gnss else 'restored'} ---")
             while True:
                 msg = conn.recv_match(blocking=False)
                 if msg is None:
@@ -243,8 +284,16 @@ def main(argv=None) -> None:
                     help="drop GNSS in software, for GPS-denied tests")
     ap.add_argument("--no-send", action="store_true",
                     help="listen and log only; send nothing to the flight controller")
+    ap.add_argument("--deny-after", type=float, metavar="S",
+                    help="after S seconds of trusted GNSS, deny it in software")
+    ap.add_argument("--deny-for", type=float, default=60.0, metavar="S",
+                    help="how long --deny-after denies GNSS (default 60 s)")
     a = ap.parse_args(argv)
-    run(load_config(a.config), deny_gnss=a.deny_gnss, send=not a.no_send)
+    if a.deny_gnss and a.deny_after is not None:
+        ap.error("use --deny-gnss or --deny-after, not both")
+    schedule = DenySchedule(a.deny_after, a.deny_for) if a.deny_after is not None else None
+    run(load_config(a.config), deny_gnss=a.deny_gnss, send=not a.no_send,
+        schedule=schedule)
 
 
 if __name__ == "__main__":

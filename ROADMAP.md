@@ -93,7 +93,7 @@ device comparison are in [`docs/HARDWARE.md`](docs/HARDWARE.md).
 
 **Fastest path to hardware:** the box as the flight controller's GPS 2, in
 shadow mode. The day-by-day plan is in
-[`docs/HARDWARE.md`](docs/HARDWARE.md#first-week).
+[`docs/HARDWARE.md`](docs/HARDWARE.md#first-week); a beginner's step-by-step version is [`docs/PI_GUIDE.md`](docs/PI_GUIDE.md).
 
 1. **Core (no hardware):** items 4 and 5, and item 8 pulled forward.
 2. **Drivers** in `upin/hardware/`, read-only: MAVLink reader, GNSS reader

@@ -182,7 +182,8 @@ On the Pi (after `deploy/install.sh`; see `deploy/README.md`):
 ```bash
 python -m upin.box.service --config /etc/upin/box.toml --no-send    # listen and log only
 python -m upin.box.service --config /etc/upin/box.toml              # shadow: send as GPS 2
-python -m upin.box.service --config /etc/upin/box.toml --deny-gnss  # GNSS denied in software
+python -m upin.box.service --config /etc/upin/box.toml --deny-after 60 --deny-for 120
+    # trusted 60 s, then GNSS denied in software for 120 s: the GPS-denied test
 ```
 
 Tests and replay, anywhere:
@@ -211,7 +212,8 @@ too tight cause false alarms; limits set too loose let more through.
 | 1 | ArduPilot SITL on a laptop (Linux or WSL is easiest). Run `python tools/sitl_box.py --set-params`, restart SITL, run `python tools/sitl_box.py` | All three checks print `[ok]`: GPS 2 shows UPIN's fix; it drops when the box sends no fix; it is reported lost when the box goes silent |
 | 2 | Pi set up with `deploy/install.sh`. Receiver on its port with NAV-PVT, NAV-SAT and MON-RF enabled. Run the service with `--no-send` | The logged positions and accuracy match the receiver's own software |
 | 3 | Bench, propellers off: Pi wired to the flight controller, parameters as above, shadow mode | The ground station shows GPS 2. The log has heading, barometer, the flight controller's GPS and UPIN's mode every epoch. The drone still uses GPS 1 |
-| 4–5 | Walk or drive the rig. Run stretches with `--deny-gnss`. Replay the logs | Real error with GNSS denied, measured against the logged GNSS. Those figures go into `ROADMAP.md` |
+| 4–5 | Walk or drive the rig with `--deny-after 60 --deny-for 120` (trusted, then denied in software, then back). Replay the logs | Real error with GNSS denied, measured against the logged GNSS. Those figures go into `ROADMAP.md` |
 
-Never jam real signals outside an authorised range: `--deny-gnss` drops
-GNSS in software.
+Never jam real signals outside an authorised range: `--deny-after` drops
+GNSS in software. A beginner's version of these steps, from unboxing the
+Pi, is in [`PI_GUIDE.md`](PI_GUIDE.md).

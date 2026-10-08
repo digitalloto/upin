@@ -24,7 +24,7 @@ from upin.box.fc_reader import FcReader, pressure_altitude_m  # noqa: E402
 from upin.box.gateway import DEGRADED, NO_FIX, TRUSTED, body_to_ne  # noqa: E402
 from upin.box.gnss_parser import ubx_frame  # noqa: E402
 from upin.box.replay import epoch_from_json  # noqa: E402
-from upin.box.service import Box, BoxConfig, load_config  # noqa: E402
+from upin.box.service import Box, BoxConfig, DenySchedule, load_config  # noqa: E402
 
 PASSED = []
 
@@ -173,6 +173,26 @@ def test_deny_gnss_and_flow():
     PASSED.append("deny")
 
 
+def test_deny_schedule():
+    """Trusted first, then denied, then back -- in one run, as on the bench."""
+    box = Box(cfg(max_degraded_h_acc_m=1e6))
+    sched = DenySchedule(after_s=20, for_s=30)
+    modes, denied = [], []
+    for k in range(90):
+        t = float(k)
+        box.deny_gnss = sched.denied(box._last_mode, t)
+        denied.append(box.deny_gnss)
+        (out, _), = box.on_receiver_bytes(pvt_bytes(k, *ll(0, 0), vel=(0, 0, 0)), t, 0.0)
+        modes.append(out.mode)
+    first = denied.index(True)
+    assert 20 <= first <= 22 and sum(denied) == 30, (first, sum(denied))
+    assert all(m == DEGRADED for m in modes[first:first + 30])
+    assert modes[-1] == TRUSTED and sched.finished
+    print(f"[ok] --deny-after 20 --deny-for 30: trusted, denied from {first} s "
+          f"for 30 s (DEGRADED, coasting), then trusted again after validation")
+    PASSED.append("schedule")
+
+
 def test_config():
     text = """
 [airframe]
@@ -218,7 +238,7 @@ shadow = true
 if __name__ == "__main__":
     tests = [test_reader_parses_and_refuses_circular, test_flow_rotation,
              test_end_to_end_trusted_shadow_and_log, test_receivers_disagree_distrusts,
-             test_deny_gnss_and_flow, test_config]
+             test_deny_gnss_and_flow, test_deny_schedule, test_config]
     for t in tests:
         t()
     print(f"\n{len(PASSED)}/{len(tests)} box-service tests passed")
