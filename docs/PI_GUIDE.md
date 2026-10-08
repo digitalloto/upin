@@ -228,6 +228,25 @@ controller's own GPS, the heading, UPIN's mode and the reason for it.
 - `GPS2_RAW` shows `fix_type` 3 and a latitude and longitude close to the receiver's;
 - the drone's main position still comes from its own GPS 1.
 
+### Watching it on the UPIN console
+
+Instead of the terminal, you can watch everything on a live page. Stop the
+service and run the console on the Pi:
+
+```bash
+sudo -u upin /opt/upin/venv/bin/python -m upin.console --source live \
+     --config /etc/upin/box.toml --host 0.0.0.0 --allow-control
+```
+
+On the Mac, open **http://upin-box.local:8080**. It shows:
+- the mode and why;
+- every check;
+- the map with UPIN's accuracy circle and the physically-reachable region;
+- the receiver and the flight-controller sensors.
+
+Try it on the Mac first with `--source sim`, which needs no hardware; see
+[`CONSOLE.md`](CONSOLE.md).
+
 ## Step 9: The GPS-denied test
 
 UPIN can only carry on without GNSS after it has trusted GNSS first. So the

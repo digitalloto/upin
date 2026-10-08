@@ -310,3 +310,36 @@ def parse_nmea(sentence: str) -> Optional[Union[Gga, Rmc]]:
     except ValueError:
         return None
     return None
+
+
+# -- encoders: for the simulator and tests ---------------------------------
+# The simulator speaks the receiver's own protocol, so simulated data goes
+# through exactly the parser and checks that real data does.
+
+def encode_nav_pvt(itow_ms: int, lat: float, lon: float, height_msl_m: float,
+                   h_acc_m: float, v_acc_m: float,
+                   vel_ned_ms: Tuple[float, float, float], s_acc_ms: float,
+                   fix_type: int = 3, num_sv: int = 14, pdop: float = 1.5) -> bytes:
+    p = bytearray(92)
+    struct.pack_into("<IHBBBBBB", p, 0, itow_ms, 0, 0, 0, 0, 0, 0, 0)
+    struct.pack_into("<BBBB", p, 20, fix_type, 0x01 if fix_type >= 2 else 0x00,
+                     0, num_sv)
+    struct.pack_into("<iiii", p, 24, round(lon * 1e7), round(lat * 1e7),
+                     round(height_msl_m * 1000), round(height_msl_m * 1000))
+    struct.pack_into("<II", p, 40, round(h_acc_m * 1000), round(v_acc_m * 1000))
+    vn, ve, vd = vel_ned_ms
+    struct.pack_into("<iiii", p, 48, round(vn * 1000), round(ve * 1000),
+                     round(vd * 1000), round((vn * vn + ve * ve) ** 0.5 * 1000))
+    struct.pack_into("<I", p, 68, round(s_acc_ms * 1000))
+    struct.pack_into("<H", p, 76, round(pdop * 100))
+    return ubx_frame(*NAV_PVT, bytes(p))
+
+
+def encode_mon_rf(jamming_state: str, noise_per_ms: int = 90,
+                  agc_count: int = 3000, jam_indicator: int = 10) -> bytes:
+    code = {v: k for k, v in JAMMING_STATE.items()}[jamming_state]
+    p = bytearray(4 + 24)
+    struct.pack_into("<BB", p, 0, 0, 1)
+    struct.pack_into("<BB", p, 4, 0, code)
+    struct.pack_into("<HHB", p, 16, noise_per_ms, agc_count, jam_indicator)
+    return ubx_frame(*MON_RF, bytes(p))

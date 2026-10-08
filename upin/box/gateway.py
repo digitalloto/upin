@@ -115,6 +115,7 @@ class Gateway:
         self._gate_only_run = 0
         self._trusted_h_acc: Optional[float] = None
         self._trusted_drms: float = 0.0
+        self.last_checks: List[dict] = []
         self.log: List[GatewayOutput] = []
 
     # -- inputs besides GNSS ------------------------------------------------
@@ -153,25 +154,61 @@ class Gateway:
 
     def _checks(self, ep: GnssEpoch) -> Tuple[List[str], bool]:
         """The reasons to distrust, and whether the only one is the
-        statistical gate."""
+        statistical gate. Each check's own result is kept in last_checks,
+        for display: PASS, FAIL, or NOT RUN with the reason it could not."""
         why: List[str] = []
-        if ep.fix_type < 3 or not math.isfinite(ep.h_acc_m) or ep.h_acc_m <= 0:
+        checks: List[dict] = []
+        self.last_checks = checks
+
+        def note(name, status, detail):
+            checks.append({"check": name, "status": status, "detail": detail})
+
+        if ep.fix_type < 3:
+            note("receiver fix", "FAIL", "no 3-D fix")
             return ["receiver has no 3-D fix"], False
+        if not math.isfinite(ep.h_acc_m) or ep.h_acc_m <= 0:
+            note("receiver fix", "FAIL", "the receiver does not state its accuracy")
+            return ["receiver gives a fix but not its accuracy: unusable"], False
         if ep.h_acc_m > self.max_degraded_h_acc_m:
             # Also stops a spoofer widening the checks below by claiming a
             # huge accuracy figure.
+            note("receiver fix", "FAIL",
+                 f"accuracy {ep.h_acc_m:.1f} m worse than the "
+                 f"{self.max_degraded_h_acc_m:.0f} m limit")
             return [f"receiver's own accuracy {ep.h_acc_m:.0f} m is too poor "
                     f"to use"], False
+        note("receiver fix", "PASS", f"3-D, accuracy {ep.h_acc_m:.1f} m")
         if ep.jamming_state == "critical":
             why.append("receiver reports jamming as critical")
+            note("receiver jamming report", "FAIL", "critical")
+        elif ep.jamming_state in ("ok", "warning"):
+            note("receiver jamming report", "PASS", ep.jamming_state)
+        else:
+            note("receiver jamming report", "NOT RUN",
+                 "this receiver does not report a jamming state")
         if ep.constellation_fixes:
             cc = cross_check(ep.constellation_fixes)
             if cc.checked and not cc.consistent:
                 why.append(f"constellations disagree: {cc.reason} "
                            f"(suspect: {', '.join(cc.suspects)})")
+                note("cross-check", "FAIL",
+                     f"{cc.reason} (suspect: {', '.join(cc.suspects)})")
+            elif cc.checked:
+                note("cross-check", "PASS", f"{cc.reason}; {cc.caveat}")
+            else:
+                note("cross-check", "NOT RUN", cc.reason)
+        else:
+            note("cross-check", "NOT RUN", "no second receiver or "
+                 "per-constellation fix supplied")
         v = self.guard.check(ep.lat, ep.lon, ep.t, sigma_m=ep.h_acc_m)
         if not v.possible:
             why.append(v.reason)
+            note("physically reachable", "FAIL", v.reason)
+        elif self.guard.anchored:
+            note("physically reachable", "PASS",
+                 f"{-v.excess_m:.0f} m inside the region")
+        else:
+            note("physically reachable", "NOT RUN", v.reason)
         hard = bool(why)
         if self.kf.estimate() is not None:
             trial = copy.deepcopy(self.kf)
@@ -180,6 +217,15 @@ class Gateway:
             if not d.accepted:
                 why.append(f"inconsistent with UPIN's own estimate "
                            f"({d.reason})")
+                note("consistent with UPIN's estimate", "FAIL", d.reason)
+            else:
+                note("consistent with UPIN's estimate", "PASS",
+                     f"NIS {d.nis:.1f} <= {d.threshold:.1f}"
+                     if d.nis is not None and d.threshold is not None
+                     else d.reason)
+        else:
+            note("consistent with UPIN's estimate", "NOT RUN",
+                 "no estimate yet")
         return why, bool(why) and not hard
 
     def _accept(self, ep: GnssEpoch) -> None:

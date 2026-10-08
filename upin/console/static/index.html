@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UPIN Console</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%233ddc84'/%3E%3C/svg%3E">
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="logo">U</div>
+    <div>
+      <h1>UPIN Console</h1>
+      <div class="sub">Universal Positioning Intelligence Network</div>
+    </div>
+  </div>
+  <div class="badges">
+    <span class="badge" id="b-source">SOURCE —</span>
+    <span class="badge" id="b-mode">MODE —</span>
+    <span class="badge" id="b-gnss">GNSS IN —</span>
+    <span class="badge" id="b-sent">TO FC —</span>
+    <span class="badge" id="b-link">CONNECTING</span>
+  </div>
+</header>
+
+<div class="banner hidden" id="sim-banner">
+  SIMULATION — the sensor data is simulated. UPIN's processing of it is real.
+  The white cross is the simulated true position.
+</div>
+<div class="note" id="source-note"></div>
+
+<main>
+  <section class="map-wrap">
+    <canvas id="map"></canvas>
+    <div class="map-tools">
+      <button id="z-in" title="Zoom in">+</button>
+      <button id="z-out" title="Zoom out">−</button>
+      <button id="follow" class="on" title="Follow UPIN's position">Follow</button>
+    </div>
+    <div class="legend">
+      <div><i class="dot upin"></i>UPIN output (95% circle)</div>
+      <div><i class="dot gnss"></i>GNSS input fix</div>
+      <div><i class="dot second"></i>Second receiver</div>
+      <div><i class="ring reach"></i>Physically reachable region</div>
+      <div class="sim-only hidden"><i class="cross"></i>Simulated truth</div>
+    </div>
+    <div class="map-status" id="map-status">Waiting for the first epoch…</div>
+    <div class="attrib" id="attrib"></div>
+  </section>
+
+  <aside>
+    <div class="card big">
+      <div class="card-title">UPIN output</div>
+      <div class="mode" id="mode">—</div>
+      <div class="kv"><span>Position</span><b id="o-pos">—</b></div>
+      <div class="kv"><span>Accuracy (1σ per axis)</span><b id="o-acc">—</b></div>
+      <div class="kv"><span>95% circle radius</span><b id="o-r95">—</b></div>
+      <div class="kv"><span>Velocity N / E</span><b id="o-vel">—</b></div>
+      <div class="kv"><span>Sent to flight controller</span><b id="o-sent">—</b></div>
+      <div class="sim-only hidden">
+        <div class="kv"><span>Error vs simulated truth</span><b id="o-err">—</b></div>
+        <div class="kv"><span>Largest error this run</span><b id="o-maxerr">—</b></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Why</div>
+      <ul id="reasons" class="reasons"><li class="muted">—</li></ul>
+      <div class="caveat" id="caveat"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Checks on this fix</div>
+      <div id="checks"><div class="muted">No epoch yet.</div></div>
+    </div>
+
+    <div class="card hidden" id="controls-card">
+      <div class="card-title">Controls</div>
+      <div id="controls" class="controls"></div>
+      <div class="muted small" id="control-result"></div>
+    </div>
+
+    <div class="card hidden" id="browser-card">
+      <div class="card-title">This device's location</div>
+      <button id="geo-start" class="primary">Share this device's location</button>
+      <div class="muted small" id="geo-status">Not started. Nothing is sent until you press the button.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">GNSS input</div>
+      <div class="kv"><span>Fix</span><b id="i-fix">—</b></div>
+      <div class="kv"><span>Position</span><b id="i-pos">—</b></div>
+      <div class="kv"><span>Stated accuracy</span><b id="i-acc">—</b></div>
+      <div class="kv"><span>Satellites</span><b id="i-sv">—</b></div>
+      <div class="kv"><span>Receiver jamming report</span><b id="i-jam">—</b></div>
+      <div class="kv"><span>Second receiver</span><b id="i-second">—</b></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Flight-controller sensors</div>
+      <div class="kv"><span>Heading</span><b id="s-hdg">—</b></div>
+      <div class="kv"><span>Pressure altitude (ISA)</span><b id="s-baro">—</b></div>
+      <div class="kv"><span>Optical flow fwd / right</span><b id="s-flow">—</b></div>
+      <div class="kv"><span>Rangefinder</span><b id="s-range">—</b></div>
+      <div class="kv"><span>FC's own GPS</span><b id="s-gps">—</b></div>
+      <div class="kv"><span>Refused as circular</span><b id="s-circ">—</b></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Performance (measured)</div>
+      <div class="kv"><span>Epochs processed</span><b id="p-epochs">—</b></div>
+      <div class="kv"><span>Update rate</span><b id="p-rate">—</b></div>
+      <div class="kv"><span>Processing time per epoch</span><b id="p-ms">—</b></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Events</div>
+      <div id="events" class="events"><div class="muted">None yet.</div></div>
+    </div>
+  </aside>
+</main>
+
+<footer>
+  Every number on this page is computed by UPIN or reported by a sensor.
+  Anything missing is shown as missing. Nothing here is flight-proven.
+</footer>
+<script src="app.js"></script>
+</body>
+</html>

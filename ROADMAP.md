@@ -41,6 +41,7 @@ Last updated 1 October 2026. Measured layer status lives in
 | 3 | L0 GNSS/NavIC jamming, RAIM, spoof checks, return validation, jamming map (§2) | done | `upin/layers/satellite/gnss_*.py`, `upin/detection/jamming_map.py` |
 | — | **The UPIN box**: Pi between GNSS and the flight controller; reachability guard, cross-constellation check, UBX/NMEA parsers, gateway, `GPS_INPUT` (untested) | done (software) | `upin/box/`, `upin/detection/reachability.py`, `constellation_check.py`, [`docs/HARDWARE.md`](docs/HARDWARE.md) |
 | — | **Box as GPS 2**: flight-controller reader (refuses circular inputs), Pi service, shadow mode, Pi install files, SITL check script | done (software; I/O untested) | `upin/box/fc_reader.py`, `service.py`, `deploy/`, `tools/sitl_box.py` |
+| — | **UPIN console**: live page (simulation, this device's location, board-only, live box, replay); no made-up numbers, tested; replaces the old phone demo, which displayed random values | done (sim/browser/replay tested; board/live untested on hardware) | `upin/console/`, [`docs/CONSOLE.md`](docs/CONSOLE.md) |
 | 4 | L1 completion: strapdown INS wired in, retained command log (§3) | next | `upin/core/strapdown_ins.py` |
 | 5 | Navigation Arbiter: explicit mode, DR time limit (§9) | | |
 | 6 | Escape Manager: retrace, rally, jammer gradient, swarm spread (§10) | | |

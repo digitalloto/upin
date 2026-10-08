@@ -98,6 +98,26 @@ class ReachabilityGuard:
     def anchored(self) -> bool:
         return self._anchor is not None
 
+    def region(self, t: float, sigma_m: float = 0.0) -> Optional[dict]:
+        """The two discs at time t, for display: centres in lat/lon and radii
+        in metres. The same arithmetic as check()."""
+        if self._anchor is None:
+            return None
+        lat0, lon0, t0, vn, ve, sp, sv = self._anchor
+        tau = max(0.0, t - t0)
+        env = self.envelope
+        margin = (self.K_SIGMA * (sp + max(sigma_m, 0.0) + sv * tau)
+                  + env.max_wind_change_ms * tau)
+        coslat = math.cos(math.radians(lat0))
+        return {
+            "seconds_since_anchor": tau,
+            "manoeuvre_centre": (lat0 + vn * tau / DEG_M,
+                                 lon0 + ve * tau / (DEG_M * coslat)),
+            "manoeuvre_radius_m": 0.5 * env.max_accel_ms2 * tau * tau + margin,
+            "speed_centre": (lat0, lon0),
+            "speed_radius_m": (env.max_airspeed_ms + env.max_wind_ms) * tau + margin,
+        }
+
     def check(self, lat: float, lon: float, t: float,
               sigma_m: float = 0.0) -> Verdict:
         """sigma_m: the checked fix's own per-axis 1-sigma. Without it an

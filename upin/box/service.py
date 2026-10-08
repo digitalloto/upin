@@ -41,7 +41,7 @@ import tomllib
 from dataclasses import dataclass, fields
 from typing import IO, List, Optional, Tuple
 
-from upin.box.fc_reader import Attitude, Baro, FcReader, Flow, request_streams
+from upin.box.fc_reader import Attitude, Baro, FcGps, FcReader, Flow, request_streams
 from upin.box.gateway import TRUSTED, Gateway, GatewayOutput, GnssEpoch
 from upin.box.gnss_parser import MonRf, NavPvt, UbxStream, decode_ubx
 from upin.box.mavlink_out import GpsInput, GpsInputSender, build
@@ -107,6 +107,9 @@ class Box:
         self._jamming = "unknown"
         self._baro_offset: Optional[float] = None
         self._last_mode: Optional[str] = None
+        self.last_epoch: Optional[GnssEpoch] = None
+        self.last_record: Optional[dict] = None
+        self.last_processing_ms: Optional[float] = None
 
     # -- flight controller ---------------------------------------------------
 
@@ -142,6 +145,23 @@ class Box:
                 results.append(self.process(self._epoch(msg, now), unix_s, msg))
         return results
 
+    def epoch_from_fc_gps(self, g: FcGps, now: float) -> GnssEpoch:
+        """Board-only mode: the flight controller's own GPS is the input.
+        No jamming report and no second receiver to cross-check against;
+        the checks say so. h_acc must be reported, or the fix is unusable."""
+        if self.deny_gnss:
+            return GnssEpoch(t=now, fix_type=0)
+        if g.h_acc_m is None:       # a fix with no stated accuracy: refused
+            return GnssEpoch(t=now, fix_type=g.fix_type, lat=g.lat, lon=g.lon,
+                             num_sv=g.satellites)
+        vel = None
+        if g.vel_ne_ms is not None and g.vel_acc_ms:
+            vel = (g.vel_ne_ms[0], g.vel_ne_ms[1], 0.0)
+        return GnssEpoch(t=now, fix_type=g.fix_type, lat=g.lat, lon=g.lon,
+                         alt_m=g.alt_m, h_acc_m=g.h_acc_m, vel_ned_ms=vel,
+                         s_acc_ms=g.vel_acc_ms if vel else None,
+                         num_sv=g.satellites)
+
     def _epoch(self, pvt: NavPvt, now: float) -> GnssEpoch:
         if self.deny_gnss:
             return GnssEpoch(t=now, fix_type=0, jamming_state=self._jamming)
@@ -160,15 +180,19 @@ class Box:
 
     def process(self, ep: GnssEpoch, unix_s: float,
                 pvt: Optional[NavPvt] = None) -> Tuple[GatewayOutput, GpsInput]:
+        started = time.perf_counter()
         out = self.gateway.process(ep)
+        self.last_processing_ms = (time.perf_counter() - started) * 1000.0
         baro = self.fc.state.baro
         if (out.mode == TRUSTED and ep.alt_m is not None and baro
                 and ep.t - baro.t < 1.0):
             self._baro_offset = baro.pressure_alt_m - ep.alt_m
         self._last_mode = out.mode
         sent = build(out, unix_s, self.cfg.forward_degraded, gps_id=self.cfg.gps_id)
+        self.last_epoch = ep
+        self.last_record = self._record(ep, out, sent, unix_s, pvt)
         if self.log is not None:
-            self.log.write(json.dumps(self._record(ep, out, sent, unix_s, pvt)) + "\n")
+            self.log.write(json.dumps(self.last_record) + "\n")
             self.log.flush()
         return out, sent
 
@@ -228,16 +252,29 @@ class DenySchedule:
 
 
 def run(cfg: BoxConfig, deny_gnss: bool = False, send: bool = True,
-        schedule: Optional[DenySchedule] = None) -> None:
+        schedule: Optional[DenySchedule] = None, gnss_source: str = "receiver",
+        on_start=None, on_result=None, stop=None) -> None:
     """The live loop. UNTESTED: needs pyserial, pymavlink, a receiver and a
-    flight controller or SITL."""
+    flight controller or SITL.
+
+    gnss_source "receiver": the new GNSS receiver on its own port (the box).
+    gnss_source "fc": board only -- the flight controller's own GPS is the
+    input, for testing UPIN with just the board. Never sends: GPS 2 would
+    only echo GPS 1 back.
+
+    on_start(box) and on_result(box, out, sent) let the console watch;
+    stop() returning True ends the loop."""
     try:
         import serial  # noqa: WPS433 -- lazy by design
         from pymavlink import mavutil  # noqa: WPS433
     except ImportError as exc:
         raise SystemExit("needs `pip install pyserial pymavlink` "
                          "(see deploy/install.sh)") from exc
-    rx = serial.Serial(cfg.receiver_port, cfg.receiver_baud, timeout=0.02)
+    if gnss_source == "fc" and send:
+        print("board-only mode: not sending GPS_INPUT (it would echo GPS 1)")
+        send = False
+    rx = (serial.Serial(cfg.receiver_port, cfg.receiver_baud, timeout=0.02)
+          if gnss_source == "receiver" else None)
     conn = mavutil.mavlink_connection(cfg.fc_connection, baud=cfg.fc_baud,
                                       source_system=1, source_component=191)
     print(f"waiting for flight controller heartbeat on {cfg.fc_connection} ...")
@@ -246,15 +283,21 @@ def run(cfg: BoxConfig, deny_gnss: bool = False, send: bool = True,
     request_streams(conn)
     sender = GpsInputSender(cfg.fc_connection, cfg.forward_degraded,
                             gps_id=cfg.gps_id, conn=conn)
-    print(f"UPIN box running: GPS instance {cfg.gps_id + 1}, "
-          f"{'shadow' if cfg.shadow else 'LIVE'}, "
+    print(f"UPIN box running: GNSS from {gnss_source}, GPS instance "
+          f"{cfg.gps_id + 1}, {'shadow' if cfg.shadow else 'LIVE'}, "
           f"{'GNSS DENIED in software, ' if deny_gnss else ''}"
           f"{'sending' if send else 'NOT sending'}; log {cfg.log_path}")
     with open(cfg.log_path, "a", encoding="utf-8") as log:
         box = Box(cfg, deny_gnss, log)
+        if on_start is not None:
+            on_start(box)
         last_mode = None
-        while True:
-            data = rx.read(rx.in_waiting or 1)
+        while stop is None or not stop():
+            if rx is not None:
+                data = rx.read(rx.in_waiting or 1)
+            else:
+                data = b""
+                time.sleep(0.02)
             now, unix_s = time.monotonic(), time.time()
             if schedule is not None:
                 was = box.deny_gnss
@@ -262,14 +305,21 @@ def run(cfg: BoxConfig, deny_gnss: bool = False, send: bool = True,
                 if box.deny_gnss != was:
                     print(f"{time.strftime('%H:%M:%S')} --- GNSS "
                           f"{'DENIED in software' if box.deny_gnss else 'restored'} ---")
+            results = []
             while True:
                 msg = conn.recv_match(blocking=False)
                 if msg is None:
                     break
-                box.on_fc_message(msg, now)
-            for out, _ in box.on_receiver_bytes(data, now, unix_s):
+                sample = box.on_fc_message(msg, now)
+                if gnss_source == "fc" and isinstance(sample, FcGps):
+                    results.append(box.process(box.epoch_from_fc_gps(sample, now),
+                                               unix_s))
+            results += box.on_receiver_bytes(data, now, unix_s)
+            for out, sent in results:
                 if send:
                     sender.send(out, unix_s)
+                if on_result is not None:
+                    on_result(box, out, sent)
                 if out.mode != last_mode:
                     print(f"{time.strftime('%H:%M:%S')} {out.mode}: "
                           f"{'; '.join(out.reasons)}")

@@ -25,6 +25,9 @@ The gap between those numbers and the total is the work tracked in [`FABRICATION
 | | |
 |---|---|
 | [`ROADMAP.md`](ROADMAP.md) | What is built, what is left, and the path to hardware |
+| [`docs/CONSOLE.md`](docs/CONSOLE.md) | The UPIN console: a live page showing what the box computes |
+| [`docs/HARDWARE.md`](docs/HARDWARE.md) | The UPIN box: wiring, which computer, ArduPilot setup |
+| [`docs/PI_GUIDE.md`](docs/PI_GUIDE.md) | Step by step, from unboxing a Raspberry Pi to UPIN as GPS 2 |
 | [`FABRICATION_AUDIT.md`](FABRICATION_AUDIT.md) | Every place the code invents a number, what it costs, and the staged plan to remove it |
 | [`UPIN_MASTER.md`](UPIN_MASTER.md) | The full project document |
 | [`QUANTUM.md`](QUANTUM.md) | Group Q hardware readiness and patent sequencing |

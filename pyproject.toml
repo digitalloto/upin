@@ -49,3 +49,6 @@ upin-demo = "upin.simulation.demo:main"
 
 [tool.setuptools.packages.find]
 include = ["upin*"]
+
+[tool.setuptools.package-data]
+"upin.console" = ["static/*"]

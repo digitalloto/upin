@@ -96,6 +96,8 @@ class FcGps:
     alt_m: float
     h_acc_m: Optional[float]        # None when the receiver does not report it
     satellites: int
+    vel_ne_ms: Optional[tuple] = None   # from ground speed and course, if reported
+    vel_acc_ms: Optional[float] = None  # None when not reported
 
 
 FcSample = Union[Attitude, Baro, Flow, Range, FcGps]
@@ -168,8 +170,15 @@ class FcReader:
 
     def _gps_raw_int(self, m, now):
         h_acc = getattr(m, "h_acc", 0) or 0       # MAVLink 2 extension, mm
+        vel_acc = getattr(m, "vel_acc", 0) or 0   # MAVLink 2 extension, mm/s
+        vel, cog = getattr(m, "vel", 65535), getattr(m, "cog", 65535)
+        vel_ne = None
+        if vel != 65535 and cog != 65535:          # UINT16_MAX = unknown
+            c = math.radians(cog / 100.0)
+            vel_ne = (vel / 100.0 * math.cos(c), vel / 100.0 * math.sin(c))
         g = FcGps(now, m.fix_type, m.lat * 1e-7, m.lon * 1e-7, m.alt / 1000.0,
-                  h_acc / 1000.0 if h_acc > 0 else None, m.satellites_visible)
+                  h_acc / 1000.0 if h_acc > 0 else None, m.satellites_visible,
+                  vel_ne, vel_acc / 1000.0 if vel_acc > 0 else None)
         self.state.gps = g
         return g
 
