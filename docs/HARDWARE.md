@@ -81,10 +81,74 @@ separate fixes:
 - **Two receivers**, each configured to track one constellation (e.g. one
   GPS-only, one NavIC-only). Each one's NAV-PVT becomes a
   `ConstellationFix`. This works with the code as it stands.
+- **The flight controller's own GPS as the second receiver.** The box
+  service does this automatically: when the flight controller's GPS
+  (`GPS_RAW_INT`) reports its accuracy, its fix is cross-checked against the
+  box's receiver every epoch. **Caveat:** two receivers tracking the same
+  constellations at the same place see the same spoofer, so this alone
+  catches a faulty receiver or antenna, not area spoofing. To make it a
+  constellation check, split the constellations: for example, set the
+  flight controller's receiver to Galileo + BeiDou with ArduPilot's
+  `GPS_GNSS_MODE` bitmask, and the box's receiver to GPS + NavIC. Check that
+  parameter's bit values in your firmware's documentation.
 - **One receiver with raw-measurement output**, solved per constellation by
   the L0 solver (`upin/layers/satellite/gnss_receiver.py`). Not possible
   yet: computing satellite positions from the broadcast ephemeris is not
   built.
+
+## What runs where
+
+| | Runs | How much of UPIN |
+|---|---|---|
+| **ESP32** | Nothing of UPIN as built | 0%. UPIN is Python with numpy and scipy, which needs Linux. An ESP32 could later be a LoRa radio front end, or run C++ ports of the reachability check and the 7-state filter |
+| **Raspberry Pi** | All of UPIN's code | All 140 layers run. But only the honest components below are useful on real sensors, and only they run in the box service |
+
+What the box service uses on real data, today:
+
+| Used | From | Status |
+|---|---|---|
+| Fix checks, reachability, constellation cross-check, return validation | `upin/box/gateway.py`, `upin/detection/` | tested in simulation |
+| HonestKalman: GNSS, heading, barometer, optical-flow velocity | `upin/fusion/honest_kalman.py` | tested in simulation |
+| UBX parser; replay | `upin/box/gnss_parser.py`, `replay.py` | tested on synthetic bytes |
+| Flight-controller reader; `GPS_INPUT` | `upin/box/fc_reader.py`, `mavlink_out.py` | UNTESTED until SITL |
+
+Not used yet, and why:
+
+| Not used | Why |
+|---|---|
+| L0 GPS/NavIC layers | they need raw pseudoranges plus satellite positions from the broadcast ephemeris; that decoder is not built |
+| Landmark chain (L4) | needs a camera and georeferenced maps |
+| Command dead reckoning | needs the flight controller's command stream mapped in; next step |
+| Wind and speed learners | ready, but not yet wired into the service |
+| Quantum layers | laboratory hardware |
+| **The 114 layers that fabricate readings** | **must stay off the drone**: they invent positions when nothing is connected. The box service does not load them |
+
+## UPIN as GPS 2: connecting it
+
+```
+new GNSS receiver ──UART/USB──▶ Pi (UPIN box) ◀──── MAVLink, one UART ────▶ flight controller
+                                                  sensors in ◀─┘ └─▶ GPS_INPUT out
+```
+
+One cable to a TELEM port carries both directions.
+- **In:** the flight controller's heading, barometer, optical flow, rangefinder and its own GPS.
+- **Out:** `GPS_INPUT`, which ArduPilot files as GPS 2.
+
+**What the box refuses to read.** `GLOBAL_POSITION_INT`, `LOCAL_POSITION_NED` and `GPS2_RAW` are ignored on purpose (`upin/box/fc_reader.py`). Once the flight controller uses the box's GPS, its own position is partly made from UPIN's output. Feeding it back would let UPIN confirm itself.
+
+### ArduPilot parameters
+
+Names follow ArduPilot 4.5 and later. **Check each one against your firmware's parameter list** before setting it.
+
+| Parameter | Shadow mode (first) | Why |
+|---|---|---|
+| `SERIALn_PROTOCOL` | 2 | MAVLink 2 on the TELEM port wired to the Pi (`n` = that port) |
+| `SERIALn_BAUD` | 921 | 921600 baud; must match `fc_baud` in the box config |
+| `GPS2_TYPE` | 14 | GPS 2 is MAVLink: the box. Older firmware: `GPS_TYPE2` |
+| `GPS_AUTO_SWITCH` | 0 | never switch receivers |
+| `GPS_PRIMARY` | 0 | fly on GPS 1, the flight controller's own |
+
+**Shadow mode** means the drone keeps flying on its own GPS. The box runs, logs, and sends GPS 2, which the flight controller shows but does not navigate on. Making UPIN the primary GPS comes later. It changes the flight controller's navigation source, so it is your decision, made after the SITL tests and bench logs.
 
 ## Which computer
 
@@ -113,14 +177,25 @@ receiver actually bought. They follow the M8/F9 generation descriptions.
 
 ## Running it
 
+On the Pi (after `deploy/install.sh`; see `deploy/README.md`):
+
+```bash
+python -m upin.box.service --config /etc/upin/box.toml --no-send    # listen and log only
+python -m upin.box.service --config /etc/upin/box.toml              # shadow: send as GPS 2
+python -m upin.box.service --config /etc/upin/box.toml --deny-gnss  # GNSS denied in software
+```
+
+Tests and replay, anywhere:
+
 ```bash
 python tests/test_box.py                   # parsers, gateway, GPS_INPUT, replay
+python tests/test_box_service.py           # FC reader, the service logic, config
 python tests/test_reachability.py
 python tests/test_constellation_check.py
 
 # replay a capture from the receiver's port, or the box's own JSON-lines log
 python -m upin.box.replay capture.ubx  --accel 6 --airspeed 20
-python -m upin.box.replay epochs.jsonl --accel 6 --airspeed 20
+python -m upin.box.replay epochs.jsonl --accel 6 --airspeed 20   # also reads the service log
 ```
 
 `--accel` and `--airspeed` are the airframe's limits: its maximum
@@ -129,13 +204,14 @@ airframe's spec or from `Envelope.from_airframe(thrust_to_mass,
 max_airspeed)`. Never tune them to make a result look better. Limits set
 too tight cause false alarms; limits set too loose let more through.
 
-## Steps to the bench
+## First week
 
-1. ArduPilot SITL on a laptop: replay a synthetic run into `GPS_INPUT` and
-   confirm ArduPilot takes it as a GPS. Test the no-fix failsafe.
-2. Receiver on the Pi: log real NAV-PVT/NAV-SAT/MON-RF, check the parsed
-   fields against the receiver's own tool.
-3. Box in the loop on the bench: receiver → Pi → flight controller, motors
-   off. Disable GNSS in software (never jam outside an authorised range)
-   and watch TRUSTED → DEGRADED → NO_FIX, then the return validation.
-4. The rest of the Raspberry Pi bench milestone in `ROADMAP.md`.
+| Day | What | Done when |
+|---|---|---|
+| 1 | ArduPilot SITL on a laptop (Linux or WSL is easiest). Run `python tools/sitl_box.py --set-params`, restart SITL, run `python tools/sitl_box.py` | All three checks print `[ok]`: GPS 2 shows UPIN's fix; it drops when the box sends no fix; it is reported lost when the box goes silent |
+| 2 | Pi set up with `deploy/install.sh`. Receiver on its port with NAV-PVT, NAV-SAT and MON-RF enabled. Run the service with `--no-send` | The logged positions and accuracy match the receiver's own software |
+| 3 | Bench, propellers off: Pi wired to the flight controller, parameters as above, shadow mode | The ground station shows GPS 2. The log has heading, barometer, the flight controller's GPS and UPIN's mode every epoch. The drone still uses GPS 1 |
+| 4–5 | Walk or drive the rig. Run stretches with `--deny-gnss`. Replay the logs | Real error with GNSS denied, measured against the logged GNSS. Those figures go into `ROADMAP.md` |
+
+Never jam real signals outside an authorised range: `--deny-gnss` drops
+GNSS in software.

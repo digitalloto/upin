@@ -103,12 +103,17 @@ class GpsInputSender:
     UNTESTED = True
 
     def __init__(self, connection_string: str, forward_degraded: bool = False,
-                 source_system: int = 1, source_component: int = 191):
+                 source_system: int = 1, source_component: int = 191,
+                 gps_id: int = 0, conn=None):
+        """gps_id: which GPS instance the flight controller files this under
+        (0 = GPS 1, 1 = GPS 2). conn: an already-open pymavlink connection,
+        so reading sensors and sending GPS_INPUT share one cable."""
         self.connection_string = connection_string
         self.forward_degraded = forward_degraded
         self.source_system = source_system
         self.source_component = source_component   # 191 = onboard computer
-        self._conn = None
+        self.gps_id = gps_id
+        self._conn = conn
 
     def connect(self, timeout_s: float = 10.0):
         try:
@@ -129,7 +134,7 @@ class GpsInputSender:
         if self._conn is None:
             raise RuntimeError("not connected; call connect() first")
         m = build(out, time.time() if unix_s is None else unix_s,
-                  self.forward_degraded)
+                  self.forward_degraded, gps_id=self.gps_id)
         self._conn.mav.gps_input_send(
             m.time_usec, m.gps_id, m.ignore_flags, m.time_week_ms, m.time_week,
             m.fix_type, m.lat, m.lon, m.alt, m.hdop, m.vdop, m.vn, m.ve, m.vd,

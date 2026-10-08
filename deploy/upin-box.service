@@ -1,0 +1,15 @@
+# systemd unit for the UPIN box. Installed by deploy/install.sh.
+[Unit]
+Description=UPIN box: GNSS checks, then GPS_INPUT to the flight controller
+After=network.target
+
+[Service]
+Type=simple
+User=upin
+WorkingDirectory=/opt/upin
+ExecStart=/opt/upin/venv/bin/python -m upin.box.service --config /etc/upin/box.toml
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

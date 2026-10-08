@@ -52,7 +52,10 @@ def epoch_to_json(ep: GnssEpoch) -> str:
 
 
 def epoch_from_json(line: str) -> GnssEpoch:
+    """One GnssEpoch, or a line of the box service's log (which carries the
+    epoch under "epoch")."""
     d = json.loads(line)
+    d = d.get("epoch", d)
     d["constellation_fixes"] = [ConstellationFix(**c)
                                 for c in d.get("constellation_fixes", [])]
     if d.get("vel_ned_ms") is not None:

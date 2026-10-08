@@ -53,6 +53,14 @@ from upin.fusion.honest_kalman import HonestKalmanFusion
 TRUSTED, DEGRADED, NO_FIX = "TRUSTED", "DEGRADED", "NO_FIX"
 
 
+def body_to_ne(forward: float, right: float, heading_deg: float) -> Tuple[float, float]:
+    """Rotate a forward/right vector to north/east (heading clockwise from
+    north)."""
+    h = math.radians(heading_deg)
+    return (forward * math.cos(h) - right * math.sin(h),
+            forward * math.sin(h) + right * math.cos(h))
+
+
 @dataclass
 class GnssEpoch:
     """One epoch from the receiver, already parsed."""
@@ -119,6 +127,27 @@ class Gateway:
             return
         self.kf.predict(t)
         self.kf.update_velocity(vn, ve, sigma_ms, source=source)
+
+    def feed_flow(self, forward_ms: float, right_ms: float, heading_deg: float,
+                  sigma_ms: float, t: float, source: str = "optical_flow") -> None:
+        """Body-frame ground velocity from a downward flow sensor, already
+        scaled by height, turned to north/east with the heading."""
+        vn, ve = body_to_ne(forward_ms, right_ms, heading_deg)
+        self.feed_velocity(vn, ve, sigma_ms, t, source=source)
+
+    def feed_heading(self, heading_deg: float, sigma_deg: float, t: float,
+                     source: str = "heading") -> None:
+        if self.kf.estimate() is None:
+            return
+        self.kf.predict(t)
+        self.kf.update_heading(heading_deg, sigma_deg, source=source)
+
+    def feed_altitude(self, alt_m: float, sigma_m: float, t: float,
+                      source: str = "baro") -> None:
+        if self.kf.estimate() is None:
+            return
+        self.kf.predict(t)
+        self.kf.update_altitude(alt_m, sigma_m, source=source)
 
     # -- the decision -------------------------------------------------------
 

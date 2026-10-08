@@ -1,0 +1,32 @@
+# UPIN box configuration. Copy to /etc/upin/box.toml and edit.
+# Every number marked ASSUMPTION is a starting guess, not a measurement:
+# replace it once the airframe and sensors have been measured.
+
+[airframe]
+# From the airframe's spec, or Envelope.from_airframe(thrust_to_mass, airspeed).
+# Too tight -> false alarms. Too loose -> more spoofing gets through.
+max_accel_ms2 = 6.0          # EDIT: maximum horizontal acceleration
+max_airspeed_ms = 20.0       # EDIT: top airspeed
+max_wind_ms = 15.0
+
+[ports]
+receiver_port = "/dev/ttyUSB0"   # the new GNSS receiver (USB-UART), or /dev/ttyAMA1
+receiver_baud = 115200           # set the receiver's port to this rate
+fc_connection = "/dev/ttyAMA0"   # UART to the flight controller's TELEM port
+fc_baud = 921600                 # must match SERIALn_BAUD on the flight controller
+
+[output]
+gps_id = 1                   # 1 = the flight controller's GPS 2
+shadow = true                # the flight controller keeps flying on its own GPS 1
+forward_degraded = false     # when GNSS is distrusted, send no fix
+max_degraded_h_acc_m = 50.0
+
+[sensors]
+heading_sigma_deg = 5.0      # ASSUMPTION: compass/attitude heading error
+flow_sigma_ms = 0.3          # ASSUMPTION: optical-flow velocity error
+min_flow_quality = 100       # ASSUMPTION: 0..255, below this flow is ignored
+baro_sigma_m = 1.0           # ASSUMPTION: baro altitude change error, minutes scale
+fc_gps_max_age_s = 1.0
+
+[log]
+log_path = "/var/log/upin/box.jsonl"
