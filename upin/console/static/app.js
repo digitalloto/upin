@@ -293,6 +293,7 @@ function render(s) {
   setVal("p-rate", s.rate_hz !== null ? num(s.rate_hz, 2) + " Hz" : null, "needs 2 epochs");
   setVal("p-ms", s.processing_ms !== null ? num(s.processing_ms, 2) + " ms" : null, "—");
 
+  renderSky(s.signal_power);
   renderEvents(s.events || []);
   $("map-status").textContent = s.region
     ? "Reachable region: " + num(s.region.seconds_since_anchor, 0) + " s since last trusted fix, radius " + num(s.region.manoeuvre_radius_m, 0) + " m"
@@ -310,7 +311,46 @@ function renderEvents(evs) {
   });
 }
 
+// ---------- signal power chart: each satellite's reported C/N0 vs elevation ----------
+const GNSS_COLOR = { gps: "#5aa9ff", navic: "#3ddc84", galileo: "#ffb020", beidou: "#ff7ab6", glonass: "#c77dff" };
+function drawSky(sp) {
+  const c = $("sky"), g = c.getContext("2d");
+  const dpr = window.devicePixelRatio || 1;
+  c.width = c.clientWidth * dpr; c.height = c.clientHeight * dpr; g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const w = c.clientWidth, h = c.clientHeight, L = 34, B = 20, T = 8, R = 8;
+  g.fillStyle = "#0a101c"; g.fillRect(0, 0, w, h);
+  const x = (e) => L + e / 90 * (w - L - R);
+  const y = (v) => h - B - (v - 20) / 35 * (h - B - T);
+  g.font = "10px -apple-system, sans-serif"; g.fillStyle = "#8a98b3"; g.strokeStyle = "rgba(255,255,255,0.08)";
+  for (const v of [20, 30, 40, 50]) { g.beginPath(); g.moveTo(L, y(v)); g.lineTo(w - R, y(v)); g.stroke(); g.fillText(v, 8, y(v) + 3); }
+  for (const e of [0, 30, 60, 90]) { g.fillText(e + "°", x(e) - 6, h - 6); }
+  g.fillText("dB-Hz", 2, T + 6);
+  if (!sp) return;
+  // learned profile (only bands the layer has actually learned)
+  (sp.profile || []).forEach(([lo, hi, m]) => {
+    if (m === null) return;
+    g.strokeStyle = "rgba(255,255,255,0.55)"; g.lineWidth = 2; g.setLineDash([4, 3]);
+    g.beginPath(); g.moveTo(x(lo), y(m)); g.lineTo(x(Math.min(hi, 90)), y(m)); g.stroke(); g.setLineDash([]);
+  });
+  (sp.satellites || []).forEach(([gnss, cn0, elev]) => {
+    g.beginPath(); g.arc(x(elev), y(Math.max(20, Math.min(55, cn0))), 4, 0, 2 * Math.PI);
+    g.fillStyle = GNSS_COLOR[gnss] || "#e6ecf7"; g.fill();
+  });
+}
+function renderSky(sp) {
+  const el = $("sky-verdict");
+  drawSky(sp);
+  if (!sp) { el.innerHTML = '<span class="muted">No per-satellite signal data (UBX NAV-SAT) from this source.</span>'; return; }
+  const cls = { CLEAR: "good", SUSPECT_SPOOFING: "bad", JAMMING: "warn", NOT_RUN: "" }[sp.verdict] || "";
+  el.innerHTML = "";
+  const b = document.createElement("span"); b.className = "badge " + cls; b.textContent = sp.verdict.replace("_", " ");
+  const t = document.createElement("div"); t.className = "muted"; t.style.marginTop = "4px";
+  t.textContent = sp.reason + (sp.profile_learned ? " · dashed: this antenna's learned profile" : "");
+  el.append(b, t);
+}
+
 const CONTROL_LABEL = {
+  smart_spoofer: "Spoofer type: simple/smart",
   spoof_jump: "Spoof: 500 m jump", spoof_drag: "Spoof: slow drag 1 m/s",
   deny: "Deny GNSS", flow: "Optical flow on/off", reset: "Reset",
 };

@@ -61,6 +61,7 @@ def test_missing_stays_missing():
     assert s["mode"] == "NO_FIX" and s["output"] is None
     assert all(s["sensors"][k] is None for k in ("heading", "baro", "flow", "range", "fc_gps"))
     assert s["truth"] is None and s["region"] is None and s["estimate"] is None
+    assert s["signal_power"] is None    # no NAV-SAT: the chart stays empty
     assert clean({"a": float("inf"), "b": [float("nan"), 1.0]}) == {"a": None, "b": [None, 1.0]}
     json.dumps(s, allow_nan=False)
     try:

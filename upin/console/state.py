@@ -170,6 +170,8 @@ class ConsoleState:
                         "lon": st.gps.lon, "h_acc_m": st.gps.h_acc_m,
                         "satellites": st.gps.satellites, "age_s": age(st.gps)},
                     "ignored_circular": dict(box.fc.ignored)},
+                "signal_power": getattr(getattr(box, "power", None), "last_verdict", None)
+                if ep is not None and ep.power_check is not None else None,
                 "truth": None if truth is None else {
                     "label": "simulated truth", "lat": truth["lat"],
                     "lon": truth["lon"], "error_m": error_m,

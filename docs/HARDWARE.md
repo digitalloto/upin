@@ -57,6 +57,7 @@ ArduPilot's EKF weights it.
 |---|---|---|
 | Receiver 3-D fix and accuracy | lost signal; poor geometry | anything the receiver itself believes |
 | Receiver jamming state (`MON-RF`) | jamming the receiver notices | spoofing, which looks clean |
+| Signal-power pattern (layer 146, `upin/layers/satellite/signal_power.py`) | a simple spoofer: satellites too uniform, too strong, no rise with elevation, all jumping up together, AGC dropping as extra power arrives; also tells jamming from spoofing | **a spoofer that shapes power by elevation at realistic levels.** Thresholds are assumptions until calibrated, so the box only **warns** by default (`power_check_action = "warn"`) |
 | Constellations agree (`upin/detection/constellation_check.py`) | a spoofer faking one constellation; with three or more, it names that one | **a spoofer faking all constellations consistently.** Commercial multi-constellation simulators can do this. Agreement raises the cost of an attack; it does not make spoofing impossible |
 | Reachability (`upin/detection/reachability.py`) | any jump the airframe physically could not make. No statistics: an honest fix never fails it (0 of 11,600 in simulation) | a slow drag-off within what the airframe could fly |
 | Kalman innovation gate | drift beyond UPIN's own uncertainty | drift slower than that uncertainty grows; and spoofing from power-on, before any trusted fix |

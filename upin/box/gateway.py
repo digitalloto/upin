@@ -76,6 +76,7 @@ class GnssEpoch:
     num_sv: int = 0
     jamming_state: str = "unknown"      # from MON-RF, if the receiver has it
     constellation_fixes: Sequence[ConstellationFix] = ()
+    power_check: Optional[dict] = None   # verdict of layer cn0spoof_a20, if run
 
 
 @dataclass
@@ -104,7 +105,15 @@ class Gateway:
     figure."""
 
     def __init__(self, envelope: Envelope,
-                 max_degraded_h_acc_m: Optional[float] = None):
+                 max_degraded_h_acc_m: Optional[float] = None,
+                 power_check_action: str = "warn"):
+        """power_check_action: "warn" shows the signal-power check without
+        acting on it (its thresholds are not yet calibrated); "distrust"
+        makes it a hard check."""
+        if power_check_action not in ("warn", "distrust"):
+            raise ValueError("power_check_action must be 'warn' or 'distrust'")
+        self.power_check_action = power_check_action
+        self._warnings: List[str] = []
         self.guard = ReachabilityGuard(envelope)
         self.kf = HonestKalmanFusion()
         self.max_degraded_h_acc_m = (max_degraded_h_acc_m
@@ -159,10 +168,30 @@ class Gateway:
         why: List[str] = []
         checks: List[dict] = []
         self.last_checks = checks
+        self._warnings = []
 
         def note(name, status, detail):
             checks.append({"check": name, "status": status, "detail": detail})
 
+        # Signal power first: it can see jamming even when there is no fix.
+        pc = ep.power_check
+        if pc is None:
+            note("signal power pattern", "NOT RUN",
+                 "no per-satellite signal data (UBX NAV-SAT)")
+        elif pc["verdict"] == "NOT_RUN":
+            note("signal power pattern", "NOT RUN", pc["reason"])
+        elif pc["verdict"] in ("SUSPECT_SPOOFING", "JAMMING"):
+            label = "spoofing suspected" if pc["verdict"] == "SUSPECT_SPOOFING" else "jamming"
+            if self.power_check_action == "distrust":
+                why.append(f"signal power, {label}: {pc['reason']}")
+                note("signal power pattern", "FAIL", f"{label}: {pc['reason']}")
+            else:
+                self._warnings.append(f"signal power, {label}: {pc['reason']}")
+                note("signal power pattern", "WARN",
+                     f"{label}: {pc['reason']} (warning only: thresholds not "
+                     f"yet calibrated on this receiver)")
+        else:
+            note("signal power pattern", "PASS", pc["reason"])
         if ep.fix_type < 3:
             note("receiver fix", "FAIL", "no 3-D fix")
             return ["receiver has no 3-D fix"], False
@@ -265,7 +294,10 @@ class Gateway:
             self._ever_distrusted = False
             out = GatewayOutput(ep.t, TRUSTED, ep.lat, ep.lon, ep.alt_m,
                                 ep.h_acc_m, ep.vel_ned_ms, ep.s_acc_ms,
-                                ep.num_sv, ["all checks passed"])
+                                ep.num_sv,
+                                ["all checks passed"] if not self._warnings else
+                                ["all hard checks passed"] +
+                                [f"warning: {w}" for w in self._warnings])
         out.caveat = caveat
         self.log.append(out)
         return out

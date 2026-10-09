@@ -27,7 +27,7 @@ import time
 from typing import List, Optional
 
 from upin.box.fc_reader import P0_HPA
-from upin.box.gnss_parser import encode_mon_rf, encode_nav_pvt
+from upin.box.gnss_parser import encode_mon_rf, encode_nav_pvt, encode_nav_sat
 from upin.box.gateway import GnssEpoch
 from upin.box.replay import epoch_from_json
 from upin.box.service import Box, BoxConfig
@@ -85,12 +85,20 @@ class _GaussMarkov:
 class SimSource(Source):
     """A drone flying a stadium-shaped circuit at constant speed."""
 
-    controls = ["spoof_jump", "spoof_drag", "deny", "flow", "reset"]
+    controls = ["spoof_jump", "spoof_drag", "smart_spoofer", "deny", "flow", "reset"]
 
     STRAIGHT_M, RADIUS_M, SPEED_MS, ALT_M = 300.0, 60.0, 8.0, 50.0
     GNSS_SIGMA_M, GNSS_TAU_S, FC_GNSS_SIGMA_M = 1.5, 30.0, 2.0
     VEL_SIGMA_MS, HEADING_SIGMA_DEG, FLOW_SIGMA_MS = 0.1, 2.0, 0.2
     SPOOF_JUMP_M, SPOOF_DRAG_MS = 500.0, 1.0
+    # Simulated sky (a labelled MODEL for exercising the signal-power layer,
+    # not measured data): C/N0 = 30 + 0.2 x elevation + noise, dB-Hz.
+    SKY = [("gps", 3, 12), ("gps", 7, 24), ("navic", 2, 31), ("galileo", 11, 38),
+           ("gps", 14, 46), ("navic", 5, 53), ("galileo", 19, 61), ("gps", 22, 68),
+           ("gps", 28, 77), ("navic", 7, 85)]
+    CN0_BASE, CN0_PER_DEG, CN0_SIGMA = 30.0, 0.2, 1.5
+    AGC_NORMAL, AGC_SIGMA = 3000.0, 20.0
+    SPOOF_CN0, SPOOF_AGC, JAM_AGC = 46.0, 2300.0, 1800.0
 
     def __init__(self, state, start_lat, start_lon, speed=1.0, seed=None,
                  cfg: Optional[BoxConfig] = None):
@@ -110,6 +118,7 @@ class SimSource(Source):
         self.fc_err = [_GaussMarkov(self.rng, self.FC_GNSS_SIGMA_M, self.GNSS_TAU_S) for _ in range(2)]
         self.spoof_jump = self.spoof_drag = self.deny = False
         self.flow = True
+        self.smart = False
         self.drag_m = 0.0
 
     def truth(self, t):
@@ -146,6 +155,12 @@ class SimSource(Source):
                     self.drag_m = 0.0
                 msg = (f"SIMULATION: slow drag-off spoof {'ON' if self.spoof_drag else 'OFF'} "
                        f"({self.SPOOF_DRAG_MS:.0f} m/s north, both receivers)")
+            elif action == "smart_spoofer":
+                self.smart = not self.smart
+                kind = ("SMART: shapes each satellite's power by elevation, "
+                        "as a real sky would" if self.smart else
+                        "simple: one transmitter, uniform power")
+                msg = f"SIMULATION: spoofer type now {kind} (applies when a spoof is on)"
             elif action == "deny":
                 self.deny = not self.deny
                 msg = f"SIMULATION: GNSS {'jammed (no fix)' if self.deny else 'restored'}"
@@ -196,15 +211,35 @@ class SimSource(Source):
                                       satellites_visible=12,
                                       h_acc=round(self.FC_GNSS_SIGMA_M * 1000)), t)
 
+            spoofing = self.spoof_jump or self.spoof_drag
+            sky, agc = [], self.AGC_NORMAL + rng.gauss(0, self.AGC_SIGMA)
+            for i, (gnss, sv, base_elev) in enumerate(self.SKY):
+                elev = base_elev + 3.0 * math.sin(t / 600.0 + i)
+                real = self.CN0_BASE + self.CN0_PER_DEG * elev + rng.gauss(0, self.CN0_SIGMA)
+                if self.deny:
+                    cn0 = 0.0
+                elif spoofing and self.smart:
+                    cn0 = real + 2.0
+                elif spoofing:
+                    cn0 = self.SPOOF_CN0 + rng.gauss(0, 0.8)
+                else:
+                    cn0 = real
+                sky.append((gnss, sv, cn0, elev, (37 * i) % 360, cn0 > 0))
+            if self.deny:
+                agc = self.JAM_AGC + rng.gauss(0, self.AGC_SIGMA)
+            elif spoofing and not self.smart:
+                agc = self.SPOOF_AGC + rng.gauss(0, self.AGC_SIGMA)
+            sat_bytes = encode_nav_sat(int(t * 1000), sky)
+
             h_acc = self.GNSS_SIGMA_M
             if self.deny:
-                data = encode_mon_rf("critical", 240, 900, 200) + encode_nav_pvt(
+                data = sat_bytes + encode_mon_rf("critical", 240, round(agc), 200) + encode_nav_pvt(
                     int(t * 1000), 0.0, 0.0, 0.0, 0.0, 0.0, (0.0, 0.0, 0.0), 0.0,
                     fix_type=0, num_sv=0)
             else:
                 lat, lon = self._ll(n + errs[0] + sn, e + errs[1] + se)
                 v_spoof = self.SPOOF_DRAG_MS if self.spoof_drag else 0.0
-                data = encode_mon_rf("ok") + encode_nav_pvt(
+                data = sat_bytes + encode_mon_rf("ok", 90, round(agc), 10) + encode_nav_pvt(
                     int(t * 1000), lat, lon, self.ALT_M, h_acc, 3.0,
                     (vn + v_spoof + rng.gauss(0, self.VEL_SIGMA_MS),
                      ve + rng.gauss(0, self.VEL_SIGMA_MS), 0.0),

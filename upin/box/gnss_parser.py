@@ -343,3 +343,15 @@ def encode_mon_rf(jamming_state: str, noise_per_ms: int = 90,
     struct.pack_into("<BB", p, 4, 0, code)
     struct.pack_into("<HHB", p, 16, noise_per_ms, agc_count, jam_indicator)
     return ubx_frame(*MON_RF, bytes(p))
+
+
+def encode_nav_sat(itow_ms: int, sats) -> bytes:
+    """sats: (constellation, sv_id, cn0_dbhz, elevation_deg, azimuth_deg, used)."""
+    code = {v: k for k, v in GNSS_ID.items()}
+    p = bytearray(8 + 12 * len(sats))
+    struct.pack_into("<IBB", p, 0, itow_ms, 1, len(sats))
+    for k, (gnss, sv, cno, elev, azim, used) in enumerate(sats):
+        struct.pack_into("<BBBbhhI", p, 8 + 12 * k, code[gnss], sv,
+                         max(0, min(255, round(cno))), round(elev), round(azim), 0,
+                         (0x08 if used else 0) | (0x07 if cno > 0 else 0))
+    return ubx_frame(*NAV_SAT, bytes(p))

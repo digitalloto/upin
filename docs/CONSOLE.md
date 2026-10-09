@@ -38,7 +38,7 @@ Then open **http://localhost:8080**.
 
 | Source | Data | What it is good for |
 |---|---|---|
-| `sim` | **Simulated** sensors: a drone flying a circuit, with buttons for a 500 m spoof jump, a slow 1 m/s drag-off spoof, GNSS jamming, and optical flow on/off. It speaks the receiver's UBX protocol and the flight controller's MAVLink fields, so it goes through the same parser and checks as real data | Seeing every behaviour today, with no hardware |
+| `sim` | **Simulated** sensors: a drone flying a circuit, with buttons for a 500 m spoof jump, a slow 1 m/s drag-off spoof, simple or smart spoofer, GNSS jamming, and optical flow on/off; a simulated sky of 10 satellites for the signal-power layer. It speaks the receiver's UBX protocol and the flight controller's MAVLink fields, so it goes through the same parser and checks as real data | Seeing every behaviour today, with no hardware |
 | `browser` | **Real**: this device's location from the browser (the part of the old demo that was real). The browser's 95% accuracy is converted to 1σ | A real moving input from a laptop or phone. Laptop and phone positioning is far less accurate than a GNSS receiver |
 | `board` | **Real**: the flight controller's own GPS, heading, barometer, flow and rangefinder, over USB. Listen only | Testing with just your board, before the new receiver arrives |
 | `live` | **Real**: the full box (new receiver + flight controller) | The bench and the drone |
@@ -48,6 +48,22 @@ Notes:
 - `board` and `live` need `pip install -e ".[box]"`, which adds pyserial and pymavlink.
 - On the bench, the flight controller's USB port appears on a Mac as `/dev/cu.usbmodem…`. Put that in `fc_connection` in the config.
 - **Untested on hardware:** the `board` and `live` sources use the box's MAVLink and serial code, which has not yet met a real flight controller.
+
+## Signal-power chart (layer 146)
+
+Each dot is one satellite, as reported by the receiver (UBX NAV-SAT): its
+signal strength (C/N0) against its elevation. A real sky rises from left to
+right. Once the layer has learned this antenna on trusted fixes, the dashed
+line shows that profile. Below the chart is the verdict (CLEAR, SUSPECT
+SPOOFING, JAMMING or NOT RUN) with the tests that fired.
+
+In simulation, *Spoofer type: simple/smart* switches the spoofer:
+- **simple:** one transmitter, uniform power. The layer flags it.
+- **smart:** power shaped by elevation, like a real sky. The layer does
+  **not** catch it, and the console shows that rather than hiding it.
+
+A source without NAV-SAT (the browser, or a board-only run) shows an empty
+chart that says so.
 
 ## Using it on the Mac first
 

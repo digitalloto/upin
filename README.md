@@ -10,11 +10,11 @@ This table is measured, not claimed. Every layer below was constructed with noth
 
 | Status | Layers | Meaning |
 |---|---:|---|
-| **DECLINES** | 13 | Reports no fix when it has no input, and says what is missing. Honours the no-fabrication contract. |
+| **DECLINES** | 14 | Reports no fix when it has no input, and says what is missing. Honours the no-fabrication contract. |
 | **PLACEHOLDER** | 13 | Returns the same fixed reading whenever nothing is connected. Not random, but not measured either. |
 | **FABRICATES** | 114 | Invents a reading when nothing is connected, and invents a different one each time it is read. |
 
-**13 of 140 layers** currently refuse to invent a position. **140 of 140** have declared what hardware and data they need.
+**14 of 141 layers** currently refuse to invent a position. **141 of 141** have declared what hardware and data they need.
 
 The gap between those numbers and the total is the work tracked in [`FABRICATION_AUDIT.md`](FABRICATION_AUDIT.md), which explains what each fabricating layer does and what it would cost in flight.
 
@@ -45,12 +45,12 @@ What it would take for each layer to work for real, independent of whether it wo
 | platform-specific | 24 | Works only on a particular platform -- ships, submarines, ground vehicles. |
 | needs infrastructure | 21 | Needs beacons, networks or other people's equipment in place first. |
 | laboratory | 20 | Physics demonstrated in laboratories; not yet deployable on a drone. |
-| support function | 9 | Does not produce a position itself; monitors or coordinates other layers. |
+| support function | 10 | Does not produce a position itself; monitors or coordinates other layers. |
 | no longer operational | 3 | The transmitters or infrastructure it depends on no longer exist. |
 
 ## The layers
 
-### Group A — Satellite & Celestial (19 layers, 2 clean)
+### Group A — Satellite & Celestial (20 layers, 3 clean)
 
 | # | Layer | ID | Status | Operating class |
 |---:|---|---|---|---|
@@ -73,6 +73,7 @@ What it would take for each layer to work for real, independent of whether it wo
 | 123 | [Sun Azimuth Compass](docs/layers/sunazimuth_a17.md) | `sunazimuth_a17` | fabricates | drone-ready |
 | 124 | [Planet Sighting Navigation](docs/layers/planets_a18.md) | `planets_a18` | fabricates | specialist |
 | 125 | [Atmospheric Refraction Correction](docs/layers/refraction_a19.md) | `refraction_a19` | fabricates | support function |
+| 146 | [GNSS Signal-Power Spoof Check](docs/layers/cn0spoof_a20.md) | `cn0spoof_a20` | clean | support function |
 
 ### Group B — Inertial & Timing (13 layers, 2 clean)
 

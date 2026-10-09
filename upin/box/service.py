@@ -43,11 +43,12 @@ from typing import IO, List, Optional, Tuple
 
 from upin.box.fc_reader import Attitude, Baro, FcGps, FcReader, Flow, request_streams
 from upin.box.gateway import TRUSTED, Gateway, GatewayOutput, GnssEpoch
-from upin.box.gnss_parser import MonRf, NavPvt, UbxStream, decode_ubx
+from upin.box.gnss_parser import MonRf, NavPvt, NavSat, UbxStream, decode_ubx
 from upin.box.mavlink_out import GpsInput, GpsInputSender, build
 from upin.box.replay import epoch_to_json
 from upin.detection.constellation_check import ConstellationFix
 from upin.detection.reachability import Envelope
+from upin.layers.satellite.signal_power import SignalPowerCheckLayer
 
 
 @dataclass
@@ -66,6 +67,7 @@ class BoxConfig:
     shadow: bool = True
     forward_degraded: bool = False
     max_degraded_h_acc_m: float = 50.0
+    power_check_action: str = "warn"   # "distrust" once calibrated on this receiver
     # sensor noise -- ASSUMPTIONS until measured on the airframe
     heading_sigma_deg: float = 5.0
     flow_sigma_ms: float = 0.3
@@ -101,7 +103,10 @@ class Box:
         self.log = log
         self.gateway = Gateway(Envelope(cfg.max_accel_ms2, cfg.max_airspeed_ms,
                                         cfg.max_wind_ms),
-                               max_degraded_h_acc_m=cfg.max_degraded_h_acc_m)
+                               max_degraded_h_acc_m=cfg.max_degraded_h_acc_m,
+                               power_check_action=cfg.power_check_action)
+        self.power = SignalPowerCheckLayer()
+        self.power.initialize()
         self.fc = FcReader()
         self.ubx = UbxStream()
         self._jamming = "unknown"
@@ -141,6 +146,9 @@ class Box:
             msg = decode_ubx(cls, mid, payload)
             if isinstance(msg, MonRf):
                 self._jamming = msg.worst_state
+                self.power.feed_rf(msg.blocks, now)
+            elif isinstance(msg, NavSat):
+                self.power.feed_nav_sat(msg.satellites, now)
             elif isinstance(msg, NavPvt):
                 results.append(self.process(self._epoch(msg, now), unix_s, msg))
         return results
@@ -163,8 +171,10 @@ class Box:
                          num_sv=g.satellites)
 
     def _epoch(self, pvt: NavPvt, now: float) -> GnssEpoch:
+        power = self.power.check(now) if self.power._sats_t is not None else None
         if self.deny_gnss:
-            return GnssEpoch(t=now, fix_type=0, jamming_state=self._jamming)
+            return GnssEpoch(t=now, fix_type=0, jamming_state=self._jamming,
+                             power_check=power)
         fix_type = pvt.fix_type if pvt.gnss_fix_ok else 0
         fixes = []
         g = self.fc.state.gps
@@ -176,7 +186,8 @@ class Box:
             t=now, fix_type=fix_type, lat=pvt.lat, lon=pvt.lon,
             alt_m=pvt.height_msl_m, h_acc_m=pvt.h_acc_m, v_acc_m=pvt.v_acc_m,
             vel_ned_ms=pvt.vel_ned_ms, s_acc_ms=pvt.s_acc_ms, num_sv=pvt.num_sv,
-            jamming_state=self._jamming, constellation_fixes=fixes)
+            jamming_state=self._jamming, constellation_fixes=fixes,
+            power_check=power)
 
     def process(self, ep: GnssEpoch, unix_s: float,
                 pvt: Optional[NavPvt] = None) -> Tuple[GatewayOutput, GpsInput]:
@@ -188,6 +199,8 @@ class Box:
                 and ep.t - baro.t < 1.0):
             self._baro_offset = baro.pressure_alt_m - ep.alt_m
         self._last_mode = out.mode
+        if ep.power_check is not None:
+            self.power.learn(out.mode == TRUSTED and not self.deny_gnss)
         sent = build(out, unix_s, self.cfg.forward_degraded, gps_id=self.cfg.gps_id)
         self.last_epoch = ep
         self.last_record = self._record(ep, out, sent, unix_s, pvt)
@@ -218,6 +231,8 @@ class Box:
                      "lat": sent.lat, "lon": sent.lon,
                      "horiz_accuracy": sent.horiz_accuracy},
             "ignored_circular": dict(self.fc.ignored),
+            # the signal-power verdict, per-satellite C/N0 and elevation
+            # travel inside "epoch" (power_check), for calibration later
         }
 
 

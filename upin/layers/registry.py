@@ -129,6 +129,7 @@ from upin.layers.satellite.celestial_classical import (
 from upin.layers.inertial.command_dr import CommandDeadReckoningLayer
 from upin.layers.optical.landmark_chain import LandmarkChainLayer
 from upin.layers.guidance.map_click import MapClickGuidedLayer
+from upin.layers.satellite.signal_power import SignalPowerCheckLayer
 from upin.quantum.layers import (
     EntangledPhotonRangingLayer, DistributedQuantumSensingLayer,
     QuantumClockNetworkLayer, AtomInterferometerGyroLayer,
@@ -313,6 +314,8 @@ ALL_LAYER_CLASSES: dict[str, type[NavigationLayer]] = {
     "lmkchain_e23": LandmarkChainLayer,
     # ── L2 Map-Click Guided (layered-navigation spec, section 1) ──
     "mapclick_b13": MapClickGuidedLayer,
+    # ── GNSS signal-power spoof check (support function, no position) ──
+    "cn0spoof_a20": SignalPowerCheckLayer,
 }
 
 

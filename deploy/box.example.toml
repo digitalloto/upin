@@ -20,6 +20,9 @@ gps_id = 1                   # 1 = the flight controller's GPS 2
 shadow = true                # the flight controller keeps flying on its own GPS 1
 forward_degraded = false     # when GNSS is distrusted, send no fix
 max_degraded_h_acc_m = 50.0
+power_check_action = "warn"  # signal-power spoof check (layer 146): "warn" until its
+                             # thresholds are calibrated on this receiver's logs,
+                             # then "distrust" to make it a hard check
 
 [sensors]
 heading_sigma_deg = 5.0      # ASSUMPTION: compass/attitude heading error

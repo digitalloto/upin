@@ -459,7 +459,7 @@ CATALOG: Dict[str, tuple] = {
 # Operating class for the layers that declare REQUIRES on their own class.
 DECLARED_CLASS: Dict[str, str] = {
     "gps_l1": D, "navic_l2": D, "cmddr_b12": D, "lmkchain_e23": D,
-    "mapclick_b13": D,
+    "mapclick_b13": D, "cn0spoof_a20": OperatingClass.SUPPORT,
 }
 
 
