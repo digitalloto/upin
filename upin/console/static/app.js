@@ -294,6 +294,7 @@ function render(s) {
   setVal("p-ms", s.processing_ms !== null ? num(s.processing_ms, 2) + " ms" : null, "—");
 
   renderSky(s.signal_power);
+  renderAI(s.learned_io);
   renderEvents(s.events || []);
   $("map-status").textContent = s.region
     ? "Reachable region: " + num(s.region.seconds_since_anchor, 0) + " s since last trusted fix, radius " + num(s.region.manoeuvre_radius_m, 0) + " m"
@@ -327,7 +328,7 @@ function drawSky(sp) {
   g.fillText("dB-Hz", 2, T + 6);
   if (!sp) return;
   // learned profile (only bands the layer has actually learned)
-  (sp.profile || []).forEach(([lo, hi, m]) => {
+  (sp.profile_learned ? sp.profile : []).forEach(([lo, hi, m]) => {
     if (m === null) return;
     g.strokeStyle = "rgba(255,255,255,0.55)"; g.lineWidth = 2; g.setLineDash([4, 3]);
     g.beginPath(); g.moveTo(x(lo), y(m)); g.lineTo(x(Math.min(hi, 90)), y(m)); g.stroke(); g.setLineDash([]);
@@ -347,6 +348,38 @@ function renderSky(sp) {
   const t = document.createElement("div"); t.className = "muted"; t.style.marginTop = "4px";
   t.textContent = sp.reason + (sp.profile_learned ? " · dashed: this antenna's learned profile" : "");
   el.append(b, t);
+}
+
+// ---------- AI motion predictor (layer 147) ----------
+function renderAI(ai) {
+  const box = $("ai-body");
+  box.innerHTML = "";
+  const row = (k, v, missing) => {
+    const d = document.createElement("div"); d.className = "kv";
+    const a = document.createElement("span"); a.textContent = k;
+    const b = document.createElement("b");
+    if (v === null || v === undefined) { b.textContent = missing || "—"; b.classList.add("na"); } else b.textContent = v;
+    d.append(a, b); box.appendChild(d);
+  };
+  if (!ai || !ai.model) {
+    const p = document.createElement("div"); p.className = "muted small";
+    p.textContent = "No model loaded. Train one from test flights with tools/learn_from_flight.py, then set learned_io_model in box.toml.";
+    box.appendChild(p); return;
+  }
+  const m = ai.model;
+  row("Model", "v" + m.version + " · " + m.flights + " flight(s) · " + (m.kind || "") + (m.validated ? "" : " · UNVALIDATED"));
+  if (ai.status === "ok") {
+    row("Predicted velocity N / E", num(ai.vn, 2) + " / " + num(ai.ve, 2) + " m/s");
+    row("Its uncertainty (1σ, fed to filter)", num(ai.sigma_ms, 2) + " m/s");
+    row("Wind used", num(Math.hypot(ai.wind.north_ms, ai.wind.east_ms), 1) + " m/s ±" + num(ai.wind.sigma_ms, 1));
+  } else {
+    row("Status", null, "declined: " + (ai.reason || "waiting for data"));
+  }
+  const flags = ai.flags || [];
+  const f = document.createElement("div"); f.className = "small"; f.style.marginTop = "6px";
+  if (ai.status === "ok" && !flags.length) { f.innerHTML = '<span class="badge good">INSIDE TRAINING CONDITIONS</span>'; }
+  flags.forEach((x) => { const b = document.createElement("div"); b.className = "ev warn"; b.textContent = x; f.appendChild(b); });
+  box.appendChild(f);
 }
 
 const CONTROL_LABEL = {

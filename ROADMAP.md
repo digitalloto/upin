@@ -26,7 +26,7 @@ Last updated 1 October 2026. Measured layer status lives in
 | 0.2 | Layers declare the sensors and data they need | done |
 | 0.3 | Simulation moved out of layers into a harness; real/sim/off modes; real feed rejects agents that fall back to simulation | done |
 | 0.4 | A generated README for every layer, status measured not claimed | done |
-| — | Sensor requirements and operating class for all 141 layers (`upin/layers/requirements_catalog.py`) | done |
+| — | Sensor requirements and operating class for all 142 layers (`upin/layers/requirements_catalog.py`) | done |
 | 1 | Convert the remaining fabricating layers, one at a time | **114 left** |
 | 2 | Delete `set_simulated_position` and the simulation default | after Phase 1 |
 
@@ -43,6 +43,7 @@ Last updated 1 October 2026. Measured layer status lives in
 | — | **Box as GPS 2**: flight-controller reader (refuses circular inputs), Pi service, shadow mode, Pi install files, SITL check script | done (software; I/O untested) | `upin/box/fc_reader.py`, `service.py`, `deploy/`, `tools/sitl_box.py` |
 | — | **UPIN console**: live page (simulation, this device's location, board-only, live box, replay); no made-up numbers, tested; replaces the old phone demo, which displayed random values | done (sim/browser/replay tested; board/live untested on hardware) | `upin/console/`, [`docs/CONSOLE.md`](docs/CONSOLE.md) |
 | — | **Layer 146, GNSS signal-power spoof check** (`cn0spoof_a20`): C/N0 uniformity, elevation dependence, strength, simultaneous rise, AGC vs C/N0, this antenna's learned profile. Warn-only in the box until calibrated | done (simulation; thresholds unmeasured) | `upin/layers/satellite/signal_power.py` |
+| — | **Layer 147, AI motion predictor** (`learnedio_b14`): learned inertial odometry trained flight by flight (`tools/learn_from_flight.py`); each flight scored before it is learned from; promotion only if no worse; measured weather per flight; flags conditions outside training. Off in the box unless configured | done (simulated flights only; real-log parsing untested) | `upin/layers/inertial/learned_io.py`, `upin/learned/`, [`docs/LEARNED_IO.md`](docs/LEARNED_IO.md) |
 | 4 | L1 completion: strapdown INS wired in, retained command log (§3) | next | `upin/core/strapdown_ins.py` |
 | 5 | Navigation Arbiter: explicit mode, DR time limit (§9) | | |
 | 6 | Escape Manager: retrace, rally, jammer gradient, swarm spread (§10) | | |

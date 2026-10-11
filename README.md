@@ -10,11 +10,11 @@ This table is measured, not claimed. Every layer below was constructed with noth
 
 | Status | Layers | Meaning |
 |---|---:|---|
-| **DECLINES** | 14 | Reports no fix when it has no input, and says what is missing. Honours the no-fabrication contract. |
+| **DECLINES** | 15 | Reports no fix when it has no input, and says what is missing. Honours the no-fabrication contract. |
 | **PLACEHOLDER** | 13 | Returns the same fixed reading whenever nothing is connected. Not random, but not measured either. |
 | **FABRICATES** | 114 | Invents a reading when nothing is connected, and invents a different one each time it is read. |
 
-**14 of 141 layers** currently refuse to invent a position. **141 of 141** have declared what hardware and data they need.
+**15 of 142 layers** currently refuse to invent a position. **142 of 142** have declared what hardware and data they need.
 
 The gap between those numbers and the total is the work tracked in [`FABRICATION_AUDIT.md`](FABRICATION_AUDIT.md), which explains what each fabricating layer does and what it would cost in flight.
 
@@ -28,6 +28,7 @@ The gap between those numbers and the total is the work tracked in [`FABRICATION
 | [`docs/CONSOLE.md`](docs/CONSOLE.md) | The UPIN console: a live page showing what the box computes |
 | [`docs/HARDWARE.md`](docs/HARDWARE.md) | The UPIN box: wiring, which computer, ArduPilot setup |
 | [`docs/PI_GUIDE.md`](docs/PI_GUIDE.md) | Step by step, from unboxing a Raspberry Pi to UPIN as GPS 2 |
+| [`docs/LEARNED_IO.md`](docs/LEARNED_IO.md) | The AI motion predictor: learning from every test flight |
 | [`FABRICATION_AUDIT.md`](FABRICATION_AUDIT.md) | Every place the code invents a number, what it costs, and the staged plan to remove it |
 | [`UPIN_MASTER.md`](UPIN_MASTER.md) | The full project document |
 | [`QUANTUM.md`](QUANTUM.md) | Group Q hardware readiness and patent sequencing |
@@ -41,7 +42,7 @@ What it would take for each layer to work for real, independent of whether it wo
 | Class | Layers | Meaning |
 |---|---:|---|
 | specialist | 35 | Real, buyable hardware that typical drones do not carry. |
-| drone-ready | 28 | Hardware a drone commonly carries or can easily add. |
+| drone-ready | 29 | Hardware a drone commonly carries or can easily add. |
 | platform-specific | 24 | Works only on a particular platform -- ships, submarines, ground vehicles. |
 | needs infrastructure | 21 | Needs beacons, networks or other people's equipment in place first. |
 | laboratory | 20 | Physics demonstrated in laboratories; not yet deployable on a drone. |
@@ -75,7 +76,7 @@ What it would take for each layer to work for real, independent of whether it wo
 | 125 | [Atmospheric Refraction Correction](docs/layers/refraction_a19.md) | `refraction_a19` | fabricates | support function |
 | 146 | [GNSS Signal-Power Spoof Check](docs/layers/cn0spoof_a20.md) | `cn0spoof_a20` | clean | support function |
 
-### Group B — Inertial & Timing (13 layers, 2 clean)
+### Group B — Inertial & Timing (14 layers, 3 clean)
 
 | # | Layer | ID | Status | Operating class |
 |---:|---|---|---|---|
@@ -92,6 +93,7 @@ What it would take for each layer to work for real, independent of whether it wo
 | 126 | [Visual Horizon Reference](docs/layers/vhorizon_b11.md) | `vhorizon_b11` | fabricates | support function |
 | 143 | [Command-Based Dead Reckoning](docs/layers/cmddr_b12.md) | `cmddr_b12` | clean | drone-ready |
 | 145 | [Map-Click Guided Navigation](docs/layers/mapclick_b13.md) | `mapclick_b13` | clean | drone-ready |
+| 147 | [AI Motion Predictor (Learned Inertial Odometry)](docs/layers/learnedio_b14.md) | `learnedio_b14` | clean | drone-ready |
 
 ### Group C — Magnetic & Quantum (9 layers, 0 clean)
 

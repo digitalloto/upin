@@ -35,20 +35,26 @@ Patent-pending. AIMCRS / Abheet Prem Manghnani.
 from __future__ import annotations
 
 import argparse
+from collections import deque
+import math
 import json
 import time
 import tomllib
 from dataclasses import dataclass, fields
 from typing import IO, List, Optional, Tuple
 
-from upin.box.fc_reader import Attitude, Baro, FcGps, FcReader, Flow, request_streams
+from upin.box.fc_reader import (Attitude, Baro, FcGps, FcReader, Flow, Imu, Throttle,
+                                request_streams)
 from upin.box.gateway import TRUSTED, Gateway, GatewayOutput, GnssEpoch
 from upin.box.gnss_parser import MonRf, NavPvt, NavSat, UbxStream, decode_ubx
 from upin.box.mavlink_out import GpsInput, GpsInputSender, build
 from upin.box.replay import epoch_to_json
 from upin.detection.constellation_check import ConstellationFix
 from upin.detection.reachability import Envelope
+from upin.core.wind_learner import FlightSample, WindLearner
+from upin.layers.inertial.learned_io import LearnedInertialOdometryLayer
 from upin.layers.satellite.signal_power import SignalPowerCheckLayer
+from upin.learned.features import mean_thrust_direction
 
 
 @dataclass
@@ -68,6 +74,8 @@ class BoxConfig:
     forward_degraded: bool = False
     max_degraded_h_acc_m: float = 50.0
     power_check_action: str = "warn"   # "distrust" once calibrated on this receiver
+    airframe_id: str = ""              # must match the AI predictor's model
+    learned_io_model: str = ""         # AI motion predictor model file; "" = off
     # sensor noise -- ASSUMPTIONS until measured on the airframe
     heading_sigma_deg: float = 5.0
     flow_sigma_ms: float = 0.3
@@ -107,6 +115,15 @@ class Box:
                                power_check_action=cfg.power_check_action)
         self.power = SignalPowerCheckLayer()
         self.power.initialize()
+        # AI motion predictor (layer 147) and the live wind it needs. The
+        # predictor only feeds the filter when a model is configured.
+        self.learned = LearnedInertialOdometryLayer(airframe_id=cfg.airframe_id)
+        self.learned.initialize()
+        if cfg.learned_io_model:
+            self.learned.load_model(cfg.learned_io_model)
+        self.wind = WindLearner()
+        self._wind_frozen = False
+        self._att_hist: deque = deque()      # last second of attitude, radians
         self.fc = FcReader()
         self.ubx = UbxStream()
         self._jamming = "unknown"
@@ -124,12 +141,23 @@ class Box:
         if isinstance(s, Attitude):
             self.gateway.feed_heading(s.heading_deg, cfg.heading_sigma_deg, now,
                                       source="fc_attitude")
+            r, p, y = (math.radians(s.roll_deg), math.radians(s.pitch_deg),
+                       math.radians(s.heading_deg))
+            self.learned.feed_attitude(r, p, y, now)
+            self._att_hist.append((now, r, p, y))
+            while self._att_hist and self._att_hist[0][0] < now - 1.0:
+                self._att_hist.popleft()
+        elif isinstance(s, Imu):
+            self.learned.feed_imu(s.acc_ms2, s.gyro_rads, now)
+        elif isinstance(s, Throttle):
+            self.learned.feed_throttle(s.value, now)
         elif isinstance(s, Flow):
             att = self.fc.state.attitude
             if s.quality >= cfg.min_flow_quality and att and now - att.t < 0.5:
                 self.gateway.feed_flow(s.forward_ms, s.right_ms, att.heading_deg,
                                        cfg.flow_sigma_ms, now)
         elif isinstance(s, Baro):
+            self.learned.set_temperature(s.temperature_c)
             # Only while GNSS is not trusted, and only as a change since the
             # last trusted fix: pressure altitude drifts with the weather.
             if self._last_mode != TRUSTED and self._baro_offset is not None:
@@ -192,6 +220,11 @@ class Box:
     def process(self, ep: GnssEpoch, unix_s: float,
                 pvt: Optional[NavPvt] = None) -> Tuple[GatewayOutput, GpsInput]:
         started = time.perf_counter()
+        if self.learned.model is not None:
+            p = self.learned.predict(ep.t)
+            if p["status"] == "ok":
+                self.gateway.feed_velocity(p["vn"], p["ve"], p["sigma_ms"], ep.t,
+                                           source="learned_io")
         out = self.gateway.process(ep)
         self.last_processing_ms = (time.perf_counter() - started) * 1000.0
         baro = self.fc.state.baro
@@ -199,6 +232,7 @@ class Box:
                 and ep.t - baro.t < 1.0):
             self._baro_offset = baro.pressure_alt_m - ep.alt_m
         self._last_mode = out.mode
+        self._update_wind(ep, out)
         if ep.power_check is not None:
             self.power.learn(out.mode == TRUSTED and not self.deny_gnss)
         sent = build(out, unix_s, self.cfg.forward_degraded, gps_id=self.cfg.gps_id)
@@ -208,6 +242,29 @@ class Box:
             self.log.write(json.dumps(self.last_record) + "\n")
             self.log.flush()
         return out, sent
+
+    def _update_wind(self, ep: GnssEpoch, out: GatewayOutput) -> None:
+        """Learn the wind while GNSS is trusted; freeze it when GNSS goes."""
+        hist = self._att_hist
+        if out.mode == TRUSTED and ep.vel_ned_ms is not None and len(hist) >= 5 \
+                and ep.t - hist[-1][0] < 0.5:
+            if self._wind_frozen:
+                self.wind.gnss_restored()
+                self._wind_frozen = False
+            tilt, direction = mean_thrust_direction([h[1] for h in hist],
+                                                    [h[2] for h in hist],
+                                                    [h[3] for h in hist])
+            self.wind.add_sample(FlightSample(ep.t, direction, tilt, ep.vel_ned_ms[0],
+                                              ep.vel_ned_ms[1], ep.s_acc_ms or 0.1))
+        elif out.mode != TRUSTED and not self._wind_frozen and self.wind.samples:
+            self.wind.gnss_lost(ep.t)
+            self._wind_frozen = True
+        est = self.wind.estimate(ep.t)
+        if est is not None and math.isfinite(est.sigma_ms):
+            self.learned.set_wind(est.north_ms, est.east_ms, est.sigma_ms,
+                                  est.gust_sigma_ms)
+        else:
+            self.learned.clear_wind()
 
     def _record(self, ep, out, sent, unix_s, pvt):
         g, att, flow = self.fc.state.gps, self.fc.state.attitude, self.fc.state.flow
@@ -231,6 +288,7 @@ class Box:
                      "lat": sent.lat, "lon": sent.lon,
                      "horiz_accuracy": sent.horiz_accuracy},
             "ignored_circular": dict(self.fc.ignored),
+            "learned_io": self.learned.last if self.learned.model is not None else None,
             # the signal-power verdict, per-satellite C/N0 and elevation
             # travel inside "epoch" (power_check), for calibration later
         }

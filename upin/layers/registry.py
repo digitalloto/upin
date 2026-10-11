@@ -130,6 +130,7 @@ from upin.layers.inertial.command_dr import CommandDeadReckoningLayer
 from upin.layers.optical.landmark_chain import LandmarkChainLayer
 from upin.layers.guidance.map_click import MapClickGuidedLayer
 from upin.layers.satellite.signal_power import SignalPowerCheckLayer
+from upin.layers.inertial.learned_io import LearnedInertialOdometryLayer
 from upin.quantum.layers import (
     EntangledPhotonRangingLayer, DistributedQuantumSensingLayer,
     QuantumClockNetworkLayer, AtomInterferometerGyroLayer,
@@ -316,6 +317,8 @@ ALL_LAYER_CLASSES: dict[str, type[NavigationLayer]] = {
     "mapclick_b13": MapClickGuidedLayer,
     # ── GNSS signal-power spoof check (support function, no position) ──
     "cn0spoof_a20": SignalPowerCheckLayer,
+    # ── AI motion predictor: learned inertial odometry, trained per flight ──
+    "learnedio_b14": LearnedInertialOdometryLayer,
 }
 
 

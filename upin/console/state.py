@@ -172,6 +172,9 @@ class ConsoleState:
                     "ignored_circular": dict(box.fc.ignored)},
                 "signal_power": getattr(getattr(box, "power", None), "last_verdict", None)
                 if ep is not None and ep.power_check is not None else None,
+                "learned_io": None if not hasattr(box, "learned") else (
+                    box.learned.last if box.learned.model is not None and box.learned.last
+                    else box.learned._model_info()),
                 "truth": None if truth is None else {
                     "label": "simulated truth", "lat": truth["lat"],
                     "lon": truth["lon"], "error_m": error_m,

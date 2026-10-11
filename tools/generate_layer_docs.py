@@ -393,6 +393,8 @@ def render_root(facts: List[LayerFacts]) -> str:
           "which computer, ArduPilot setup |",
           "| [`docs/PI_GUIDE.md`](docs/PI_GUIDE.md) | Step by step, from "
           "unboxing a Raspberry Pi to UPIN as GPS 2 |",
+          "| [`docs/LEARNED_IO.md`](docs/LEARNED_IO.md) | The AI motion predictor: "
+          "learning from every test flight |",
           "| [`FABRICATION_AUDIT.md`](FABRICATION_AUDIT.md) | Every place the "
           "code invents a number, what it costs, and the staged plan to remove it |",
           "| [`UPIN_MASTER.md`](UPIN_MASTER.md) | The full project document |",

@@ -24,6 +24,12 @@ power_check_action = "warn"  # signal-power spoof check (layer 146): "warn" unti
                              # thresholds are calibrated on this receiver's logs,
                              # then "distrust" to make it a hard check
 
+[learned]
+airframe_id = ""             # EDIT: the airframe id used with tools/learn_from_flight.py
+learned_io_model = ""        # AI motion predictor (layer 147): path to the live model
+                             # from your flight library, e.g. upin_flights/models/v4.npz;
+                             # "" keeps it off
+
 [sensors]
 heading_sigma_deg = 5.0      # ASSUMPTION: compass/attitude heading error
 flow_sigma_ms = 0.3          # ASSUMPTION: optical-flow velocity error

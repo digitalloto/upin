@@ -65,6 +65,19 @@ In simulation, *Spoofer type: simple/smart* switches the spoofer:
 A source without NAV-SAT (the browser, or a board-only run) shows an empty
 chart that says so.
 
+## AI motion predictor card (layer 147)
+
+Shows:
+- the loaded model: its version, how many flights it was trained on, and
+  whether it has been validated;
+- the velocity it predicts and the uncertainty it gives the filter;
+- the wind it used;
+- whether conditions are **inside its training**, or each condition outside
+  it, with the numbers.
+
+Without a model it says "No model loaded". See
+[`LEARNED_IO.md`](LEARNED_IO.md).
+
 ## Using it on the Mac first
 
 1. **Python 3.11 or newer.** The Mac's built-in `python3` is often older:

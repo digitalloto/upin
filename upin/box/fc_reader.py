@@ -41,7 +41,11 @@ from typing import Dict, Optional, Union
 
 # MAVLink message ids, for SET_MESSAGE_INTERVAL
 MSG_IDS = {"GPS_RAW_INT": 24, "SCALED_PRESSURE": 29, "ATTITUDE": 30,
-           "OPTICAL_FLOW": 100, "DISTANCE_SENSOR": 132}
+           "OPTICAL_FLOW": 100, "DISTANCE_SENSOR": 132,
+           "RAW_IMU": 27, "SERVO_OUTPUT_RAW": 36}
+FAST_IDS = {"RAW_IMU": 50.0, "ATTITUDE": 50.0, "SERVO_OUTPUT_RAW": 25.0}
+"""Rates (Hz) for the streams the AI motion predictor needs; others at the
+default rate."""
 MAV_CMD_SET_MESSAGE_INTERVAL = 511
 MAV_SENSOR_ROTATION_PITCH_270 = 25          # facing down
 
@@ -70,6 +74,20 @@ class Baro:
     t: float
     press_hpa: float
     pressure_alt_m: float
+    temperature_c: Optional[float] = None
+
+
+@dataclass
+class Imu:
+    t: float
+    acc_ms2: tuple                  # body specific force
+    gyro_rads: tuple
+
+
+@dataclass
+class Throttle:
+    t: float
+    value: float                    # 0..1, mean of motors 1-4
 
 
 @dataclass
@@ -100,7 +118,9 @@ class FcGps:
     vel_acc_ms: Optional[float] = None  # None when not reported
 
 
-FcSample = Union[Attitude, Baro, Flow, Range, FcGps]
+FcSample = Union[Attitude, Baro, Flow, Range, FcGps, Imu, Throttle]
+
+MG = 9.80665e-3          # one milli-g in m/s^2
 
 
 @dataclass
@@ -110,6 +130,8 @@ class FcState:
     flow: Optional[Flow] = None
     range: Optional[Range] = None
     gps: Optional[FcGps] = None
+    imu: Optional[Imu] = None
+    throttle: Optional[Throttle] = None
 
 
 class FcReader:
@@ -146,7 +168,9 @@ class FcReader:
     def _scaled_pressure(self, m, now):
         if not m.press_abs or m.press_abs <= 0:
             return None
-        b = Baro(now, m.press_abs, pressure_altitude_m(m.press_abs))
+        temp = getattr(m, "temperature", None)
+        b = Baro(now, m.press_abs, pressure_altitude_m(m.press_abs),
+                 temp / 100.0 if temp is not None else None)
         self.state.baro = b
         return b
 
@@ -168,6 +192,26 @@ class FcReader:
         self.state.range = r
         return r
 
+    def _raw_imu(self, m, now):
+        """ArduPilot fills RAW_IMU in milli-g and milli-rad/s (check on your
+        firmware: other autopilots send raw sensor counts here)."""
+        i = Imu(now, (m.xacc * MG, m.yacc * MG, m.zacc * MG),
+                (m.xgyro / 1000.0, m.ygyro / 1000.0, m.zgyro / 1000.0))
+        self.state.imu = i
+        return i
+
+    _scaled_imu = _raw_imu      # same units by definition (mG, mrad/s)
+
+    def _servo_output_raw(self, m, now):
+        """Throttle as the mean of motors 1-4, PWM 1000-2000 -> 0-1.
+        Assumes a quad on outputs 1-4 (the common default)."""
+        pwm = [getattr(m, f"servo{i}_raw", 0) for i in range(1, 5)]
+        if not all(1000 <= p <= 2100 for p in pwm):
+            return None
+        th = Throttle(now, max(0.0, min(1.0, (sum(pwm) / 4.0 - 1000.0) / 1000.0)))
+        self.state.throttle = th
+        return th
+
     def _gps_raw_int(self, m, now):
         h_acc = getattr(m, "h_acc", 0) or 0       # MAVLink 2 extension, mm
         vel_acc = getattr(m, "vel_acc", 0) or 0   # MAVLink 2 extension, mm/s
@@ -185,8 +229,8 @@ class FcReader:
 
 def request_streams(conn, rate_hz: float = 10.0) -> None:
     """Ask the flight controller for each message at rate_hz. UNTESTED."""
-    interval_us = int(1e6 / rate_hz)
-    for msg_id in MSG_IDS.values():
+    for name, msg_id in MSG_IDS.items():
+        interval_us = int(1e6 / FAST_IDS.get(name, rate_hz))
         conn.mav.command_long_send(
             conn.target_system, conn.target_component,
             MAV_CMD_SET_MESSAGE_INTERVAL, 0, msg_id, interval_us, 0, 0, 0, 0, 0)
