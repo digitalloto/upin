@@ -57,6 +57,7 @@ ArduPilot's EKF weights it.
 |---|---|---|
 | Receiver 3-D fix and accuracy | lost signal; poor geometry | anything the receiver itself believes |
 | Receiver jamming state (`MON-RF`) | jamming the receiver notices | spoofing, which looks clean |
+| Optical-flow integrity (`upin/detection/flow_integrity.py`) | a moving pattern under the flow sensor (laser dots): jumps the IMU did not feel, accelerations the flow did not show, disagreement with trusted GNSS or the AI predictor. Suspect flow is **not fed** to the filter by default | a drag slow enough to hide in IMU noise when there is no GNSS or predictor to compare with |
 | Signal-power pattern (layer 146, `upin/layers/satellite/signal_power.py`) | a simple spoofer: satellites too uniform, too strong, no rise with elevation, all jumping up together, AGC dropping as extra power arrives; also tells jamming from spoofing | **a spoofer that shapes power by elevation at realistic levels.** Thresholds are assumptions until calibrated, so the box only **warns** by default (`power_check_action = "warn"`) |
 | Constellations agree (`upin/detection/constellation_check.py`) | a spoofer faking one constellation; with three or more, it names that one | **a spoofer faking all constellations consistently.** Commercial multi-constellation simulators can do this. Agreement raises the cost of an attack; it does not make spoofing impossible |
 | Reachability (`upin/detection/reachability.py`) | any jump the airframe physically could not make. No statistics: an honest fix never fails it (0 of 11,600 in simulation) | a slow drag-off within what the airframe could fly |
@@ -157,6 +158,7 @@ Names follow ArduPilot 4.5 and later. **Check each one against your firmware's p
 |---|---|---|
 | **ESP32 / ESP32-S3** | **No.** It has no Linux, about 0.5 MB of internal RAM (a few MB more on modules with PSRAM), and no numpy or scipy | A sensor front end, or a small GNSS-in-the-middle bridge rewritten in C++. Small pieces such as the reachability check or a 7-state Kalman filter could be ported later; the full stack cannot |
 | **Raspberry Pi Zero 2 W** | Yes, unchanged: Linux, quad-core, 512 MB | The cheapest board that runs it. Expected to be enough for GNSS + IMU + fusion + the box checks; **not yet benchmarked** |
+| **Radxa Zero 3W** (seen in an autonomous racing-drone build) | Expected to (Linux, 4 cores, 2 GB, per its maker; unverified) | A cheaper, smaller companion computer to benchmark against the Pi |
 | **Raspberry Pi 4 / 5** | Yes | Needed once the camera layers (L3 optical flow, L4 landmarks) run. The bench milestone in `ROADMAP.md` uses a Pi 5 |
 
 No prices are listed. Get quotes from Indian distributors.

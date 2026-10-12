@@ -50,6 +50,7 @@ from upin.box.gnss_parser import MonRf, NavPvt, NavSat, UbxStream, decode_ubx
 from upin.box.mavlink_out import GpsInput, GpsInputSender, build
 from upin.box.replay import epoch_to_json
 from upin.detection.constellation_check import ConstellationFix
+from upin.detection.flow_integrity import FlowIntegrityCheck
 from upin.detection.reachability import Envelope
 from upin.core.wind_learner import FlightSample, WindLearner
 from upin.layers.inertial.learned_io import LearnedInertialOdometryLayer
@@ -76,6 +77,12 @@ class BoxConfig:
     power_check_action: str = "warn"   # "distrust" once calibrated on this receiver
     airframe_id: str = ""              # must match the AI predictor's model
     learned_io_model: str = ""         # AI motion predictor model file; "" = off
+    flow_check_action: str = "distrust"
+    """Suspect optical flow is not fed to the filter. Distrust is the default
+    here, unlike the signal-power check: a false alarm only costs a few
+    seconds of flow (coasting instead), while a fooled flow fed to the filter
+    poisons the estimate -- in simulation it then made the box distrust good
+    GNSS for the rest of the run. "warn" feeds it anyway and only reports."""
     # sensor noise -- ASSUMPTIONS until measured on the airframe
     heading_sigma_deg: float = 5.0
     flow_sigma_ms: float = 0.3
@@ -124,6 +131,10 @@ class Box:
         self.wind = WindLearner()
         self._wind_frozen = False
         self._att_hist: deque = deque()      # last second of attitude, radians
+        if cfg.flow_check_action not in ("warn", "distrust"):
+            raise ValueError("flow_check_action must be 'warn' or 'distrust'")
+        self.flow_check = FlowIntegrityCheck(heading_sigma_deg=cfg.heading_sigma_deg)
+        self._flow_status: Optional[dict] = None
         self.fc = FcReader()
         self.ubx = UbxStream()
         self._jamming = "unknown"
@@ -144,18 +155,32 @@ class Box:
             r, p, y = (math.radians(s.roll_deg), math.radians(s.pitch_deg),
                        math.radians(s.heading_deg))
             self.learned.feed_attitude(r, p, y, now)
+            self.flow_check.feed_attitude(r, p, y, now)
             self._att_hist.append((now, r, p, y))
             while self._att_hist and self._att_hist[0][0] < now - 1.0:
                 self._att_hist.popleft()
         elif isinstance(s, Imu):
             self.learned.feed_imu(s.acc_ms2, s.gyro_rads, now)
+            self.flow_check.feed_imu(s.acc_ms2, now)
         elif isinstance(s, Throttle):
             self.learned.feed_throttle(s.value, now)
         elif isinstance(s, Flow):
             att = self.fc.state.attitude
             if s.quality >= cfg.min_flow_quality and att and now - att.t < 0.5:
-                self.gateway.feed_flow(s.forward_ms, s.right_ms, att.heading_deg,
-                                       cfg.flow_sigma_ms, now)
+                self.flow_check.feed_flow(s.forward_ms, s.right_ms, now)
+                v = dict(self.flow_check.check(now))
+                feed = not (v["verdict"] == "SUSPECT" and cfg.flow_check_action == "distrust")
+                v["fed"] = feed
+                if not feed:
+                    p = self.learned.last
+                    v["substitute"] = ("AI motion predictor (layer 147)"
+                                       if self.learned.model is not None and p
+                                       and p.get("status") == "ok"
+                                       else "coasting on the filter's prediction")
+                self._flow_status = v
+                if feed:
+                    self.gateway.feed_flow(s.forward_ms, s.right_ms, att.heading_deg,
+                                           cfg.flow_sigma_ms, now)
         elif isinstance(s, Baro):
             self.learned.set_temperature(s.temperature_c)
             # Only while GNSS is not trusted, and only as a change since the
@@ -225,6 +250,9 @@ class Box:
             if p["status"] == "ok":
                 self.gateway.feed_velocity(p["vn"], p["ve"], p["sigma_ms"], ep.t,
                                            source="learned_io")
+                self.flow_check.feed_predictor(p["vn"], p["ve"], p["sigma_ms"], ep.t)
+        if self._flow_status is not None and ep.t - self._flow_status_time() <= 2.0:
+            ep.flow_check = self._flow_status
         out = self.gateway.process(ep)
         self.last_processing_ms = (time.perf_counter() - started) * 1000.0
         baro = self.fc.state.baro
@@ -243,6 +271,10 @@ class Box:
             self.log.flush()
         return out, sent
 
+    def _flow_status_time(self) -> float:
+        f = self.fc.state.flow
+        return f.t if f is not None else float("-inf")
+
     def _update_wind(self, ep: GnssEpoch, out: GatewayOutput) -> None:
         """Learn the wind while GNSS is trusted; freeze it when GNSS goes."""
         hist = self._att_hist
@@ -256,6 +288,9 @@ class Box:
                                                     [h[3] for h in hist])
             self.wind.add_sample(FlightSample(ep.t, direction, tilt, ep.vel_ned_ms[0],
                                               ep.vel_ned_ms[1], ep.s_acc_ms or 0.1))
+        if out.mode == TRUSTED and ep.vel_ned_ms is not None:
+            self.flow_check.feed_gnss_velocity(ep.vel_ned_ms[0], ep.vel_ned_ms[1],
+                                               ep.s_acc_ms or 0.3, ep.t)
         elif out.mode != TRUSTED and not self._wind_frozen and self.wind.samples:
             self.wind.gnss_lost(ep.t)
             self._wind_frozen = True

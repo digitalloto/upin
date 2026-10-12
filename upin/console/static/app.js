@@ -384,6 +384,7 @@ function renderAI(ai) {
 
 const CONTROL_LABEL = {
   smart_spoofer: "Spoofer type: simple/smart",
+  flow_attack: "Flow attack: moving ground pattern",
   spoof_jump: "Spoof: 500 m jump", spoof_drag: "Spoof: slow drag 1 m/s",
   deny: "Deny GNSS", flow: "Optical flow on/off", reset: "Reset",
 };

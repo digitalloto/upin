@@ -30,6 +30,12 @@ learned_io_model = ""        # AI motion predictor (layer 147): path to the live
                              # from your flight library, e.g. upin_flights/models/v4.npz;
                              # "" keeps it off
 
+[flow]
+flow_check_action = "distrust"  # optical-flow integrity: a suspect flow (e.g. a moving
+                                # pattern on the ground) is not fed to the filter.
+                                # "warn" feeds it anyway -- in simulation a fooled flow
+                                # then poisoned the estimate
+
 [sensors]
 heading_sigma_deg = 5.0      # ASSUMPTION: compass/attitude heading error
 flow_sigma_ms = 0.3          # ASSUMPTION: optical-flow velocity error

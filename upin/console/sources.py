@@ -85,12 +85,16 @@ class _GaussMarkov:
 class SimSource(Source):
     """A drone flying a stadium-shaped circuit at constant speed."""
 
-    controls = ["spoof_jump", "spoof_drag", "smart_spoofer", "deny", "flow", "reset"]
+    controls = ["spoof_jump", "spoof_drag", "smart_spoofer", "deny", "flow",
+                "flow_attack", "reset"]
 
     STRAIGHT_M, RADIUS_M, SPEED_MS, ALT_M = 300.0, 60.0, 8.0, 50.0
     GNSS_SIGMA_M, GNSS_TAU_S, FC_GNSS_SIGMA_M = 1.5, 30.0, 2.0
     VEL_SIGMA_MS, HEADING_SIGMA_DEG, FLOW_SIGMA_MS = 0.1, 2.0, 0.2
     SPOOF_JUMP_M, SPOOF_DRAG_MS = 500.0, 1.0
+    FLOW_ATTACK_MS = 2.5
+    """Moving ground pattern (the laser-dot attack): the dots sweep east at
+    this speed, so the flow sensor sees the ground move."""
     # Simulated sky (a labelled MODEL for exercising the signal-power layer,
     # not measured data): C/N0 = 30 + 0.2 x elevation + noise, dB-Hz.
     SKY = [("gps", 3, 12), ("gps", 7, 24), ("navic", 2, 31), ("galileo", 11, 38),
@@ -119,6 +123,7 @@ class SimSource(Source):
         self.spoof_jump = self.spoof_drag = self.deny = False
         self.flow = True
         self.smart = False
+        self.flow_attack = False
         self.drag_m = 0.0
 
     def truth(self, t):
@@ -161,6 +166,11 @@ class SimSource(Source):
                         "as a real sky would" if self.smart else
                         "simple: one transmitter, uniform power")
                 msg = f"SIMULATION: spoofer type now {kind} (applies when a spoof is on)"
+            elif action == "flow_attack":
+                self.flow_attack = not self.flow_attack
+                msg = (f"SIMULATION: moving ground pattern {'ON' if self.flow_attack else 'OFF'}"
+                       f" (laser dots sweeping east at {self.FLOW_ATTACK_MS} m/s under the "
+                       f"flow sensor)")
             elif action == "deny":
                 self.deny = not self.deny
                 msg = f"SIMULATION: GNSS {'jammed (no fix)' if self.deny else 'restored'}"
@@ -190,16 +200,33 @@ class SimSource(Source):
             sn = self.drag_m
             se = self.SPOOF_JUMP_M if self.spoof_jump else 0.0
 
-            box.on_fc_message(Msg("ATTITUDE", roll=0.0, pitch=0.0, yaw=math.radians(
-                heading + rng.gauss(0, self.HEADING_SIGMA_DEG))), t)
+            yaw_meas = math.radians(heading + rng.gauss(0, self.HEADING_SIGMA_DEG))
+            box.on_fc_message(Msg("ATTITUDE", roll=0.0, pitch=0.0, yaw=yaw_meas), t)
+            # IMU: the acceleration the circuit implies (level attitude in this
+            # kinematic model), as body specific force in milli-g.
+            h = 0.01
+            _, _, vn1, ve1 = self.truth(t + h)
+            _, _, vn0, ve0 = self.truth(t - h)
+            an, ae = (vn1 - vn0) / (2 * h), (ve1 - ve0) / (2 * h)
+            cy, sy = math.cos(yaw_meas), math.sin(yaw_meas)
+            fx = an * cy + ae * sy + rng.gauss(0, 0.05)
+            fy = -an * sy + ae * cy + rng.gauss(0, 0.05)
+            mg = 9.80665e-3
+            box.on_fc_message(Msg("RAW_IMU", xacc=fx / mg, yacc=fy / mg, zacc=-1000.0,
+                                  xgyro=0.0, ygyro=0.0, zgyro=0.0), t)
             press = P0_HPA * (1 - self.ALT_M / 44330.0) ** 5.255
             box.on_fc_message(Msg("SCALED_PRESSURE", press_abs=press + rng.gauss(0, 0.05),
                                   temperature=3000), t)
             if self.flow:
-                speed = math.hypot(vn, ve)
+                # The sensor sees the drone's motion relative to the ground
+                # pattern; a moving pattern adds its own motion.
+                gn, ge = vn, ve + (self.FLOW_ATTACK_MS if self.flow_attack else 0.0)
+                hr = math.radians(heading)
+                fwd = gn * math.cos(hr) + ge * math.sin(hr)
+                right = -gn * math.sin(hr) + ge * math.cos(hr)
                 box.on_fc_message(Msg("OPTICAL_FLOW",
-                                      flow_comp_m_x=speed + rng.gauss(0, self.FLOW_SIGMA_MS),
-                                      flow_comp_m_y=rng.gauss(0, self.FLOW_SIGMA_MS),
+                                      flow_comp_m_x=fwd + rng.gauss(0, self.FLOW_SIGMA_MS),
+                                      flow_comp_m_y=right + rng.gauss(0, self.FLOW_SIGMA_MS),
                                       quality=200, ground_distance=self.ALT_M), t)
             if self.deny:
                 box.on_fc_message(Msg("GPS_RAW_INT", fix_type=1, lat=0, lon=0, alt=0,

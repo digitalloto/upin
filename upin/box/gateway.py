@@ -77,6 +77,7 @@ class GnssEpoch:
     jamming_state: str = "unknown"      # from MON-RF, if the receiver has it
     constellation_fixes: Sequence[ConstellationFix] = ()
     power_check: Optional[dict] = None   # verdict of layer cn0spoof_a20, if run
+    flow_check: Optional[dict] = None    # optical-flow integrity, from the box
 
 
 @dataclass
@@ -173,6 +174,24 @@ class Gateway:
         def note(name, status, detail):
             checks.append({"check": name, "status": status, "detail": detail})
 
+        # Optical-flow integrity: reported here, acted on in the box (a bad
+        # flow is not fed to the filter); it never changes trust in GNSS.
+        fc = ep.flow_check
+        if fc is None:
+            note("optical flow integrity", "NOT RUN", "no optical flow")
+        elif fc["verdict"] == "NOT_RUN":
+            note("optical flow integrity", "NOT RUN", fc["reason"])
+        elif fc["verdict"] == "SUSPECT":
+            if fc.get("fed", True):
+                self._warnings.append(fc["reason"])
+                note("optical flow integrity", "WARN", f"{fc['reason']}; still fed "
+                     f"to the filter (warning only: thresholds not yet calibrated)")
+            else:
+                self._warnings.append(f"{fc['reason']}; rejected")
+                note("optical flow integrity", "FAIL", f"{fc['reason']}; not fed to "
+                     f"the filter -- substitute: {fc.get('substitute', 'coasting')}")
+        else:
+            note("optical flow integrity", "PASS", fc["reason"])
         # Signal power first: it can see jamming even when there is no fix.
         pc = ep.power_check
         if pc is None:

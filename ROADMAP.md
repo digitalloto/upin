@@ -44,6 +44,7 @@ Last updated 1 October 2026. Measured layer status lives in
 | — | **UPIN console**: live page (simulation, this device's location, board-only, live box, replay); no made-up numbers, tested; replaces the old phone demo, which displayed random values | done (sim/browser/replay tested; board/live untested on hardware) | `upin/console/`, [`docs/CONSOLE.md`](docs/CONSOLE.md) |
 | — | **Layer 146, GNSS signal-power spoof check** (`cn0spoof_a20`): C/N0 uniformity, elevation dependence, strength, simultaneous rise, AGC vs C/N0, this antenna's learned profile. Warn-only in the box until calibrated | done (simulation; thresholds unmeasured) | `upin/layers/satellite/signal_power.py` |
 | — | **Layer 147, AI motion predictor** (`learnedio_b14`): learned inertial odometry trained flight by flight (`tools/learn_from_flight.py`); each flight scored before it is learned from; promotion only if no worse; measured weather per flight; flags conditions outside training. Off in the box unless configured | done (simulated flights only; real-log parsing untested) | `upin/layers/inertial/learned_io.py`, `upin/learned/`, [`docs/LEARNED_IO.md`](docs/LEARNED_IO.md) |
+| — | **Optical-flow integrity check** (from the laser-dot reel): flow vs IMU, trusted GNSS and the AI predictor; latches an unexplained jump until it reverses or is confirmed; suspect flow not fed to the filter (default) | done (simulation; thresholds unmeasured) | `upin/detection/flow_integrity.py` |
 | 4 | L1 completion: strapdown INS wired in, retained command log (§3) | next | `upin/core/strapdown_ins.py` |
 | 5 | Navigation Arbiter: explicit mode, DR time limit (§9) | | |
 | 6 | Escape Manager: retrace, rally, jammer gradient, swarm spread (§10) | | |
@@ -155,6 +156,34 @@ receiver's own C/N0 and AGC reports.
 Follow-up: newer u-blox receivers report their own spoofing-detection state.
 Check the purchased receiver's datasheet and feed it in as another check if
 it has one.
+
+## Recorded for later, each with what triggers it
+
+From the reels of 12 October 2026, built only when the trigger happens:
+
+| Item | Trigger |
+|---|---|
+| Fiducial-tag landmark layer: tags at surveyed spots give a precise fix (home, landing pad, test-range ground truth for calibrating every other layer) | a downward camera is on the drone |
+| Same code in simulation and on the drone: ArduPilot SITL + Gazebo, extending `tools/sitl_box.py` | the box first runs against SITL (bench plan, day 1) |
+| Independent GNSS-band jamming monitor with a cheap software radio (RTL-SDR): noise in the band vs a learned baseline; also the cheap way into the correlator research | GNSS hardware is on the bench and a second jamming opinion is wanted |
+| Weighted RANSAC inside UPIN's own camera flow, trusting points that have agreed since takeoff | roadmap item 8 (L3 camera flow) is built |
+| Radxa Zero 3W as a cheaper companion computer (4 cores, 2 GB, NPU, per its maker; unverified) | benchmarking the box on boards other than the Pi |
+
+## Open decision: filter lock-out after a poisoned estimate
+
+Found while testing the flow check. When a bad velocity source is fed to the
+filter (flow check in "warn" mode during an attack), the estimate drifts
+while its uncertainty stays small. Afterwards the filter's gate rejects good
+GNSS indefinitely: in simulation GNSS stayed distrusted 40 s after the
+attack ended. The default (flow distrusted) avoids this for flow, but any
+future bad source could cause it. The fix is a trade-off for the user to
+decide:
+- **reset the filter's uncertainty** after N seconds of GNSS that passes every
+  physical check but fails only the gate. This recovers from lock-out, but a
+  slow spoofer the gate had caught could then be accepted;
+- **or stay locked out and report "filter may be wrong"**, which is safe
+  against spoofing but leaves the flight controller without GPS 2 until
+  restart.
 
 ## Known open items
 
