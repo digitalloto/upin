@@ -171,19 +171,55 @@ From the reels of 12 October 2026, built only when the trigger happens:
 
 ## Open decision: filter lock-out after a poisoned estimate
 
-Found while testing the flow check. When a bad velocity source is fed to the
-filter (flow check in "warn" mode during an attack), the estimate drifts
-while its uncertainty stays small. Afterwards the filter's gate rejects good
-GNSS indefinitely: in simulation GNSS stayed distrusted 40 s after the
-attack ended. The default (flow distrusted) avoids this for flow, but any
-future bad source could cause it. The fix is a trade-off for the user to
-decide:
-- **reset the filter's uncertainty** after N seconds of GNSS that passes every
-  physical check but fails only the gate. This recovers from lock-out, but a
-  slow spoofer the gate had caught could then be accepted;
-- **or stay locked out and report "filter may be wrong"**, which is safe
-  against spoofing but leaves the flight controller without GPS 2 until
-  restart.
+**Problem.** Testing the optical-flow check showed that a corrupted internal
+position estimate can leave the fusion filter overconfident. Incoming GNSS
+fixes then look inconsistent with the bad estimate and the box keeps
+rejecting them, even when they are good. This is the "filter lock-out"
+condition. It is a filter-integrity problem: the filter cannot tell an
+attack from its own error.
+
+**Original choice.** Two options were on the table: (a) reset the filter's
+uncertainty so good GNSS can be accepted again, or (b) stay locked out and
+keep rejecting.
+
+**Status.** Deferred by the user on 14 October 2026. No code change now.
+
+**Direction.** The condition will be handled by a future navigation-safety
+layer rather than by a one-off filter rule. That layer will:
+
+- score whether it is currently safe to navigate, using the box's checks
+  (optical flow, GNSS consistency, dead-reckoning drift) and the filter's own
+  internal state (uncertainty, time since last accepted fix, innovation
+  history);
+- fall back to return-to-home when the score says navigation is not safe;
+- carry decision logic and further safety measures that will be designed
+  from concrete use cases the user is still exploring.
+
+**Interim posture (conscious choice, known gap).** Until the safety layer
+exists, the current behaviour stands: on lock-out the box keeps rejecting
+and reports the condition. This is a deliberate interim decision, not a
+default. Its known gap is that a lock-out caused by internal corruption
+(not an attack) leaves the vehicle holding a wrong position with no
+automatic fallback.
+
+Because of that gap:
+
+- Real-hardware logging of lock-out frequency runs on bench, tethered or
+  geofenced tests only.
+- Any free flight before the safety layer exists requires a bounded guard
+  first: lock-out persisting beyond a set time or distance triggers
+  return-to-home. The thresholds are to be set from the logged data.
+  [TO CONFIRM: thresholds not yet defined]
+
+**What the logs must record.** For every lock-out event: time of onset,
+duration, filter uncertainty at onset, number of GNSS fixes rejected, which
+check first flagged the inconsistency, and how the event ended (recovered,
+landed, test stopped). This data sets the thresholds for the guard above
+and feeds the design of the safety-layer scoring.
+
+**Trigger to reopen.** When the user brings the use cases for the safety
+layer. The two original options (reset uncertainty vs stay locked out) are
+then folded into that layer's design rather than decided in isolation.
 
 ## Known open items
 
