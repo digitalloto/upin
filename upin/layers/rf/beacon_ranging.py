@@ -154,7 +154,8 @@ class BeaconRangingLayer(NavigationLayer):
     """**Assumption.** Geometry worse than this gives a fix too elongated to
     be useful; declines instead."""
     CLOCK_TOLERANCE_SLOTS = 1
-    MAX_ITER = 15
+    MAX_ITER = 60
+    STEP_TOL_M = 0.01
 
     def __init__(self):
         super().__init__(
@@ -172,6 +173,7 @@ class BeaconRangingLayer(NavigationLayer):
         self.rejected: Dict[str, int] = {}
         self.last: Optional[dict] = None
         self._last_solution_ne: Optional[np.ndarray] = None
+        self._prior: Optional[Tuple[float, float]] = None
 
     # -- contract ---------------------------------------------------------
 
@@ -190,6 +192,11 @@ class BeaconRangingLayer(NavigationLayer):
 
     def set_altitude(self, alt_msl_m: float, sigma_m: float, t: float) -> None:
         self._alt = (alt_msl_m, sigma_m, t)
+
+    def set_prior(self, lat: float, lon: float) -> None:
+        """Where the solver starts (the filter's own estimate). Only the
+        start: the ranges decide the fix."""
+        self._prior = (lat, lon)
 
     def _reject(self, why: str) -> str:
         self.rejected[why] = self.rejected.get(why, 0) + 1
@@ -269,14 +276,35 @@ class BeaconRangingLayer(NavigationLayer):
         w = 1.0 / np.array([b.range_sigma_m ** 2 + b.sigma_m ** 2 for b in bs])
         x = np.zeros(3)
         x[2] = self._alt[0] if have_alt else float(P[:, 2].mean() - 100.0)
-        if self._last_solution_ne is not None:
+        if self._prior is not None:
+            x[:2] = to_enu(self._prior[0], self._prior[1], 0.0)[:2]
+        elif self._last_solution_ne is not None:
             x[:2] = self._last_solution_ne
-        for _ in range(self.MAX_ITER):
+
+        def hdop_at(x):
+            diff = x - P
+            Hg = diff / np.maximum(np.linalg.norm(diff, axis=1), 1e-6)[:, None]
+            if have_alt:
+                Hg = np.vstack([Hg, [0.0, 0.0, 1.0]])
+            try:
+                d = np.linalg.inv(Hg.T @ Hg)
+                v = d[0, 0] + d[1, 1]
+                return math.sqrt(v) if v > 0 and math.isfinite(v) else float("inf")
+            except np.linalg.LinAlgError:
+                return float("inf")
+
+        # geometry first: a bunched or collinear set cannot fix a horizontal
+        # position wherever the solver starts, so say so before iterating
+        hdop0 = hdop_at(x)
+        if hdop0 > 3 * self.MAX_HDOP:
+            return self._declined(NoFixReason.POOR_GEOMETRY,
+                                  f"HDOP {hdop0:.0f} at the starting point: beacons too bunched "
+                                  f"or collinear to fix horizontally", hdop=hdop0)
+
+        def system(x):
             diff = x - P
             dist = np.linalg.norm(diff, axis=1)
-            if np.any(dist < 1e-6):
-                return self._declined(NoFixReason.DIVERGED, "solver landed on a beacon")
-            H = diff / dist[:, None]
+            H = diff / np.maximum(dist, 1e-6)[:, None]
             res = r - dist
             if have_alt:
                 H = np.vstack([H, [0.0, 0.0, 1.0]])
@@ -284,24 +312,50 @@ class BeaconRangingLayer(NavigationLayer):
                 ww = np.append(w, 1.0 / self._alt[1] ** 2)
             else:
                 ww = w
+            return H, res, ww, float(np.sum(ww * res * res))
+
+        # Levenberg-Marquardt: a damped step that cannot overshoot, so a
+        # one-sided geometry (all beacons behind the drone) still converges
+        lam = 1e-3
+        H, res, ww, cost = system(x)
+        converged = False
+        for _ in range(self.MAX_ITER):
             N = H.T @ (ww[:, None] * H)
+            g = H.T @ (ww * res)
             try:
-                cov = np.linalg.inv(N)
+                dx = np.linalg.solve(N + lam * np.diag(np.diag(N) + 1e-9), g)
             except np.linalg.LinAlgError:
                 return self._declined(NoFixReason.POOR_GEOMETRY, "singular geometry")
-            dx = cov @ (H.T @ (ww * res))
-            x = x + dx
-            if np.linalg.norm(dx) < 1e-3:
+            x_new = x + dx
+            H_new, res_new, ww_new, cost_new = system(x_new)
+            if np.linalg.norm(dx) < self.STEP_TOL_M:
+                if cost_new < cost:
+                    x, H, res, ww, cost = x_new, H_new, res_new, ww_new, cost_new
+                converged = True                    # at the minimum, accepted or not
                 break
-        else:
+            if cost_new < cost:
+                gain = (cost - cost_new) / max(cost, 1e-12)
+                x, H, res, ww, cost = x_new, H_new, res_new, ww_new, cost_new
+                lam = max(lam / 3.0, 1e-9)
+                if gain < 1e-8:                    # creeping along a flat valley
+                    converged = True
+                    break
+            else:
+                lam = min(lam * 5.0, 1e6)
+        if not converged:
             return self._declined(NoFixReason.DIVERGED, "solver did not converge")
-        hdop = math.sqrt(cov[0, 0] + cov[1, 1]) * math.sqrt(np.mean(1.0 / w)) / math.sqrt(np.mean(1.0 / w))
+        N = H.T @ (ww[:, None] * H)
+        try:
+            cov = np.linalg.inv(N)
+        except np.linalg.LinAlgError:
+            return self._declined(NoFixReason.POOR_GEOMETRY, "singular geometry")
         # DOP in the usual sense: geometry only, with unit-weight ranges
         try:
             Hg = H[:len(bs)]
             dop = np.linalg.inv(Hg.T @ Hg) if not have_alt else np.linalg.inv(
                 np.vstack([Hg, [0, 0, 1]]).T @ np.vstack([Hg, [0, 0, 1]]))
-            hdop = math.sqrt(dop[0, 0] + dop[1, 1])
+            v = dop[0, 0] + dop[1, 1]
+            hdop = math.sqrt(v) if v > 0 and math.isfinite(v) else float("inf")
         except np.linalg.LinAlgError:
             hdop = float("inf")
         if hdop > self.MAX_HDOP:

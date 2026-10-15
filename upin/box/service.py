@@ -60,6 +60,8 @@ from upin.layers.inertial.learned_io import LearnedInertialOdometryLayer
 from upin.layers.optical.camera_flow import CameraFlowLayer
 from upin.layers.optical.fiducial import FiducialTagLayer, TagMap
 from upin.layers.rf.beacon_ranging import BeaconRangingLayer
+from upin.layers.rf.breadcrumbs import (CRUMB_PREFIX, THREAT_CLEAR, THREAT_JAMMED, THREAT_RISING,
+                                        BreadcrumbLayer, DropPolicy)
 from upin.layers.satellite.leo_doppler import LeoDopplerLayer
 from upin.layers.satellite.signal_power import SignalPowerCheckLayer
 from upin.learned.features import mean_thrust_direction
@@ -94,6 +96,10 @@ class BoxConfig:
     beacon_radio: str = ""             # serial port of the ranging radio (JSON lines)
     beacon_radio_baud: int = 115200
     beacon_secret_file: str = ""       # file holding the shared secret (bytes)
+    breadcrumbs: bool = False          # layer 152: drop crumbs as jamming rises
+    breadcrumb_spacing_m: float = 300.0
+    breadcrumb_max: int = 6
+    breadcrumb_drop_agl_m: float = 50.0  # ASSUMPTION used only when no rangefinder reports height
     # LEO Doppler anchor (layer 150); "" = off
     sdr: str = ""                      # "rtl" for an RTL-SDR dongle
     leo_satellites: str = ""           # satellites.json: name, TLE lines, carrier_hz
@@ -173,6 +179,14 @@ class Box:
             with open(cfg.beacon_secret_file, "rb") as f:
                 self.beacons.set_secret(f.read().strip())
         self.last_beacons: Optional[dict] = None
+        # Breadcrumbs (layer 152): same secret and radio as the beacons.
+        self.crumbs = BreadcrumbLayer(DropPolicy(cfg.breadcrumb_spacing_m, cfg.breadcrumb_max))
+        self.crumbs.initialize()
+        if cfg.beacon_secret_file:
+            self.crumbs.set_secret(self.beacons._secret)
+        self.drops: List[dict] = []
+        self.last_crumbs: Optional[dict] = None
+        self._radio_out = None            # callable(line) to the beacon radio
         # LEO Doppler anchor (layer 150): runs only with an SDR and satellites.
         self.leo = LeoDopplerLayer()
         self.leo.initialize()
@@ -274,12 +288,56 @@ class Box:
             d = json.loads(line)
         except json.JSONDecodeError:
             return "unreadable line"
+        crumb = str(d.get("id", "")).startswith(CRUMB_PREFIX)
         if d.get("type") == "msg":
-            return self.beacons.feed_message(d, t)
+            return (self.crumbs if crumb else self.beacons).feed_message(d, t)
         if d.get("type") == "range":
-            return self.beacons.feed_range(str(d.get("id")), float(d.get("range_m", 0)),
-                                           float(d.get("sigma_m", 0)), t)
+            return (self.crumbs if crumb else self.beacons).feed_range(
+                str(d.get("id")), float(d.get("range_m", 0)), float(d.get("sigma_m", 0)), t)
         return "unknown line type"
+
+    def threat_level(self, ep: GnssEpoch, out: GatewayOutput) -> int:
+        """0 clear, 1 rising, 2 jammed -- from what the box already knows."""
+        if ep.fix_type < 3 or ep.jamming_state == "critical":
+            return THREAT_JAMMED
+        pc = ep.power_check or {}
+        if (pc.get("verdict") == "JAMMING" or ep.jamming_state == "warning"
+                or out.mode != TRUSTED):
+            return THREAT_RISING
+        return THREAT_CLEAR
+
+    def step_breadcrumbs(self, ep: GnssEpoch, out: GatewayOutput) -> None:
+        """Feed the crumb layer, drop when the policy says, solve a fix."""
+        c = self.crumbs
+        if out.lat is not None:
+            c.feed_fix(out.lat, out.lon, out.alt_m, out.h_acc_m, ep.t, out.mode == TRUSTED)
+        est = self.wind.estimate(ep.t)
+        if est is not None and math.isfinite(est.sigma_ms):
+            c.feed_wind(est.north_ms, est.east_ms, math.hypot(est.sigma_ms, est.gust_sigma_ms))
+        r = self.fc.state.range
+        if r is not None and ep.t - r.t < 2.0:
+            c.feed_agl(r.distance_m, ep.t)
+        elif self.cfg.breadcrumb_drop_agl_m > 0:
+            c.feed_agl(self.cfg.breadcrumb_drop_agl_m, ep.t)
+        c.feed_threat(self.threat_level(ep, out))
+        if self.cfg.breadcrumbs:
+            rec = c.drop(ep.t)
+            if rec is not None:
+                self.drops.append(rec)
+                if self._radio_out is not None:
+                    self._radio_out(json.dumps(rec))
+        baro = self.fc.state.baro
+        if baro is not None and self._baro_offset is not None and ep.t - baro.t < 2.0:
+            c.set_altitude(baro.pressure_alt_m - self._baro_offset, self.cfg.baro_sigma_m, ep.t)
+        est = self.gateway.kf.estimate()
+        if est is not None:
+            c.set_prior(est.lat, est.lon)
+        v = c.solve(ep.t)
+        if v["status"] == "ok":
+            v["fix"] = self.gateway.feed_position(v["lat"], v["lon"], v["sigma_m"], ep.t,
+                                                  source="breadcrumbs", alt_m=v["alt_m"],
+                                                  sigma_alt_m=v["sigma_alt_m"], anchor=True)
+        self.last_crumbs = v
 
     def step_leo(self, now_unix: float, t: float) -> None:
         """Advance the LEO pass runner; an accepted fix enters the filter
@@ -307,6 +365,9 @@ class Box:
         if baro is not None and self._baro_offset is not None and t - baro.t < 2.0:
             self.beacons.set_altitude(baro.pressure_alt_m - self._baro_offset,
                                       self.cfg.baro_sigma_m, t)
+        est = self.gateway.kf.estimate()
+        if est is not None:
+            self.beacons.set_prior(est.lat, est.lon)
         v = dict(self.beacons.solve(t))
         if v["status"] == "ok":
             v["fix"] = self.gateway.feed_position(v["lat"], v["lon"], v["sigma_m"], t,
@@ -386,6 +447,8 @@ class Box:
         self._update_wind(ep, out)
         if self.beacons._secret is not None:
             self.solve_beacons(ep.t)
+        if self.crumbs.inner._secret is not None:
+            self.step_breadcrumbs(ep, out)
         if ep.power_check is not None:
             self.power.learn(out.mode == TRUSTED and not self.deny_gnss)
         sent = build(out, unix_s, self.cfg.forward_degraded, gps_id=self.cfg.gps_id)
@@ -452,6 +515,12 @@ class Box:
             "leo_doppler": None if self.last_leo is None else {
                 k: self.last_leo.get(k) for k in
                 ("status", "reason", "satellite", "sigma_m", "lat", "lon", "max_elevation_deg")},
+            "breadcrumbs": None if self.last_crumbs is None else {
+                k: self.last_crumbs.get(k) for k in
+                ("status", "reason", "crumbs_dropped", "crumbs_in_range", "sigma_m", "lat", "lon",
+                 "last_drop_reason")},
+            "drops": [{"id": d["id"], "lat": d["lat"], "lon": d["lon"], "sigma_m": d["sigma_m"],
+                       "t": d["t"]} for d in self.drops],
             "beacons": None if self.last_beacons is None else {
                 k: self.last_beacons.get(k) for k in
                 ("status", "reason", "n_beacons", "sigma_m", "hdop", "lat", "lon", "rejected")},
@@ -533,6 +602,8 @@ def run(cfg: BoxConfig, deny_gnss: bool = False, send: bool = True,
     cam = (open_camera(cfg.camera, cfg.camera_size_px, cfg.camera_fov_deg)
            if cfg.camera else None)
     radio = BeaconRadio(cfg.beacon_radio, cfg.beacon_radio_baud) if cfg.beacon_radio else None
+    if radio is not None and cfg.breadcrumbs and not cfg.beacon_secret_file:
+        raise SystemExit("breadcrumbs need beacon_secret_file: the crumbs sign with it")
     if cfg.sdr and cfg.leo_satellites:
         from upin.box.sdr import RtlSdrSource
         if cfg.sdr != "rtl":
@@ -543,6 +614,8 @@ def run(cfg: BoxConfig, deny_gnss: bool = False, send: bool = True,
           f"{'sending' if send else 'NOT sending'}; log {cfg.log_path}")
     with open(cfg.log_path, "a", encoding="utf-8") as log:
         box = Box(cfg, deny_gnss, log)
+        if radio is not None:
+            box._radio_out = radio.write_line
         if cfg.sdr and cfg.leo_satellites:
             box.leo_runner = LeoPassRunner(cfg.leo_satellites,
                                            lambda hz: RtlSdrSource(hz), box.leo)

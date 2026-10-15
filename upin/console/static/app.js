@@ -170,6 +170,11 @@ function draw() {
         ctx.fillStyle = css.getPropertyValue("--second"); ctx.fillRect(-4, -4, 8, 8); ctx.restore();
       });
     }
+    // dropped crumbs: hollow squares at their stamped positions
+    (s.drops || []).forEach((d) => {
+      const [x, y] = toScreen(d.lat, d.lon);
+      ctx.strokeStyle = "#ffb020"; ctx.lineWidth = 1.5; ctx.strokeRect(x - 4, y - 4, 8, 8);
+    });
     // truth marker
     if (s.truth) {
       const [x, y] = toScreen(s.truth.lat, s.truth.lon);
@@ -425,6 +430,17 @@ function renderFixes(s) {
   if (bc && bc.rejected && Object.keys(bc.rejected).length) {
     row("  messages refused", Object.entries(bc.rejected).map(([k, v]) => k + " ×" + v).join(", "), "na");
   }
+  const cr = s.breadcrumbs, cfx = (s.fixes || {}).breadcrumbs;
+  if (cr && cr.status === "ok") {
+    row("Breadcrumbs (152)", cr.crumbs_in_range + " of " + cr.crumbs_dropped + " crumbs in range: ±" + num(cr.sigma_m, 1) + " m");
+    if (cfx) row("  → filter", (cfx.accepted ? "accepted" : "REJECTED: " + cfx.reason) +
+                 (cfx.anchored ? ", re-anchored the reachable region" : ""), cfx.accepted ? "" : "na");
+  } else if (cr) {
+    row("Breadcrumbs (152)", (cr.crumbs_dropped || 0) + " dropped; " + cr.reason, "na");
+    row("  drop policy", cr.last_drop_reason || "", "na");
+  } else {
+    row("Breadcrumbs (152)", "off", "na");
+  }
   const leo = s.leo_doppler, lfx = (s.fixes || {}).leo_doppler;
   if (leo && leo.status === "ok") {
     row("LEO Doppler (150)", (leo.satellite || "satellite") + ": ±" + num(leo.sigma_m, 0) + " m, peak " + num(leo.max_elevation_deg, 0) + "°");
@@ -435,13 +451,14 @@ function renderFixes(s) {
     row("LEO Doppler (150)", "no software radio configured", "na");
   }
   Object.entries(s.fixes || {}).forEach(([src, f]) => {
-    if (src === "fiducial" || src === "beacons" || src === "leo_doppler") return;
+    if (src === "fiducial" || src === "beacons" || src === "leo_doppler" || src === "breadcrumbs") return;
     row(src, (f.accepted ? "accepted" : "rejected: " + f.reason) + ", ±" + num(f.sigma_m, 1) + " m");
   });
 }
 
 const CONTROL_LABEL = {
   tags: "Ground tags on/off", beacons: "Beacons on/off", jam_beacons: "Jam the beacon band",
+  jam_zone: "GNSS jammer on the far straight", breadcrumbs: "Breadcrumbs on/off",
   smart_spoofer: "Spoofer type: simple/smart",
   flow_attack: "Flow attack: moving ground pattern",
   spoof_jump: "Spoof: 500 m jump", spoof_drag: "Spoof: slow drag 1 m/s",

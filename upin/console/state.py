@@ -176,6 +176,9 @@ class ConsoleState:
                 "tag": getattr(box, "last_tag", None),
                 "camera_flow": getattr(box, "last_camflow", None),
                 "beacons": getattr(box, "last_beacons", None),
+                "breadcrumbs": getattr(box, "last_crumbs", None),
+                "drops": [{"lat": d["lat"], "lon": d["lon"], "sigma_m": d["sigma_m"], "id": d["id"]}
+                          for d in getattr(box, "drops", [])],
                 "leo_doppler": getattr(box, "last_leo", None),
                 "camera_frames": getattr(box, "frames_seen", 0),
                 "learned_io": None if not hasattr(box, "learned") else (

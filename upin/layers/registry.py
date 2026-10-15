@@ -134,6 +134,7 @@ from upin.layers.inertial.learned_io import LearnedInertialOdometryLayer
 from upin.layers.optical.camera_flow import CameraFlowLayer
 from upin.layers.optical.fiducial import FiducialTagLayer
 from upin.layers.rf.beacon_ranging import BeaconRangingLayer
+from upin.layers.rf.breadcrumbs import BreadcrumbLayer
 from upin.layers.satellite.leo_doppler import LeoDopplerLayer
 from upin.quantum.layers import (
     EntangledPhotonRangingLayer, DistributedQuantumSensingLayer,
@@ -331,6 +332,8 @@ ALL_LAYER_CLASSES: dict[str, type[NavigationLayer]] = {
     "beaconrng_d27": BeaconRangingLayer,
     # ── LEO Doppler anchor: one coarse GNSS-free fix per satellite pass ──
     "leodoppler_a21": LeoDopplerLayer,
+    # ── Breadcrumb beacons: dropped on the way in, ranged to inside the jam ──
+    "breadcrumb_d28": BreadcrumbLayer,
 }
 
 

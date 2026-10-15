@@ -39,5 +39,9 @@ class BeaconRadio:
         *lines, self._buf = self._buf.split(b"\n")
         return [ln.decode("utf-8", "replace").strip() for ln in lines if ln.strip()]
 
+    def write_line(self, line: str) -> None:
+        """A provisioning line to the radio (a crumb's stamp before release)."""
+        self._ser.write((line.rstrip("\n") + "\n").encode("utf-8"))
+
     def close(self) -> None:
         self._ser.close()

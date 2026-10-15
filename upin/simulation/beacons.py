@@ -55,9 +55,13 @@ class SimBeacon:
     lon: float
     alt_m: float
     sigma_m: float                 # how well it knows its own position
-    kind: str = "ground"           # ground | balloon
+    kind: str = "ground"           # ground | balloon | crumb
     launch_t: float = 0.0
     wind_ne_ms: Tuple[float, float] = (0.0, 0.0)
+    # A crumb broadcasts the position it was STAMPED with, which differs
+    # from where it really landed by the stamp's error. Truth is used for
+    # the ranges; the stamp for the messages. Never mixed.
+    stamped: Optional[Tuple[float, float, float]] = None
 
     def position(self, t: float) -> Optional[Tuple[float, float, float]]:
         if self.kind != "balloon":
@@ -92,7 +96,8 @@ class BeaconSim:
             if p is None:
                 continue
             self._seq[b.beacon_id] += 1
-            m = {"id": b.beacon_id, "t": t, "lat": p[0], "lon": p[1], "alt_m": p[2],
+            said = b.stamped if b.stamped is not None else p
+            m = {"id": b.beacon_id, "t": t, "lat": said[0], "lon": said[1], "alt_m": said[2],
                  "sigma_m": b.sigma_m, "seq": self._seq[b.beacon_id],
                  "channel": hop_channel(self.secret, t)}
             if tamper == "unsigned":
@@ -110,6 +115,16 @@ class BeaconSim:
                 m = sign_message(m, self.secret)
             out.append(m)
         return out
+
+    def drop_crumb(self, provision: dict, true_lat: float, true_lon: float,
+                   true_alt_m: float) -> SimBeacon:
+        """A crumb lands at its TRUE point and broadcasts its STAMP."""
+        b = SimBeacon(provision["id"], true_lat, true_lon, true_alt_m, provision["sigma_m"],
+                      kind="crumb",
+                      stamped=(provision["lat"], provision["lon"], provision["alt_m"]))
+        self.beacons.append(b)
+        self._seq[b.beacon_id] = 0
+        return b
 
     def ranges(self, lat: float, lon: float, alt_m: float, t: float,
                jamming: Optional[JammingField] = None) -> List[Tuple[str, float, float]]:

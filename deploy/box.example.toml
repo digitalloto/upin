@@ -50,6 +50,10 @@ range_sigma_m = 0.1          # ASSUMPTION: the rangefinder's 1-sigma, from its d
 beacon_radio = ""            # serial port of the ranging radio (JSON lines; see upin/box/beacon_radio.py)
 beacon_radio_baud = 115200
 beacon_secret_file = ""      # the shared secret the beacons sign and hop with; keep it off the repo
+breadcrumbs = false          # layer 152: drop position-stamped crumbs as jamming rises
+breadcrumb_spacing_m = 300.0
+breadcrumb_max = 6
+breadcrumb_drop_agl_m = 50.0 # ASSUMPTION: fall height when no rangefinder reports it
 
 [leo]
 sdr = ""                     # "rtl" for an RTL-SDR dongle (pip install -e ".[sdr]"); "" = off

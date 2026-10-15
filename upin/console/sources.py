@@ -93,7 +93,7 @@ class SimSource(Source):
     """A drone flying a stadium-shaped circuit at constant speed."""
 
     controls = ["spoof_jump", "spoof_drag", "smart_spoofer", "deny", "flow", "tags",
-                "beacons", "jam_beacons",
+                "beacons", "jam_beacons", "jam_zone", "breadcrumbs",
                 "flow_attack", "reset"]
 
     STRAIGHT_M, RADIUS_M, SPEED_MS, ALT_M = 300.0, 60.0, 8.0, 50.0
@@ -128,7 +128,8 @@ class SimSource(Source):
         self.speed = speed
         self.seed = seed
         self.cfg = cfg or BoxConfig(max_accel_ms2=6.0, max_airspeed_ms=20.0,
-                                    camera_flow=True)
+                                    camera_flow=True, breadcrumbs=True,
+                                    breadcrumb_spacing_m=150.0)   # the circuit is short
         self._lock = threading.Lock()
         self._reset()
 
@@ -145,6 +146,8 @@ class SimSource(Source):
         self.tags_on = True
         self.beacons_on = True
         self.jam_beacons = False
+        self.jam_zone_on = False          # a GNSS jammer on the far straight
+        self.crumbs_on = True
         self.drag_m = 0.0
         self.nprng = np.random.default_rng(self.seed)
         L, R = self.STRAIGHT_M, self.RADIUS_M
@@ -158,6 +161,14 @@ class SimSource(Source):
                       launch_t=-1800.0, wind_ne_ms=(1.5, 4.0))],
             self.BEACON_SECRET, seed=self.seed or 0)
         self.box.beacons.set_secret(self.BEACON_SECRET)
+        self.box.crumbs.set_secret(self.BEACON_SECRET)
+        self.box._radio_out = self._provision_crumb
+        L, R = self.STRAIGHT_M, self.RADIUS_M
+        # sized from the simulator's own jammer model (6 dB per doubling of
+        # distance): the far (north) straight is denied, the near one only
+        # warns, so the crumbs drop while the fix is still trusted
+        self.jam_zone = JammingZone(*self._ll(R + 20.0, 0.0), 40.0, ("GPS", "NavIC", "LEO"),
+                                    name="far-straight jammer")
         lat7, lon7 = self._ll(-R, -L / 2)
         self.box.tags.set_map(TagMap([TagEntry(7, lat7, lon7, self.TAG_SIZE_M,
                                                "field_survey", 0.3, altitude_m=0.0,
@@ -184,6 +195,17 @@ class SimSource(Source):
     def _ll(self, n, e):
         return (self.start_lat + n / DEG_M,
                 self.start_lon + e / (DEG_M * math.cos(math.radians(self.start_lat))))
+
+    def _provision_crumb(self, line: str) -> None:
+        """The box 'sends' a stamp to the crumb's radio; here the crumb lands
+        at the drone's TRUE position (no wind in this circuit) and broadcasts
+        the stamp."""
+        rec = json.loads(line)
+        n, e, _, _ = self.truth(self.t)
+        lat, lon = self._ll(n, e)
+        self.beacon_sim.drop_crumb(rec, lat, lon, 0.0)
+        self.state.event(f"SIMULATION: crumb {rec['id']} dropped, stamped ±{rec['sigma_m']:.1f} m",
+                         "sim")
 
     def control(self, action):
         with self._lock:
@@ -222,6 +244,14 @@ class SimSource(Source):
                 msg = (f"SIMULATION: wideband jammer on the beacon band "
                        f"{'ON' if self.jam_beacons else 'OFF'} (a GNSS jammer alone never "
                        f"touches the beacons)")
+            elif action == "jam_zone":
+                self.jam_zone_on = not self.jam_zone_on
+                msg = (f"SIMULATION: GNSS jammer on the far straight {'ON' if self.jam_zone_on else 'OFF'} "
+                       f"(C/N0 falls as the drone nears it; crumbs drop while the fix is still good)")
+            elif action == "breadcrumbs":
+                self.crumbs_on = not self.crumbs_on
+                self.cfg.breadcrumbs = self.crumbs_on
+                msg = f"SIMULATION: breadcrumb dropping {'ON' if self.crumbs_on else 'OFF'}"
             elif action == "tags":
                 self.tags_on = not self.tags_on
                 msg = f"SIMULATION: ground tags {'painted' if self.tags_on else 'removed'}"
@@ -306,6 +336,10 @@ class SimSource(Source):
 
             spoofing = self.spoof_jump or self.spoof_drag
             sky, agc = [], self.AGC_NORMAL + rng.gauss(0, self.AGC_SIGMA)
+            # a jammer on the far straight: C/N0 falls with distance, satellites
+            # drop out one by one, then the fix goes
+            zone_db = self.jam_zone.cn0_drop_db(*self._ll(n, e)) if self.jam_zone_on else 0.0
+            zone_state = "critical" if zone_db > 10 else "warning" if zone_db > 3 else "ok"
             for i, (gnss, sv, base_elev) in enumerate(self.SKY):
                 elev = base_elev + 3.0 * math.sin(t / 600.0 + i)
                 real = self.CN0_BASE + self.CN0_PER_DEG * elev + rng.gauss(0, self.CN0_SIGMA)
@@ -316,35 +350,45 @@ class SimSource(Source):
                 elif spoofing:
                     cn0 = self.SPOOF_CN0 + rng.gauss(0, 0.8)
                 else:
-                    cn0 = real
+                    cn0 = real - zone_db
+                    if cn0 < 25.0:            # ASSUMPTION: tracking threshold
+                        cn0 = 0.0
                 sky.append((gnss, sv, cn0, elev, (37 * i) % 360, cn0 > 0))
+            tracked = sum(1 for x in sky if x[2] > 0)
+            zone_denied = self.jam_zone_on and tracked < 4
             if self.deny:
                 agc = self.JAM_AGC + rng.gauss(0, self.AGC_SIGMA)
+            elif zone_db > 0:
+                agc = max(self.JAM_AGC, self.AGC_NORMAL - 60.0 * zone_db) + rng.gauss(0, self.AGC_SIGMA)
             elif spoofing and not self.smart:
                 agc = self.SPOOF_AGC + rng.gauss(0, self.AGC_SIGMA)
             sat_bytes = encode_nav_sat(int(t * 1000), sky)
 
             h_acc = self.GNSS_SIGMA_M
-            if self.deny:
+            if self.deny or zone_denied:
                 data = sat_bytes + encode_mon_rf("critical", 240, round(agc), 200) + encode_nav_pvt(
                     int(t * 1000), 0.0, 0.0, 0.0, 0.0, 0.0, (0.0, 0.0, 0.0), 0.0,
                     fix_type=0, num_sv=0)
             else:
                 lat, lon = self._ll(n + errs[0] + sn, e + errs[1] + se)
                 v_spoof = self.SPOOF_DRAG_MS if self.spoof_drag else 0.0
-                data = sat_bytes + encode_mon_rf("ok", 90, round(agc), 10) + encode_nav_pvt(
+                data = sat_bytes + encode_mon_rf(zone_state, 90, round(agc), 10) + encode_nav_pvt(
                     int(t * 1000), lat, lon, self.ALT_M, h_acc, 3.0,
                     (vn + v_spoof + rng.gauss(0, self.VEL_SIGMA_MS),
                      ve + rng.gauss(0, self.VEL_SIGMA_MS), 0.0),
                     self.VEL_SIGMA_MS * 1.5)
-            if self.beacons_on:
-                tlat_b, tlon_b = self._ll(n, e)
-                jam = (JammingField([JammingZone(tlat_b, tlon_b, 2000.0,
-                                                 ("GPS", "NavIC", "LEO", "BEACON"))])
-                       if self.jam_beacons else None)
-                for m in self.beacon_sim.messages(t):
+            # the launch-site beacons can be switched off; the crumbs the drone
+            # dropped keep talking regardless (they share the radio)
+            tlat_b, tlon_b = self._ll(n, e)
+            jam = (JammingField([JammingZone(tlat_b, tlon_b, 2000.0,
+                                             ("GPS", "NavIC", "LEO", "BEACON"))])
+                   if self.jam_beacons else None)
+            audible = lambda bid: self.beacons_on or bid.startswith("crumb-")  # noqa: E731
+            for m in self.beacon_sim.messages(t):
+                if audible(m["id"]):
                     box.on_beacon_line(json.dumps({"type": "msg", **m}), t)
-                for bid, r, sg in self.beacon_sim.ranges(tlat_b, tlon_b, self.ALT_M, t, jam):
+            for bid, r, sg in self.beacon_sim.ranges(tlat_b, tlon_b, self.ALT_M, t, jam):
+                if audible(bid):
                     box.on_beacon_line(json.dumps({"type": "range", "id": bid, "range_m": r,
                                                    "sigma_m": sg}), t)
             results = box.on_receiver_bytes(data, t, time.time())

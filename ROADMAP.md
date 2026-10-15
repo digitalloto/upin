@@ -26,7 +26,7 @@ Last updated 1 October 2026. Measured layer status lives in
 | 0.2 | Layers declare the sensors and data they need | done |
 | 0.3 | Simulation moved out of layers into a harness; real/sim/off modes; real feed rejects agents that fall back to simulation | done |
 | 0.4 | A generated README for every layer, status measured not claimed | done |
-| — | Sensor requirements and operating class for all 146 layers (`upin/layers/requirements_catalog.py`) | done |
+| — | Sensor requirements and operating class for all 147 layers (`upin/layers/requirements_catalog.py`) | done |
 | 1 | Convert the remaining fabricating layers, one at a time | **114 left** |
 | 2 | Delete `set_simulated_position` and the simulation default | after Phase 1 |
 
@@ -49,6 +49,7 @@ Last updated 1 October 2026. Measured layer status lives in
 | 8 | **L3 camera optical flow, layer 148** (`camflow_e24`): block matching plus weighted RANSAC with trust earned since takeoff; a sweeping laser-dot grid is thrown out; gyro-compensated; declines without texture, height or agreement | done (simulation; camera untested) | `upin/layers/optical/camera_flow.py`, [`docs/CAMERA_FLOW.md`](docs/CAMERA_FLOW.md) |
 | — | **Layer 151, known-position beacon ranging** (`beaconrng_d27`): the balloon idea; signed, hopping beacons that broadcast their own positions and sigmas; weighted least squares with DOP; a GNSS jammer leaves it alone, a band jammer silences it, both shown | done (simulation; radio and beacon firmware not built) | `upin/layers/rf/beacon_ranging.py`, [`docs/BEACONS.md`](docs/BEACONS.md) |
 | — | **Layer 150, LEO Doppler anchor** (`leodoppler_a21`): one coarse fix per satellite pass on a cheap software radio; fits position, oscillator offset and drift; refuses stale orbits, weak priors (mirror ambiguity) and fixes far from the prior (a wrong satellite fits perfectly); honest replacement path for the fabricating `leo_l19` | done (simulation; radio untested) | `upin/layers/satellite/leo_doppler.py`, [`docs/LEO_DOPPLER.md`](docs/LEO_DOPPLER.md) |
+| — | **Layer 152, breadcrumb beacons** (`breadcrumb_d28`): small beacons the drone drops as jamming rises, while its fix is trusted, each stamped with its landing position and sigma; ranged to inside the jam through layer 151; never drops on an untrusted fix | done (simulation; crumb firmware and release mechanism not built) | `upin/layers/rf/breadcrumbs.py`, [`docs/BREADCRUMBS.md`](docs/BREADCRUMBS.md) |
 | 4 | L1 completion: strapdown INS wired in, retained command log (§3) | next | `upin/core/strapdown_ins.py` |
 | 5 | Navigation Arbiter: explicit mode, DR time limit (§9) | | |
 | 6 | Escape Manager: retrace, rally, jammer gradient, swarm spread (§10) | | |
