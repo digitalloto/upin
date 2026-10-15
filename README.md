@@ -34,6 +34,7 @@ The gap between those numbers and the total is the work tracked in [`FABRICATION
 | [`docs/BEACONS.md`](docs/BEACONS.md) | Known-position beacons, balloons included: the idea made honest |
 | [`docs/LEO_DOPPLER.md`](docs/LEO_DOPPLER.md) | LEO Doppler anchor: a coarse GNSS-free fix from a satellite pass on a cheap radio |
 | [`docs/BREADCRUMBS.md`](docs/BREADCRUMBS.md) | Breadcrumb beacons: dropped while the fix is trusted, ranged to inside the jam |
+| [`BALLOON_CARRY.md`](BALLOON_CARRY.md) | Should the drone carry a balloon beacon? The numbers, from labelled physics |
 | [`FABRICATION_AUDIT.md`](FABRICATION_AUDIT.md) | Every place the code invents a number, what it costs, and the staged plan to remove it |
 | [`UPIN_MASTER.md`](UPIN_MASTER.md) | The full project document |
 | [`QUANTUM.md`](QUANTUM.md) | Group Q hardware readiness and patent sequencing |

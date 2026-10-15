@@ -94,6 +94,37 @@ physically reachable region, like a tag fix.
 The ranging sigma (10 m) and the link margin (20 dB) are assumptions until
 a radio is measured.
 
+## A tethered aerostat over the base
+
+The sound version of "the balloon gives altitude": a balloon that only has
+to hover can stay up for hours on no power, so a **tethered aerostat a few
+hundred metres over the base** makes a persistent, wide-coverage home
+beacon. Its position is known from the surveyed anchor point plus the
+blowdown: in wind the tether leans by an angle set by drag against net
+lift (a 3 m aerostat with 60 N net lift on a 300 m tether leans about 11°
+in 3 m/s and 45° in 8 m/s). That lean is the uncertainty: a 2 m/s doubt
+about the wind moves it tens of metres, and the beacon's broadcast carries
+that sigma (the simulator's `tethered` kind does exactly this, and a test
+asserts that strong uncertain wind widens the stated sigma). Measure the
+tether angle, or track the aerostat from two surveyed sites, to tighten
+it. It needs an aerostat, tether and winch, the beacon, and airspace
+clearance for a tethered object [TO CONFIRM with DGCA]; it is a visible,
+persistent target; and it has wind limits. It beats a free balloon as the
+home beacon because it never drifts away and never bursts.
+
+## Should the drone carry its own balloon? The numbers
+
+`python tools/compare_balloon_carry.py` writes `BALLOON_CARRY.md` from
+labelled physics. In short: a balloon that lifts a 0.3 kg beacon is about
+1.3 m across and drags more than a small drone's hover thrust at 10 m/s;
+deflated with a gas cylinder it is about 1.5 kg to carry; and released
+inside a 1 km jammer its own GNSS only works again a couple of kilometres
+up, several minutes later, during which its position is a kilometre-scale
+guess. A balloon-lifted drone is good for loitering in calm air and bad
+for any transit. The verdict the numbers give: breadcrumbs on the way in,
+launch-site balloons for area coverage, an aerostat over the base, no
+balloons on the mission drone.
+
 ## What to build on the beacon side (not code yet)
 
 - The radio: a 2.4 GHz LoRa-class module with ranging (SX1280 family) on

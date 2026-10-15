@@ -55,15 +55,42 @@ class SimBeacon:
     lon: float
     alt_m: float
     sigma_m: float                 # how well it knows its own position
-    kind: str = "ground"           # ground | balloon | crumb
+    kind: str = "ground"           # ground | balloon | crumb | tethered
     launch_t: float = 0.0
     wind_ne_ms: Tuple[float, float] = (0.0, 0.0)
     # A crumb broadcasts the position it was STAMPED with, which differs
     # from where it really landed by the stamp's error. Truth is used for
     # the ranges; the stamp for the messages. Never mixed.
     stamped: Optional[Tuple[float, float, float]] = None
+    # tethered aerostat: anchor at (lat, lon, alt_m), leaning downwind
+    tether_m: float = 0.0
+    aerostat_diameter_m: float = 3.0
+    aerostat_net_lift_n: float = 60.0
+    wind_sigma_ms: float = 0.0     # how well the wind at the aerostat is known
+
+    def stated_sigma_m(self) -> float:
+        """The position sigma the beacon broadcasts: its own, plus (for an
+        aerostat) how much the wind's uncertainty moves it."""
+        if self.kind != "tethered":
+            return self.sigma_m
+        from upin.simulation.balloon_physics import blowdown_sigma_m
+        wind = math.hypot(*self.wind_ne_ms)
+        return math.hypot(self.sigma_m, blowdown_sigma_m(
+            self.tether_m, self.aerostat_diameter_m, self.aerostat_net_lift_n, wind,
+            self.wind_sigma_ms))
 
     def position(self, t: float) -> Optional[Tuple[float, float, float]]:
+        if self.kind == "tethered":
+            from upin.simulation.balloon_physics import aerostat_blowdown
+            wind = math.hypot(*self.wind_ne_ms)
+            off, alt, _ = aerostat_blowdown(self.tether_m, self.aerostat_diameter_m,
+                                            self.aerostat_net_lift_n, wind)
+            if wind < 1e-9:
+                return self.lat, self.lon, self.alt_m + alt
+            un, ue = self.wind_ne_ms[0] / wind, self.wind_ne_ms[1] / wind
+            return (self.lat + off * un / DEG_M,
+                    self.lon + off * ue / (DEG_M * math.cos(math.radians(self.lat))),
+                    self.alt_m + alt)
         if self.kind != "balloon":
             return self.lat, self.lon, self.alt_m
         dt = t - self.launch_t
@@ -98,7 +125,7 @@ class BeaconSim:
             self._seq[b.beacon_id] += 1
             said = b.stamped if b.stamped is not None else p
             m = {"id": b.beacon_id, "t": t, "lat": said[0], "lon": said[1], "alt_m": said[2],
-                 "sigma_m": b.sigma_m, "seq": self._seq[b.beacon_id],
+                 "sigma_m": b.stated_sigma_m(), "seq": self._seq[b.beacon_id],
                  "channel": hop_channel(self.secret, t)}
             if tamper == "unsigned":
                 m["sig"] = "0" * 16

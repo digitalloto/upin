@@ -405,6 +405,8 @@ def render_root(facts: List[LayerFacts]) -> str:
           "coarse GNSS-free fix from a satellite pass on a cheap radio |",
           "| [`docs/BREADCRUMBS.md`](docs/BREADCRUMBS.md) | Breadcrumb beacons: dropped "
           "while the fix is trusted, ranged to inside the jam |",
+          "| [`BALLOON_CARRY.md`](BALLOON_CARRY.md) | Should the drone carry a balloon "
+          "beacon? The numbers, from labelled physics |",
           "| [`FABRICATION_AUDIT.md`](FABRICATION_AUDIT.md) | Every place the "
           "code invents a number, what it costs, and the staged plan to remove it |",
           "| [`UPIN_MASTER.md`](UPIN_MASTER.md) | The full project document |",
