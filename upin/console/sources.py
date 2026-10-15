@@ -35,6 +35,8 @@ from upin.box.replay import epoch_from_json
 from upin.box.service import Box, BoxConfig
 from upin.layers.optical.fiducial import TagEntry, TagMap
 from upin.simulation.attacks import camera_frame
+from upin.simulation.beacons import BeaconSim, SimBeacon
+from upin.simulation.environment import JammingField, JammingZone
 from upin.simulation.markers import SimTag
 from upin.console.state import ConsoleState
 from upin.detection.reachability import DEG_M
@@ -91,6 +93,7 @@ class SimSource(Source):
     """A drone flying a stadium-shaped circuit at constant speed."""
 
     controls = ["spoof_jump", "spoof_drag", "smart_spoofer", "deny", "flow", "tags",
+                "beacons", "jam_beacons",
                 "flow_attack", "reset"]
 
     STRAIGHT_M, RADIUS_M, SPEED_MS, ALT_M = 300.0, 60.0, 8.0, 50.0
@@ -100,6 +103,9 @@ class SimSource(Source):
     # "seen but not in the map" decline once a lap.
     CAM_PX, CAM_FOV_DEG = 256, 40.0
     TAG_SIZE_M = 4.0
+    # Simulated beacons (layer 151): three on the ground around the circuit
+    # and one weather balloon launched 30 min before the run, drifting.
+    BEACON_SECRET = b"simulated-beacon-secret"
     GNSS_SIGMA_M, GNSS_TAU_S, FC_GNSS_SIGMA_M = 1.5, 30.0, 2.0
     VEL_SIGMA_MS, HEADING_SIGMA_DEG, FLOW_SIGMA_MS = 0.1, 2.0, 0.2
     SPOOF_JUMP_M, SPOOF_DRAG_MS = 500.0, 1.0
@@ -137,11 +143,21 @@ class SimSource(Source):
         self.smart = False
         self.flow_attack = False
         self.tags_on = True
+        self.beacons_on = True
+        self.jam_beacons = False
         self.drag_m = 0.0
         self.nprng = np.random.default_rng(self.seed)
         L, R = self.STRAIGHT_M, self.RADIUS_M
         self.sim_tags = [SimTag(7, -R, -L / 2, self.TAG_SIZE_M, 30.0),
                          SimTag(20, R, L / 2, self.TAG_SIZE_M, 0.0)]
+        self.beacon_sim = BeaconSim([
+            SimBeacon("g1", *self._ll(600, -700), 20.0, 2.0),
+            SimBeacon("g2", *self._ll(600, 700), 35.0, 2.0),
+            SimBeacon("mast", *self._ll(-650, 0), 90.0, 2.0),
+            SimBeacon("balloon1", *self._ll(-15000, -12000), 50.0, 5.0, kind="balloon",
+                      launch_t=-1800.0, wind_ne_ms=(1.5, 4.0))],
+            self.BEACON_SECRET, seed=self.seed or 0)
+        self.box.beacons.set_secret(self.BEACON_SECRET)
         lat7, lon7 = self._ll(-R, -L / 2)
         self.box.tags.set_map(TagMap([TagEntry(7, lat7, lon7, self.TAG_SIZE_M,
                                                "field_survey", 0.3, altitude_m=0.0,
@@ -198,6 +214,14 @@ class SimSource(Source):
             elif action == "flow":
                 self.flow = not self.flow
                 msg = f"SIMULATION: optical-flow sensor {'ON' if self.flow else 'OFF'}"
+            elif action == "beacons":
+                self.beacons_on = not self.beacons_on
+                msg = f"SIMULATION: beacons {'ON' if self.beacons_on else 'OFF'}"
+            elif action == "jam_beacons":
+                self.jam_beacons = not self.jam_beacons
+                msg = (f"SIMULATION: wideband jammer on the beacon band "
+                       f"{'ON' if self.jam_beacons else 'OFF'} (a GNSS jammer alone never "
+                       f"touches the beacons)")
             elif action == "tags":
                 self.tags_on = not self.tags_on
                 msg = f"SIMULATION: ground tags {'painted' if self.tags_on else 'removed'}"
@@ -313,6 +337,16 @@ class SimSource(Source):
                     (vn + v_spoof + rng.gauss(0, self.VEL_SIGMA_MS),
                      ve + rng.gauss(0, self.VEL_SIGMA_MS), 0.0),
                     self.VEL_SIGMA_MS * 1.5)
+            if self.beacons_on:
+                tlat_b, tlon_b = self._ll(n, e)
+                jam = (JammingField([JammingZone(tlat_b, tlon_b, 2000.0,
+                                                 ("GPS", "NavIC", "LEO", "BEACON"))])
+                       if self.jam_beacons else None)
+                for m in self.beacon_sim.messages(t):
+                    box.on_beacon_line(json.dumps({"type": "msg", **m}), t)
+                for bid, r, sg in self.beacon_sim.ranges(tlat_b, tlon_b, self.ALT_M, t, jam):
+                    box.on_beacon_line(json.dumps({"type": "range", "id": bid, "range_m": r,
+                                                   "sigma_m": sg}), t)
             results = box.on_receiver_bytes(data, t, time.time())
             box.on_fc_message(Msg("DISTANCE_SENSOR", current_distance=round(self.ALT_M * 100),
                                   orientation=25), t)

@@ -53,10 +53,12 @@ from upin.detection.constellation_check import ConstellationFix
 from upin.detection.flow_integrity import FlowIntegrityCheck
 from upin.detection.reachability import Envelope
 from upin.core.wind_learner import FlightSample, WindLearner
+from upin.box.beacon_radio import BeaconRadio
 from upin.box.camera import open_camera
 from upin.layers.inertial.learned_io import LearnedInertialOdometryLayer
 from upin.layers.optical.camera_flow import CameraFlowLayer
 from upin.layers.optical.fiducial import FiducialTagLayer, TagMap
+from upin.layers.rf.beacon_ranging import BeaconRangingLayer
 from upin.layers.satellite.signal_power import SignalPowerCheckLayer
 from upin.learned.features import mean_thrust_direction
 
@@ -86,6 +88,10 @@ class BoxConfig:
     camera_size_px: int = 256
     tag_map: str = ""                  # tags.json: surveyed tag positions
     camera_flow: bool = False          # layer 148: UPIN's own flow from the camera frames
+    # known-position beacons (layer 151); "" = off
+    beacon_radio: str = ""             # serial port of the ranging radio (JSON lines)
+    beacon_radio_baud: int = 115200
+    beacon_secret_file: str = ""       # file holding the shared secret (bytes)
     range_sigma_m: float = 0.1         # ASSUMPTION: rangefinder 1-sigma; from its datasheet
     flow_check_action: str = "distrust"
     """Suspect optical flow is not fed to the filter. Distrust is the default
@@ -155,6 +161,13 @@ class Box:
         self.camflow = CameraFlowLayer()
         self.camflow.initialize()
         self.last_camflow: Optional[dict] = None
+        # Known-position beacons (layer 151): fixes only with a secret and radio.
+        self.beacons = BeaconRangingLayer()
+        self.beacons.initialize()
+        if cfg.beacon_secret_file:
+            with open(cfg.beacon_secret_file, "rb") as f:
+                self.beacons.set_secret(f.read().strip())
+        self.last_beacons: Optional[dict] = None
         self._flow_status: Optional[dict] = None
         self.fc = FcReader()
         self.ubx = UbxStream()
@@ -244,6 +257,35 @@ class Box:
             self.last_camflow = cf
         return v
 
+    def on_beacon_line(self, line: str, t: float) -> Optional[str]:
+        """One JSON line from the beacon radio: a beacon's signed message or a
+        range. Returns what the layer did with it."""
+        try:
+            d = json.loads(line)
+        except json.JSONDecodeError:
+            return "unreadable line"
+        if d.get("type") == "msg":
+            return self.beacons.feed_message(d, t)
+        if d.get("type") == "range":
+            return self.beacons.feed_range(str(d.get("id")), float(d.get("range_m", 0)),
+                                           float(d.get("sigma_m", 0)), t)
+        return "unknown line type"
+
+    def solve_beacons(self, t: float) -> dict:
+        """Solve the beacon fix for this moment; an accepted fix re-anchors
+        the reachable region like a tag fix."""
+        baro = self.fc.state.baro
+        if baro is not None and self._baro_offset is not None and t - baro.t < 2.0:
+            self.beacons.set_altitude(baro.pressure_alt_m - self._baro_offset,
+                                      self.cfg.baro_sigma_m, t)
+        v = dict(self.beacons.solve(t))
+        if v["status"] == "ok":
+            v["fix"] = self.gateway.feed_position(v["lat"], v["lon"], v["sigma_m"], t,
+                                                  source="beacons", alt_m=v["alt_m"],
+                                                  sigma_alt_m=v["sigma_alt_m"], anchor=True)
+        self.last_beacons = v
+        return v
+
     def on_receiver_bytes(self, data: bytes, now: float,
                           unix_s: float) -> List[Tuple[GatewayOutput, GpsInput]]:
         results = []
@@ -313,6 +355,8 @@ class Box:
             self._baro_offset = baro.pressure_alt_m - ep.alt_m
         self._last_mode = out.mode
         self._update_wind(ep, out)
+        if self.beacons._secret is not None:
+            self.solve_beacons(ep.t)
         if ep.power_check is not None:
             self.power.learn(out.mode == TRUSTED and not self.deny_gnss)
         sent = build(out, unix_s, self.cfg.forward_degraded, gps_id=self.cfg.gps_id)
@@ -376,6 +420,9 @@ class Box:
                      "horiz_accuracy": sent.horiz_accuracy},
             "ignored_circular": dict(self.fc.ignored),
             "fixes": {k: dict(v) for k, v in self.gateway.last_fixes.items()},
+            "beacons": None if self.last_beacons is None else {
+                k: self.last_beacons.get(k) for k in
+                ("status", "reason", "n_beacons", "sigma_m", "hdop", "lat", "lon", "rejected")},
             "camera_flow": None if self.last_camflow is None else {
                 k: self.last_camflow.get(k) for k in
                 ("status", "reason", "forward_ms", "right_ms", "sigma_ms", "agreeing_trust",
@@ -453,6 +500,7 @@ def run(cfg: BoxConfig, deny_gnss: bool = False, send: bool = True,
                             gps_id=cfg.gps_id, conn=conn)
     cam = (open_camera(cfg.camera, cfg.camera_size_px, cfg.camera_fov_deg)
            if cfg.camera else None)
+    radio = BeaconRadio(cfg.beacon_radio, cfg.beacon_radio_baud) if cfg.beacon_radio else None
     print(f"UPIN box running: GNSS from {gnss_source}, GPS instance "
           f"{cfg.gps_id + 1}, {'shadow' if cfg.shadow else 'LIVE'}, "
           f"{'GNSS DENIED in software, ' if deny_gnss else ''}"
@@ -480,6 +528,9 @@ def run(cfg: BoxConfig, deny_gnss: bool = False, send: bool = True,
                 frame = cam.read()
                 if frame is not None:
                     box.on_frame(frame[0], now, cam.fov_deg)
+            if radio is not None:
+                for line in radio.read_lines():
+                    box.on_beacon_line(line, now)
             while True:
                 msg = conn.recv_match(blocking=False)
                 if msg is None:

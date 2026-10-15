@@ -412,14 +412,27 @@ function renderFixes(s) {
   } else {
     row("Tag landmark (149)", "no frame yet", "na");
   }
+  const bc = s.beacons, bfx = (s.fixes || {}).beacons;
+  if (bc && bc.status === "ok") {
+    row("Beacons (151)", bc.n_beacons + " beacons: ±" + num(bc.sigma_m, 1) + " m, HDOP " + num(bc.hdop, 1));
+    if (bfx) row("  → filter", (bfx.accepted ? "accepted" : "REJECTED: " + bfx.reason) +
+                 (bfx.anchored ? ", re-anchored the reachable region" : ""), bfx.accepted ? "" : "na");
+  } else if (bc) {
+    row("Beacons (151)", "declined: " + bc.reason, "na");
+  } else {
+    row("Beacons (151)", "no beacon radio configured", "na");
+  }
+  if (bc && bc.rejected && Object.keys(bc.rejected).length) {
+    row("  messages refused", Object.entries(bc.rejected).map(([k, v]) => k + " ×" + v).join(", "), "na");
+  }
   Object.entries(s.fixes || {}).forEach(([src, f]) => {
-    if (src === "fiducial") return;
+    if (src === "fiducial" || src === "beacons") return;
     row(src, (f.accepted ? "accepted" : "rejected: " + f.reason) + ", ±" + num(f.sigma_m, 1) + " m");
   });
 }
 
 const CONTROL_LABEL = {
-  tags: "Ground tags on/off",
+  tags: "Ground tags on/off", beacons: "Beacons on/off", jam_beacons: "Jam the beacon band",
   smart_spoofer: "Spoofer type: simple/smart",
   flow_attack: "Flow attack: moving ground pattern",
   spoof_jump: "Spoof: 500 m jump", spoof_drag: "Spoof: slow drag 1 m/s",

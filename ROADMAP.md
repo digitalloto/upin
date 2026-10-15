@@ -26,7 +26,7 @@ Last updated 1 October 2026. Measured layer status lives in
 | 0.2 | Layers declare the sensors and data they need | done |
 | 0.3 | Simulation moved out of layers into a harness; real/sim/off modes; real feed rejects agents that fall back to simulation | done |
 | 0.4 | A generated README for every layer, status measured not claimed | done |
-| — | Sensor requirements and operating class for all 144 layers (`upin/layers/requirements_catalog.py`) | done |
+| — | Sensor requirements and operating class for all 145 layers (`upin/layers/requirements_catalog.py`) | done |
 | 1 | Convert the remaining fabricating layers, one at a time | **114 left** |
 | 2 | Delete `set_simulated_position` and the simulation default | after Phase 1 |
 
@@ -47,6 +47,7 @@ Last updated 1 October 2026. Measured layer status lives in
 | — | **Optical-flow integrity check** (from the laser-dot reel): flow vs IMU, trusted GNSS and the AI predictor; latches an unexplained jump until it reverses or is confirmed; suspect flow not fed to the filter (default) | done (simulation; thresholds unmeasured) | `upin/detection/flow_integrity.py` |
 | — | **Layer 149, tag landmarks** (`fiducial_e25`): our own printed tag; one tag at a surveyed spot is a full fix with accuracy from the geometry; re-anchors the reachable region; `tools/tag_truth.py` measures every other source against it | done (simulation; camera driver untested) | `upin/layers/optical/fiducial.py`, `upin/vision/upin_tag.py`, [`docs/TAGS.md`](docs/TAGS.md) |
 | 8 | **L3 camera optical flow, layer 148** (`camflow_e24`): block matching plus weighted RANSAC with trust earned since takeoff; a sweeping laser-dot grid is thrown out; gyro-compensated; declines without texture, height or agreement | done (simulation; camera untested) | `upin/layers/optical/camera_flow.py`, [`docs/CAMERA_FLOW.md`](docs/CAMERA_FLOW.md) |
+| — | **Layer 151, known-position beacon ranging** (`beaconrng_d27`): the balloon idea; signed, hopping beacons that broadcast their own positions and sigmas; weighted least squares with DOP; a GNSS jammer leaves it alone, a band jammer silences it, both shown | done (simulation; radio and beacon firmware not built) | `upin/layers/rf/beacon_ranging.py`, [`docs/BEACONS.md`](docs/BEACONS.md) |
 | 4 | L1 completion: strapdown INS wired in, retained command log (§3) | next | `upin/core/strapdown_ins.py` |
 | 5 | Navigation Arbiter: explicit mode, DR time limit (§9) | | |
 | 6 | Escape Manager: retrace, rally, jammer gradient, swarm spread (§10) | | |

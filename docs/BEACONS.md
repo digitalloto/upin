@@ -1,0 +1,129 @@
+# Known-position beacons (layer 151): the balloon idea, made honest
+
+The user's idea: weather balloons carrying beacons on a band GNSS jammers
+do not touch, hopping frequency, several at once, expendable. This layer
+is that idea built so it can be trusted: a beacon counts only if it knows
+where it is, signs what it says, hops on the shared schedule, and states
+how well it knows its own position. The drone measures its range to each
+beacon and solves its position.
+
+> **Status: simulation only.** Beacons and balloons are simulated
+> (`upin/simulation/beacons.py`). No radio, no beacon firmware, no balloon
+> has been built. The serial reader is untested. Every figure below is a
+> model or an assumption, labelled.
+
+## What is sound about the idea
+
+- **A different band escapes GNSS jammers.** The common jammers are built
+  for GNSS frequencies; a beacon on another band is simply not in their
+  way.
+- **Kilometres instead of 20,000 km.** A beacon's signal arrives thousands
+  of times stronger than a satellite's, so it is far harder to drown.
+- **Height gives coverage.** A balloon at 20–30 km sees a huge area, and a
+  ground jammer must radiate upward over all of it to reach it.
+- **Prior art exists**, which means the physics is settled: balloon-borne
+  pseudolite constellations have been designed in the literature (an MDPI
+  *Electronics* paper, 2024), armies field ground pseudolites, and
+  stratospheric-platform pseudolites were studied in 2004. Any patent
+  wording around this must be careful.
+
+## What has to be true for it to work
+
+1. **Each beacon must know its own position.** A beacon that does not know
+   where it is cannot tell the drone where it is. Balloons drift tens to
+   hundreds of kilometres. Either the balloon carries its own GNSS
+   receiver (at 20–30 km it is probably above a ground jammer's reach:
+   probably, not certainly), or two surveyed ground sites track it by
+   direction finding, as radiosondes were tracked before GPS. Either way
+   the beacon broadcasts its position **with its sigma**, and the layer
+   carries that sigma into the fix instead of hiding it. A beacon that
+   knows itself to 500 m widens the fix accordingly; the test asserts it.
+2. **Hopping stays inside a permitted band.** "No satellite uses it" does
+   not make a band free; nearly all spectrum is allocated. For tests,
+   India's delicensed bands most consistently reported are 865–867 MHz
+   (1 W, 4 W ERP, 200 kHz) and 2.4 GHz; 5.8 GHz is unclear. These must be
+   checked against WPC's gazette notifications, and an airborne transmitter
+   may need separate clearance **[TO CONFIRM with WPC/DGCA]**.
+3. **A different band stops GNSS jammers, not all jammers.** A determined
+   adversary can barrage-jam the beacon band or find and shoot the
+   balloons. Hopping on a secret schedule makes them jam the whole band,
+   and signing every message stops replay and fakes. The simulation shows
+   both: a GNSS jammer leaves the beacon fix intact; a wideband jammer
+   silences it, and the layer says so.
+4. **How the drone measures range sets the accuracy.** Two-way ranging
+   (the drone pings, the beacon replies) needs no synchronised clocks and
+   is the baseline: tens of metres with LoRa-class radios, centimetres
+   with UWB at short range. One-way timing like GPS needs synchronised
+   beacon clocks and is a later option.
+
+**Timing:** a latex balloon climbs at about 5 m/s, bursts at 20–35 km and
+gives 1.5–2 hours aloft, landing tens to hundreds of kilometres downwind.
+Launches are staggered and sited upwind; the mission window is planned
+around them.
+
+## What a beacon sends, and what the drone checks
+
+Every slot: `id, time, lat, lon, alt, position sigma, sequence, channel,
+signature`. Before a message counts, the layer checks the HMAC-SHA256
+signature with the shared secret, that the channel is the one the secret
+schedule gives for that time slot (one slot of clock error tolerated),
+that the sequence is newer than the last from that beacon (no replay), and
+that the message is fresh. Refused messages are counted and shown, never
+used.
+
+## The solve
+
+Weighted least squares on the ranges in a local east-north-up frame, by
+Gauss–Newton from the beacons' centroid. Each range's weight folds in the
+beacon's own position sigma. Three beacons plus a barometric altitude, or
+four beacons, make a fix. DOP is reported; a bunched geometry declines.
+An accepted fix goes through the Kalman filter's gate and re-anchors the
+physically reachable region, like a tag fix.
+
+## Measured in simulation (models, not hardware)
+
+| Scenario | Result |
+|---|---|
+| Four ground beacons, 10 m ranging sigma, drone moving | fix error ≈ 6 m rms, stated sigma ≈ 7 m, 95% coverage ≈ 97% |
+| Four balloons at 15–30 km, drifting, drone inside a 3 km GNSS jammer | fix ≈ 10 m rms, stated sigma ≈ 11 m, coverage ≈ 95%, HDOP ≈ 2; the GNSS jammer changed nothing |
+| Wideband jammer on the beacon band | beacons silent; the layer declines, with the reason |
+| Unsigned, off-schedule, replayed, stale or wrong-key messages | refused and counted |
+| One beacon knowing itself only to 500 m | the stated fix sigma widens from ≈ 7 m to tens of metres |
+| Four beacons bunched 28 km away | declined: HDOP too high |
+
+The ranging sigma (10 m) and the link margin (20 dB) are assumptions until
+a radio is measured.
+
+## What to build on the beacon side (not code yet)
+
+- The radio: a 2.4 GHz LoRa-class module with ranging (SX1280 family) on
+  the box and on each beacon, or UWB for short-range tests.
+- Beacon firmware: hop on the schedule, sign and send the message every
+  slot, answer ranging requests. An ESP32 with a LoRa module is the right
+  job for an ESP32 in this project.
+- The beacon's position source: its own GNSS receiver, or ground tracking
+  from two surveyed sites.
+- The first field test needs only three radios on tripods. The balloons
+  come later with the same code.
+
+## In the box
+
+```toml
+[beacons]
+beacon_radio = "/dev/ttyUSB1"
+beacon_secret_file = "/etc/upin/beacon.key"   # never in the repo
+```
+
+The radio's firmware prints one JSON object per line (`upin/box/beacon_radio.py`
+shows the format). The box checks every message in layer 151, solves once
+per GNSS epoch, and the console's "Other fixes" card shows the fix or why
+there is none, and how many messages were refused and why.
+
+## Files
+
+| | |
+|---|---|
+| `upin/layers/rf/beacon_ranging.py` | the layer: message checks, the solve, declines |
+| `upin/simulation/beacons.py` | simulated beacons and balloons, ranging, band jamming |
+| `upin/box/beacon_radio.py` | the serial reader (untested) |
+| `tests/test_beacon_ranging.py` | message checks, ground fix, balloons under a GNSS jammer, band jammer, widening, geometry |

@@ -10,11 +10,11 @@ This table is measured, not claimed. Every layer below was constructed with noth
 
 | Status | Layers | Meaning |
 |---|---:|---|
-| **DECLINES** | 17 | Reports no fix when it has no input, and says what is missing. Honours the no-fabrication contract. |
+| **DECLINES** | 18 | Reports no fix when it has no input, and says what is missing. Honours the no-fabrication contract. |
 | **PLACEHOLDER** | 13 | Returns the same fixed reading whenever nothing is connected. Not random, but not measured either. |
 | **FABRICATES** | 114 | Invents a reading when nothing is connected, and invents a different one each time it is read. |
 
-**17 of 144 layers** currently refuse to invent a position. **144 of 144** have declared what hardware and data they need.
+**18 of 145 layers** currently refuse to invent a position. **145 of 145** have declared what hardware and data they need.
 
 The gap between those numbers and the total is the work tracked in [`FABRICATION_AUDIT.md`](FABRICATION_AUDIT.md), which explains what each fabricating layer does and what it would cost in flight.
 
@@ -31,6 +31,7 @@ The gap between those numbers and the total is the work tracked in [`FABRICATION
 | [`docs/LEARNED_IO.md`](docs/LEARNED_IO.md) | The AI motion predictor: learning from every test flight |
 | [`docs/TAGS.md`](docs/TAGS.md) | Tag landmarks: a fix from a printed tag; ground truth for the range |
 | [`docs/CAMERA_FLOW.md`](docs/CAMERA_FLOW.md) | Camera optical flow with weighted RANSAC: laser dots thrown out |
+| [`docs/BEACONS.md`](docs/BEACONS.md) | Known-position beacons, balloons included: the idea made honest |
 | [`FABRICATION_AUDIT.md`](FABRICATION_AUDIT.md) | Every place the code invents a number, what it costs, and the staged plan to remove it |
 | [`UPIN_MASTER.md`](UPIN_MASTER.md) | The full project document |
 | [`QUANTUM.md`](QUANTUM.md) | Group Q hardware readiness and patent sequencing |
@@ -46,7 +47,7 @@ What it would take for each layer to work for real, independent of whether it wo
 | specialist | 35 | Real, buyable hardware that typical drones do not carry. |
 | drone-ready | 31 | Hardware a drone commonly carries or can easily add. |
 | platform-specific | 24 | Works only on a particular platform -- ships, submarines, ground vehicles. |
-| needs infrastructure | 21 | Needs beacons, networks or other people's equipment in place first. |
+| needs infrastructure | 22 | Needs beacons, networks or other people's equipment in place first. |
 | laboratory | 20 | Physics demonstrated in laboratories; not yet deployable on a drone. |
 | support function | 10 | Does not produce a position itself; monitors or coordinates other layers. |
 | no longer operational | 3 | The transmitters or infrastructure it depends on no longer exist. |
@@ -111,7 +112,7 @@ What it would take for each layer to work for real, independent of whether it wo
 | 127 | [Quantum Compass (Cold Atom)](docs/layers/qcompass_c08.md) | `qcompass_c08` | fabricates | laboratory |
 | 128 | [Magnetic Indoor Fingerprint](docs/layers/magindoor_c09.md) | `magindoor_c09` | fabricates | drone-ready |
 
-### Group D — RF & Terrestrial (26 layers, 0 clean)
+### Group D — RF & Terrestrial (27 layers, 1 clean)
 
 | # | Layer | ID | Status | Operating class |
 |---:|---|---|---|---|
@@ -141,6 +142,7 @@ What it would take for each layer to work for real, independent of whether it wo
 | 117 | [WiFi RTT (802.11mc)](docs/layers/wifirtt_d24.md) | `wifirtt_d24` | fabricates | needs infrastructure |
 | 118 | [RFID/NFC Localisation](docs/layers/rfid_d25.md) | `rfid_d25` | fabricates | needs infrastructure |
 | 119 | [VLC/Li-Fi Positioning](docs/layers/vlc_d26.md) | `vlc_d26` | fabricates | needs infrastructure |
+| 151 | [Known-Position Beacon Ranging (balloons, masts, tripods)](docs/layers/beaconrng_d27.md) | `beaconrng_d27` | clean | needs infrastructure |
 
 ### Group E — Optical & Vision (25 layers, 3 clean)
 
