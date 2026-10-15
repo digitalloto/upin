@@ -58,6 +58,37 @@ This layer takes real input through its own methods and never invents a reading:
 
 Call those methods from a driver or the application. With nothing supplied it declines and names what is missing.
 
+## When to use it
+
+From the mission index ([`docs/MISSION_INDEX.md`](../MISSION_INDEX.md)); every figure is a simulation figure.
+
+| Situation | Works? | Why |
+|---|---|---|
+| GNSS healthy | yes |  |
+| GNSS jammed (no fix) | yes | a different band |
+| GNSS spoofed (a fix, but a lie) | yes | signed, hopping |
+| GNSS denied for minutes | yes | while beacons are up |
+| night or no light | yes |  |
+| featureless ground or water | yes |  |
+| indoor | limited | short-range beacons only |
+| moving fast | yes |  |
+| stationary or hovering | yes |  |
+
+**Gives:** ALTITUDE, POSITION. **Needs:** `beacon_radio`, `beacons_deployed`.
+
+**Measured (simulation):** Simulation: four ground beacons with 10 m ranging: 6 m rms, 97% coverage; four balloons inside a 3 km GNSS jammer: 13 m rms; a beacon-band jammer silences it, stated.
+
+**Enable:**
+
+```toml
+beacon_radio = "/dev/ttyUSB1"
+beacon_secret_file = "/etc/upin/beacon.key"
+```
+
+**Falls back to:** breadcrumbs, then the AI predictor and coasting
+
+**Status:** simulation; radio and firmware not built. README: [`docs/BEACONS.md`](../../docs/BEACONS.md)
+
 ## Details
 
 | | |

@@ -55,6 +55,34 @@ This layer takes real input through its own methods and never invents a reading:
 
 Call those methods from a driver or the application. With nothing supplied it declines and names what is missing.
 
+## When to use it
+
+From the mission index ([`docs/MISSION_INDEX.md`](../MISSION_INDEX.md)); every figure is a simulation figure.
+
+| Situation | Works? | Why |
+|---|---|---|
+| GNSS healthy | yes |  |
+| GNSS jammed (no fix) | limited | reports jamming from the receiver's gain control |
+| GNSS spoofed (a fix, but a lie) | limited | catches one transmitter with uniform power; an elevation-shaped spoofer passes |
+| GNSS denied for minutes | limited | jamming only |
+| night or no light | yes |  |
+| featureless ground or water | yes |  |
+| indoor | no | no sky |
+| moving fast | yes |  |
+| stationary or hovering | yes |  |
+
+**Gives:** CHECK. **Needs:** `gnss_receiver`.
+
+**Measured (simulation):** Simulation: 0 of 3,600 false alarms on a synthetic sky; simple spoofer caught every time; the smart spoofer is not, and the test says so.
+
+**Enable:**
+
+```toml
+power_check_action = "warn"   # "distrust" once calibrated on this receiver
+```
+
+**Status:** simulation; thresholds unmeasured. README: [`docs/layers/cn0spoof_a20.md`](../../docs/layers/cn0spoof_a20.md)
+
 ## Details
 
 | | |

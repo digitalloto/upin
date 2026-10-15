@@ -66,6 +66,37 @@ This layer takes real input through its own methods and never invents a reading:
 
 Call those methods from a driver or the application. With nothing supplied it declines and names what is missing.
 
+## When to use it
+
+From the mission index ([`docs/MISSION_INDEX.md`](../MISSION_INDEX.md)); every figure is a simulation figure.
+
+| Situation | Works? | Why |
+|---|---|---|
+| GNSS healthy | yes |  |
+| GNSS jammed (no fix) | yes | a different band |
+| GNSS spoofed (a fix, but a lie) | limited | a faked Doppler curve is possible |
+| GNSS denied for minutes | limited | one coarse fix per pass, an hour or two apart |
+| night or no light | yes |  |
+| featureless ground or water | yes |  |
+| indoor | no | no sky |
+| moving fast | no | the receiver must be still or state its motion |
+| stationary or hovering | yes |  |
+
+**Gives:** POSITION. **Needs:** `sdr`.
+
+**Measured (simulation):** Simulation: 250 m error with 190 m stated sigma per pass; a wrong satellite fits perfectly and is refused by the prior; the mirror is reported or declined.
+
+**Enable:**
+
+```toml
+sdr = "rtl"
+leo_satellites = "/etc/upin/satellites.json"
+```
+
+**Falls back to:** nothing: it is the last anchor
+
+**Status:** simulation; radio untested. README: [`docs/LEO_DOPPLER.md`](../../docs/LEO_DOPPLER.md)
+
 ## Details
 
 | | |

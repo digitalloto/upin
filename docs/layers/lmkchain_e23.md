@@ -61,6 +61,34 @@ This layer takes real input through its own methods and never invents a reading:
 
 **Simulation:** the harness (`upin/simulation/harness.py`) drives it through those same methods from `SimulationWorld`. **Real mode:** connect the hardware above and call the same methods from a driver; with nothing connected it declines and names what is missing.
 
+## When to use it
+
+From the mission index ([`docs/MISSION_INDEX.md`](../MISSION_INDEX.md)); every figure is a simulation figure.
+
+| Situation | Works? | Why |
+|---|---|---|
+| GNSS healthy | yes |  |
+| GNSS jammed (no fix) | yes |  |
+| GNSS spoofed (a fix, but a lie) | yes | physical |
+| GNSS denied for minutes | yes |  |
+| night or no light | no | needs light |
+| featureless ground or water | no | no landmarks |
+| indoor | no | no charted landmarks |
+| moving fast | yes |  |
+| stationary or hovering | yes |  |
+
+**Gives:** HEADING, POSITION. **Needs:** `camera`, `flight_controller`, `georeferenced_map`.
+
+**Measured (simulation):** Simulation: resection from charted landmarks with the solve's covariance as accuracy; breadcrumbs for the return leg.
+
+**Enable:**
+
+```toml
+not in the box yet: needs the landmark detector and an Indian-source map
+```
+
+**Status:** simulation; not wired into the box. README: [`docs/layers/lmkchain_e23.md`](../../docs/layers/lmkchain_e23.md)
+
 ## Details
 
 | | |

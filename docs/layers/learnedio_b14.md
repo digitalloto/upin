@@ -61,6 +61,37 @@ This layer takes real input through its own methods and never invents a reading:
 
 Call those methods from a driver or the application. With nothing supplied it declines and names what is missing.
 
+## When to use it
+
+From the mission index ([`docs/MISSION_INDEX.md`](../MISSION_INDEX.md)); every figure is a simulation figure.
+
+| Situation | Works? | Why |
+|---|---|---|
+| GNSS healthy | yes |  |
+| GNSS jammed (no fix) | yes | needs a wind estimate learned while GNSS was good |
+| GNSS spoofed (a fix, but a lie) | yes |  |
+| GNSS denied for minutes | limited | errors persist; the record measures it |
+| night or no light | yes | no camera needed |
+| featureless ground or water | yes | no camera needed |
+| indoor | limited | no wind, so stamps assume calm |
+| moving fast | limited | only within the conditions it trained in; flags outside |
+| stationary or hovering | yes |  |
+
+**Gives:** VELOCITY. **Needs:** `flight_controller`, `trained_model`.
+
+**Measured (simulation):** Simulation: 0.46 m/s air-velocity rms on held-out flights; through the box 60 s without GNSS: 23 m vs 309 m coasting. A model trained on the simulator knows only the simulator.
+
+**Enable:**
+
+```toml
+airframe_id = "my-quad-1"
+learned_io_model = "upin_flights/models/vN.npz"
+```
+
+**Falls back to:** coasting
+
+**Status:** simulation; needs real flight logs. README: [`docs/LEARNED_IO.md`](../../docs/LEARNED_IO.md)
+
 ## Details
 
 | | |

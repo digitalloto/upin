@@ -103,6 +103,16 @@ separate fixes:
   yet: computing satellite positions from the broadcast ephemeris is not
   built.
 
+## Which layers to load for a mission
+
+[`MISSION_INDEX.md`](MISSION_INDEX.md) lists every honest way UPIN gets a
+position, what each needs and when it works, and answers "I have this
+hardware, the situation is that: what do I load?":
+
+```bash
+python tools/mission_index.py --have flight_controller,gnss_receiver,camera,rangefinder --situation jammed
+```
+
 ## What runs where
 
 | | Runs | How much of UPIN |

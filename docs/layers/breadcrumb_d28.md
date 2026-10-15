@@ -65,6 +65,38 @@ This layer takes real input through its own methods and never invents a reading:
 
 Call those methods from a driver or the application. With nothing supplied it declines and names what is missing.
 
+## When to use it
+
+From the mission index ([`docs/MISSION_INDEX.md`](../MISSION_INDEX.md)); every figure is a simulation figure.
+
+| Situation | Works? | Why |
+|---|---|---|
+| GNSS healthy | limited | drops only while trusted; no fix needed then |
+| GNSS jammed (no fix) | yes | if crumbs were dropped on the way in |
+| GNSS spoofed (a fix, but a lie) | yes | signed |
+| GNSS denied for minutes | limited | along the trail; poor past it |
+| night or no light | yes |  |
+| featureless ground or water | yes |  |
+| indoor | limited | short range |
+| moving fast | yes |  |
+| stationary or hovering | yes |  |
+
+**Gives:** ALTITUDE, POSITION. **Needs:** `beacon_radio`, `crumb_dispenser`.
+
+**Measured (simulation):** Simulation: 20 m rms with 22 m stated sigma along a weaving trail, 96% coverage; crumbs on a straight line decline on geometry (stated limit).
+
+**Enable:**
+
+```toml
+beacon_radio = "/dev/ttyUSB1"
+beacon_secret_file = "/etc/upin/beacon.key"
+breadcrumbs = true
+```
+
+**Falls back to:** the AI predictor and coasting
+
+**Status:** simulation; crumb firmware not built. README: [`docs/BREADCRUMBS.md`](../../docs/BREADCRUMBS.md)
+
 ## Details
 
 | | |

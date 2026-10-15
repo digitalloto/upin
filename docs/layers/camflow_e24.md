@@ -59,6 +59,38 @@ This layer takes real input through its own methods and never invents a reading:
 
 Call those methods from a driver or the application. With nothing supplied it declines and names what is missing.
 
+## When to use it
+
+From the mission index ([`docs/MISSION_INDEX.md`](../MISSION_INDEX.md)); every figure is a simulation figure.
+
+| Situation | Works? | Why |
+|---|---|---|
+| GNSS healthy | yes |  |
+| GNSS jammed (no fix) | yes |  |
+| GNSS spoofed (a fix, but a lie) | yes | a moving ground pattern is thrown out |
+| GNSS denied for minutes | yes |  |
+| night or no light | no | needs light |
+| featureless ground or water | no | no texture: declines |
+| indoor | limited | a textured floor |
+| moving fast | limited | search radius; measure |
+| stationary or hovering | yes |  |
+
+**Gives:** VELOCITY. **Needs:** `camera`, `flight_controller`, `rangefinder`.
+
+**Measured (simulation):** Simulation: 0.22 m/s rms honest flight; laser dots 4 m apart: naive tracker dragged 1.6 m/s, ours within 0.40 m/s; dots in every patch followed (stated limit).
+
+**Enable:**
+
+```toml
+camera = "pi"
+camera_fov_deg = 62.0
+camera_flow = true
+```
+
+**Falls back to:** the AI predictor, then coasting
+
+**Status:** simulation; camera untested. README: [`docs/CAMERA_FLOW.md`](../../docs/CAMERA_FLOW.md)
+
 ## Details
 
 | | |

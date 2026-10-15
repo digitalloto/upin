@@ -301,6 +301,29 @@ def how_to_run(f: LayerFacts) -> List[str]:
     return L
 
 
+def when_to_use(layer_id: str) -> List[str]:
+    """From the mission catalogue, for honest layers: which situations, what
+    to enable, what it falls back to."""
+    from upin.layers.mission_catalog import BY_ID, SITUATIONS
+    e = BY_ID.get(layer_id)
+    if e is None:
+        return []
+    L = ["## When to use it", "",
+         "From the mission index ([`docs/MISSION_INDEX.md`](../MISSION_INDEX.md)); "
+         "every figure is a simulation figure.", "",
+         "| Situation | Works? | Why |", "|---|---|---|"]
+    for s, (v, why) in e.works.items():
+        L.append(f"| {SITUATIONS[s]} | {v} | {why} |")
+    L += ["", f"**Gives:** {', '.join(sorted(e.gives))}. **Needs:** "
+          f"{', '.join(f'`{n}`' for n in sorted(e.needs))}.", "",
+          f"**Measured (simulation):** {e.measured}", "",
+          "**Enable:**", "", "```toml", e.enable, "```", ""]
+    if e.falls_back_to:
+        L += [f"**Falls back to:** {e.falls_back_to}", ""]
+    L += [f"**Status:** {e.status}. README: [`{e.readme}`](../../{e.readme})", ""]
+    return L
+
+
 def render_layer(f: LayerFacts) -> str:
     L: List[str] = []
     L.append(f"# {f.name}")
@@ -328,6 +351,7 @@ def render_layer(f: LayerFacts) -> str:
 
     L += requirements_section(f.requirement)
     L += how_to_run(f)
+    L += when_to_use(f.layer_id)
 
     L += ["## Details", "",
           "| | |", "|---|---|",
@@ -407,6 +431,8 @@ def render_root(facts: List[LayerFacts]) -> str:
           "while the fix is trusted, ranged to inside the jam |",
           "| [`BALLOON_CARRY.md`](BALLOON_CARRY.md) | Should the drone carry a balloon "
           "beacon? The numbers, from labelled physics |",
+          "| [`docs/MISSION_INDEX.md`](docs/MISSION_INDEX.md) | **Mission index**: every "
+          "honest way to get a position, and what to load for a mission |",
           "| [`FABRICATION_AUDIT.md`](FABRICATION_AUDIT.md) | Every place the "
           "code invents a number, what it costs, and the staged plan to remove it |",
           "| [`UPIN_MASTER.md`](UPIN_MASTER.md) | The full project document |",

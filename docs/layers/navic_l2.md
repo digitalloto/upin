@@ -57,6 +57,34 @@ This layer takes real input through its own methods and never invents a reading:
 
 **Simulation:** the harness (`upin/simulation/harness.py`) drives it through those same methods from `SimulationWorld`. **Real mode:** connect the hardware above and call the same methods from a driver; with nothing connected it declines and names what is missing.
 
+## When to use it
+
+From the mission index ([`docs/MISSION_INDEX.md`](../MISSION_INDEX.md)); every figure is a simulation figure.
+
+| Situation | Works? | Why |
+|---|---|---|
+| GNSS healthy | yes |  |
+| GNSS jammed (no fix) | no | no satellites |
+| GNSS spoofed (a fix, but a lie) | limited | as GPS; cross-checked against GPS |
+| GNSS denied for minutes | no | no satellites |
+| night or no light | yes |  |
+| featureless ground or water | yes |  |
+| indoor | no | no sky |
+| moving fast | yes |  |
+| stationary or hovering | yes |  |
+
+**Gives:** POSITION. **Needs:** `raw_gnss`.
+
+**Measured (simulation):** Simulation: as GPS; the sovereign constellation for the cross-check.
+
+**Enable:**
+
+```toml
+not in the box yet: as GPS
+```
+
+**Status:** simulation; not wired into the box. README: [`docs/layers/navic_l2.md`](../../docs/layers/navic_l2.md)
+
 ## Details
 
 | | |

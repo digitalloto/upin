@@ -60,6 +60,34 @@ This layer takes real input through its own methods and never invents a reading:
 
 Call those methods from a driver or the application. With nothing supplied it declines and names what is missing.
 
+## When to use it
+
+From the mission index ([`docs/MISSION_INDEX.md`](../MISSION_INDEX.md)); every figure is a simulation figure.
+
+| Situation | Works? | Why |
+|---|---|---|
+| GNSS healthy | yes |  |
+| GNSS jammed (no fix) | yes |  |
+| GNSS spoofed (a fix, but a lie) | yes |  |
+| GNSS denied for minutes | limited | a propagated estimate with a growing circle |
+| night or no light | yes |  |
+| featureless ground or water | yes |  |
+| indoor | yes |  |
+| moving fast | yes |  |
+| stationary or hovering | yes |  |
+
+**Gives:** HEADING, POSITION, VELOCITY. **Needs:** `attitude_mode_fc`, `flight_controller`.
+
+**Measured (simulation):** Simulation: reached a 500 m GPS-denied target with the truth inside its 95% circle ~98% of the time in gusty air.
+
+**Enable:**
+
+```toml
+not in the box yet: a guidance layer; flown through the autopilot interface
+```
+
+**Status:** simulation; MAVLink untested. README: [`docs/layers/mapclick_b13.md`](../../docs/layers/mapclick_b13.md)
+
 ## Details
 
 | | |

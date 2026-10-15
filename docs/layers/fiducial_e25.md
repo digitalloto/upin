@@ -59,6 +59,37 @@ This layer takes real input through its own methods and never invents a reading:
 
 Call those methods from a driver or the application. With nothing supplied it declines and names what is missing.
 
+## When to use it
+
+From the mission index ([`docs/MISSION_INDEX.md`](../MISSION_INDEX.md)); every figure is a simulation figure.
+
+| Situation | Works? | Why |
+|---|---|---|
+| GNSS healthy | yes |  |
+| GNSS jammed (no fix) | yes |  |
+| GNSS spoofed (a fix, but a lie) | yes | physical: cannot be spoofed by radio |
+| GNSS denied for minutes | limited | only while a tag is in view |
+| night or no light | no | needs light |
+| featureless ground or water | yes | the tag is the feature |
+| indoor | yes | tags on the floor |
+| moving fast | yes |  |
+| stationary or hovering | yes |  |
+
+**Gives:** ALTITUDE, POSITION. **Needs:** `camera`, `flight_controller`, `tags_surveyed`.
+
+**Measured (simulation):** Simulation: position within 0.4 px, height within 0.5 m at 50 m; re-anchors the filter to under a metre while in view.
+
+**Enable:**
+
+```toml
+camera = "pi"
+tag_map = "/etc/upin/tags.json"
+```
+
+**Falls back to:** whatever else is loaded
+
+**Status:** simulation; camera untested. README: [`docs/TAGS.md`](../../docs/TAGS.md)
+
 ## Details
 
 | | |
