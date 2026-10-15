@@ -10,11 +10,11 @@ This table is measured, not claimed. Every layer below was constructed with noth
 
 | Status | Layers | Meaning |
 |---|---:|---|
-| **DECLINES** | 18 | Reports no fix when it has no input, and says what is missing. Honours the no-fabrication contract. |
+| **DECLINES** | 19 | Reports no fix when it has no input, and says what is missing. Honours the no-fabrication contract. |
 | **PLACEHOLDER** | 13 | Returns the same fixed reading whenever nothing is connected. Not random, but not measured either. |
 | **FABRICATES** | 114 | Invents a reading when nothing is connected, and invents a different one each time it is read. |
 
-**18 of 145 layers** currently refuse to invent a position. **145 of 145** have declared what hardware and data they need.
+**19 of 146 layers** currently refuse to invent a position. **146 of 146** have declared what hardware and data they need.
 
 The gap between those numbers and the total is the work tracked in [`FABRICATION_AUDIT.md`](FABRICATION_AUDIT.md), which explains what each fabricating layer does and what it would cost in flight.
 
@@ -32,6 +32,7 @@ The gap between those numbers and the total is the work tracked in [`FABRICATION
 | [`docs/TAGS.md`](docs/TAGS.md) | Tag landmarks: a fix from a printed tag; ground truth for the range |
 | [`docs/CAMERA_FLOW.md`](docs/CAMERA_FLOW.md) | Camera optical flow with weighted RANSAC: laser dots thrown out |
 | [`docs/BEACONS.md`](docs/BEACONS.md) | Known-position beacons, balloons included: the idea made honest |
+| [`docs/LEO_DOPPLER.md`](docs/LEO_DOPPLER.md) | LEO Doppler anchor: a coarse GNSS-free fix from a satellite pass on a cheap radio |
 | [`FABRICATION_AUDIT.md`](FABRICATION_AUDIT.md) | Every place the code invents a number, what it costs, and the staged plan to remove it |
 | [`UPIN_MASTER.md`](UPIN_MASTER.md) | The full project document |
 | [`QUANTUM.md`](QUANTUM.md) | Group Q hardware readiness and patent sequencing |
@@ -44,7 +45,7 @@ What it would take for each layer to work for real, independent of whether it wo
 
 | Class | Layers | Meaning |
 |---|---:|---|
-| specialist | 35 | Real, buyable hardware that typical drones do not carry. |
+| specialist | 36 | Real, buyable hardware that typical drones do not carry. |
 | drone-ready | 31 | Hardware a drone commonly carries or can easily add. |
 | platform-specific | 24 | Works only on a particular platform -- ships, submarines, ground vehicles. |
 | needs infrastructure | 22 | Needs beacons, networks or other people's equipment in place first. |
@@ -54,7 +55,7 @@ What it would take for each layer to work for real, independent of whether it wo
 
 ## The layers
 
-### Group A — Satellite & Celestial (20 layers, 3 clean)
+### Group A — Satellite & Celestial (21 layers, 4 clean)
 
 | # | Layer | ID | Status | Operating class |
 |---:|---|---|---|---|
@@ -78,6 +79,7 @@ What it would take for each layer to work for real, independent of whether it wo
 | 124 | [Planet Sighting Navigation](docs/layers/planets_a18.md) | `planets_a18` | fabricates | specialist |
 | 125 | [Atmospheric Refraction Correction](docs/layers/refraction_a19.md) | `refraction_a19` | fabricates | support function |
 | 146 | [GNSS Signal-Power Spoof Check](docs/layers/cn0spoof_a20.md) | `cn0spoof_a20` | clean | support function |
+| 150 | [LEO Doppler Anchor (software radio)](docs/layers/leodoppler_a21.md) | `leodoppler_a21` | clean | specialist |
 
 ### Group B — Inertial & Timing (14 layers, 3 clean)
 

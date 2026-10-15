@@ -28,6 +28,10 @@ box = [
 camera = [
     "picamera2>=0.3",
 ]
+sdr = [
+    "pyrtlsdr>=0.3",
+    "sgp4>=2.20",
+]
 sensors = [
     "requests>=2.28.0",
     "plyer>=2.1.0",

@@ -26,7 +26,7 @@ Last updated 1 October 2026. Measured layer status lives in
 | 0.2 | Layers declare the sensors and data they need | done |
 | 0.3 | Simulation moved out of layers into a harness; real/sim/off modes; real feed rejects agents that fall back to simulation | done |
 | 0.4 | A generated README for every layer, status measured not claimed | done |
-| — | Sensor requirements and operating class for all 145 layers (`upin/layers/requirements_catalog.py`) | done |
+| — | Sensor requirements and operating class for all 146 layers (`upin/layers/requirements_catalog.py`) | done |
 | 1 | Convert the remaining fabricating layers, one at a time | **114 left** |
 | 2 | Delete `set_simulated_position` and the simulation default | after Phase 1 |
 
@@ -48,6 +48,7 @@ Last updated 1 October 2026. Measured layer status lives in
 | — | **Layer 149, tag landmarks** (`fiducial_e25`): our own printed tag; one tag at a surveyed spot is a full fix with accuracy from the geometry; re-anchors the reachable region; `tools/tag_truth.py` measures every other source against it | done (simulation; camera driver untested) | `upin/layers/optical/fiducial.py`, `upin/vision/upin_tag.py`, [`docs/TAGS.md`](docs/TAGS.md) |
 | 8 | **L3 camera optical flow, layer 148** (`camflow_e24`): block matching plus weighted RANSAC with trust earned since takeoff; a sweeping laser-dot grid is thrown out; gyro-compensated; declines without texture, height or agreement | done (simulation; camera untested) | `upin/layers/optical/camera_flow.py`, [`docs/CAMERA_FLOW.md`](docs/CAMERA_FLOW.md) |
 | — | **Layer 151, known-position beacon ranging** (`beaconrng_d27`): the balloon idea; signed, hopping beacons that broadcast their own positions and sigmas; weighted least squares with DOP; a GNSS jammer leaves it alone, a band jammer silences it, both shown | done (simulation; radio and beacon firmware not built) | `upin/layers/rf/beacon_ranging.py`, [`docs/BEACONS.md`](docs/BEACONS.md) |
+| — | **Layer 150, LEO Doppler anchor** (`leodoppler_a21`): one coarse fix per satellite pass on a cheap software radio; fits position, oscillator offset and drift; refuses stale orbits, weak priors (mirror ambiguity) and fixes far from the prior (a wrong satellite fits perfectly); honest replacement path for the fabricating `leo_l19` | done (simulation; radio untested) | `upin/layers/satellite/leo_doppler.py`, [`docs/LEO_DOPPLER.md`](docs/LEO_DOPPLER.md) |
 | 4 | L1 completion: strapdown INS wired in, retained command log (§3) | next | `upin/core/strapdown_ins.py` |
 | 5 | Navigation Arbiter: explicit mode, DR time limit (§9) | | |
 | 6 | Escape Manager: retrace, rally, jammer gradient, swarm spread (§10) | | |
@@ -168,7 +169,7 @@ From the reels of 12 October 2026, built only when the trigger happens:
 |---|---|
 | Fiducial-tag landmark layer: tags at surveyed spots give a precise fix (home, landing pad, test-range ground truth for calibrating every other layer) | **built** (layer 149, 15 Oct 2026, pulled forward at the user's request; still needs the camera) |
 | Same code in simulation and on the drone: ArduPilot SITL + Gazebo, extending `tools/sitl_box.py` | the box first runs against SITL (bench plan, day 1) |
-| Independent GNSS-band jamming monitor with a cheap software radio (RTL-SDR): noise in the band vs a learned baseline; also the cheap way into the correlator research | GNSS hardware is on the bench and a second jamming opinion is wanted |
+| Independent GNSS-band jamming monitor with a cheap software radio (RTL-SDR): noise in the band vs a learned baseline; also the cheap way into the correlator research | GNSS hardware is on the bench and a second jamming opinion is wanted. The same dongle now serves layer 150 (LEO Doppler) |
 | Weighted RANSAC inside UPIN's own camera flow, trusting points that have agreed since takeoff | **built** (layer 148, 15 Oct 2026; still needs the camera) |
 | Radxa Zero 3W as a cheaper companion computer (4 cores, 2 GB, NPU, per its maker; unverified) | benchmarking the box on boards other than the Pi |
 

@@ -55,10 +55,12 @@ from upin.detection.reachability import Envelope
 from upin.core.wind_learner import FlightSample, WindLearner
 from upin.box.beacon_radio import BeaconRadio
 from upin.box.camera import open_camera
+from upin.box.leo_pass import LeoPassRunner
 from upin.layers.inertial.learned_io import LearnedInertialOdometryLayer
 from upin.layers.optical.camera_flow import CameraFlowLayer
 from upin.layers.optical.fiducial import FiducialTagLayer, TagMap
 from upin.layers.rf.beacon_ranging import BeaconRangingLayer
+from upin.layers.satellite.leo_doppler import LeoDopplerLayer
 from upin.layers.satellite.signal_power import SignalPowerCheckLayer
 from upin.learned.features import mean_thrust_direction
 
@@ -92,6 +94,9 @@ class BoxConfig:
     beacon_radio: str = ""             # serial port of the ranging radio (JSON lines)
     beacon_radio_baud: int = 115200
     beacon_secret_file: str = ""       # file holding the shared secret (bytes)
+    # LEO Doppler anchor (layer 150); "" = off
+    sdr: str = ""                      # "rtl" for an RTL-SDR dongle
+    leo_satellites: str = ""           # satellites.json: name, TLE lines, carrier_hz
     range_sigma_m: float = 0.1         # ASSUMPTION: rangefinder 1-sigma; from its datasheet
     flow_check_action: str = "distrust"
     """Suspect optical flow is not fed to the filter. Distrust is the default
@@ -168,6 +173,11 @@ class Box:
             with open(cfg.beacon_secret_file, "rb") as f:
                 self.beacons.set_secret(f.read().strip())
         self.last_beacons: Optional[dict] = None
+        # LEO Doppler anchor (layer 150): runs only with an SDR and satellites.
+        self.leo = LeoDopplerLayer()
+        self.leo.initialize()
+        self.leo_runner: Optional[LeoPassRunner] = None
+        self.last_leo: Optional[dict] = None
         self._flow_status: Optional[dict] = None
         self.fc = FcReader()
         self.ubx = UbxStream()
@@ -270,6 +280,25 @@ class Box:
             return self.beacons.feed_range(str(d.get("id")), float(d.get("range_m", 0)),
                                            float(d.get("sigma_m", 0)), t)
         return "unknown line type"
+
+    def step_leo(self, now_unix: float, t: float) -> None:
+        """Advance the LEO pass runner; an accepted fix enters the filter
+        without re-anchoring the reachable region (too coarse for that)."""
+        if self.leo_runner is None:
+            return
+        est = self.gateway.kf.estimate()
+        baro = self.fc.state.baro
+        if est is None or baro is None or self._baro_offset is None:
+            self.last_leo = {"status": "waiting", "reason": "needs a prior position and a "
+                             "GNSS-calibrated barometric altitude"}
+            return
+        v = self.leo_runner.step(est.lat, est.lon, max(est.drms_m, 100.0),
+                                 baro.pressure_alt_m - self._baro_offset,
+                                 self.cfg.baro_sigma_m, now_unix)
+        if v is not None and v["status"] == "ok":
+            v["fix"] = self.gateway.feed_position(v["lat"], v["lon"], v["sigma_m"], t,
+                                                  source="leo_doppler", anchor=False)
+        self.last_leo = v if v is not None else {"status": "running", "reason": self.leo_runner.status}
 
     def solve_beacons(self, t: float) -> dict:
         """Solve the beacon fix for this moment; an accepted fix re-anchors
@@ -420,6 +449,9 @@ class Box:
                      "horiz_accuracy": sent.horiz_accuracy},
             "ignored_circular": dict(self.fc.ignored),
             "fixes": {k: dict(v) for k, v in self.gateway.last_fixes.items()},
+            "leo_doppler": None if self.last_leo is None else {
+                k: self.last_leo.get(k) for k in
+                ("status", "reason", "satellite", "sigma_m", "lat", "lon", "max_elevation_deg")},
             "beacons": None if self.last_beacons is None else {
                 k: self.last_beacons.get(k) for k in
                 ("status", "reason", "n_beacons", "sigma_m", "hdop", "lat", "lon", "rejected")},
@@ -501,12 +533,19 @@ def run(cfg: BoxConfig, deny_gnss: bool = False, send: bool = True,
     cam = (open_camera(cfg.camera, cfg.camera_size_px, cfg.camera_fov_deg)
            if cfg.camera else None)
     radio = BeaconRadio(cfg.beacon_radio, cfg.beacon_radio_baud) if cfg.beacon_radio else None
+    if cfg.sdr and cfg.leo_satellites:
+        from upin.box.sdr import RtlSdrSource
+        if cfg.sdr != "rtl":
+            raise SystemExit("sdr must be 'rtl' (RTL-SDR dongle) or empty")
     print(f"UPIN box running: GNSS from {gnss_source}, GPS instance "
           f"{cfg.gps_id + 1}, {'shadow' if cfg.shadow else 'LIVE'}, "
           f"{'GNSS DENIED in software, ' if deny_gnss else ''}"
           f"{'sending' if send else 'NOT sending'}; log {cfg.log_path}")
     with open(cfg.log_path, "a", encoding="utf-8") as log:
         box = Box(cfg, deny_gnss, log)
+        if cfg.sdr and cfg.leo_satellites:
+            box.leo_runner = LeoPassRunner(cfg.leo_satellites,
+                                           lambda hz: RtlSdrSource(hz), box.leo)
         if on_start is not None:
             on_start(box)
         last_mode = None
@@ -531,6 +570,7 @@ def run(cfg: BoxConfig, deny_gnss: bool = False, send: bool = True,
             if radio is not None:
                 for line in radio.read_lines():
                     box.on_beacon_line(line, now)
+            box.step_leo(unix_s, now)
             while True:
                 msg = conn.recv_match(blocking=False)
                 if msg is None:

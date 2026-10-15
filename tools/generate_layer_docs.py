@@ -401,6 +401,8 @@ def render_root(facts: List[LayerFacts]) -> str:
           "weighted RANSAC: laser dots thrown out |",
           "| [`docs/BEACONS.md`](docs/BEACONS.md) | Known-position beacons, balloons "
           "included: the idea made honest |",
+          "| [`docs/LEO_DOPPLER.md`](docs/LEO_DOPPLER.md) | LEO Doppler anchor: a "
+          "coarse GNSS-free fix from a satellite pass on a cheap radio |",
           "| [`FABRICATION_AUDIT.md`](FABRICATION_AUDIT.md) | Every place the "
           "code invents a number, what it costs, and the staged plan to remove it |",
           "| [`UPIN_MASTER.md`](UPIN_MASTER.md) | The full project document |",

@@ -176,6 +176,7 @@ class ConsoleState:
                 "tag": getattr(box, "last_tag", None),
                 "camera_flow": getattr(box, "last_camflow", None),
                 "beacons": getattr(box, "last_beacons", None),
+                "leo_doppler": getattr(box, "last_leo", None),
                 "camera_frames": getattr(box, "frames_seen", 0),
                 "learned_io": None if not hasattr(box, "learned") else (
                     box.learned.last if box.learned.model is not None and box.learned.last

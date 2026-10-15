@@ -134,6 +134,7 @@ from upin.layers.inertial.learned_io import LearnedInertialOdometryLayer
 from upin.layers.optical.camera_flow import CameraFlowLayer
 from upin.layers.optical.fiducial import FiducialTagLayer
 from upin.layers.rf.beacon_ranging import BeaconRangingLayer
+from upin.layers.satellite.leo_doppler import LeoDopplerLayer
 from upin.quantum.layers import (
     EntangledPhotonRangingLayer, DistributedQuantumSensingLayer,
     QuantumClockNetworkLayer, AtomInterferometerGyroLayer,
@@ -328,6 +329,8 @@ ALL_LAYER_CLASSES: dict[str, type[NavigationLayer]] = {
     "camflow_e24": CameraFlowLayer,
     # ── Known-position beacons: tripods, masts, tethered or free balloons ──
     "beaconrng_d27": BeaconRangingLayer,
+    # ── LEO Doppler anchor: one coarse GNSS-free fix per satellite pass ──
+    "leodoppler_a21": LeoDopplerLayer,
 }
 
 

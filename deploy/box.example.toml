@@ -51,6 +51,11 @@ beacon_radio = ""            # serial port of the ranging radio (JSON lines; see
 beacon_radio_baud = 115200
 beacon_secret_file = ""      # the shared secret the beacons sign and hop with; keep it off the repo
 
+[leo]
+sdr = ""                     # "rtl" for an RTL-SDR dongle (pip install -e ".[sdr]"); "" = off
+leo_satellites = ""          # satellites.json: name, TLE lines and carrier_hz per satellite,
+                             # fetched before the mission (TLEs older than 7 days are refused)
+
 [sensors]
 heading_sigma_deg = 5.0      # ASSUMPTION: compass/attitude heading error
 flow_sigma_ms = 0.3          # ASSUMPTION: optical-flow velocity error

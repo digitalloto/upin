@@ -425,8 +425,17 @@ function renderFixes(s) {
   if (bc && bc.rejected && Object.keys(bc.rejected).length) {
     row("  messages refused", Object.entries(bc.rejected).map(([k, v]) => k + " ×" + v).join(", "), "na");
   }
+  const leo = s.leo_doppler, lfx = (s.fixes || {}).leo_doppler;
+  if (leo && leo.status === "ok") {
+    row("LEO Doppler (150)", (leo.satellite || "satellite") + ": ±" + num(leo.sigma_m, 0) + " m, peak " + num(leo.max_elevation_deg, 0) + "°");
+    if (lfx) row("  → filter", lfx.accepted ? "accepted (coarse: no re-anchor)" : "REJECTED: " + lfx.reason, lfx.accepted ? "" : "na");
+  } else if (leo) {
+    row("LEO Doppler (150)", leo.status + ": " + leo.reason, "na");
+  } else {
+    row("LEO Doppler (150)", "no software radio configured", "na");
+  }
   Object.entries(s.fixes || {}).forEach(([src, f]) => {
-    if (src === "fiducial" || src === "beacons") return;
+    if (src === "fiducial" || src === "beacons" || src === "leo_doppler") return;
     row(src, (f.accepted ? "accepted" : "rejected: " + f.reason) + ", ±" + num(f.sigma_m, 1) + " m");
   });
 }
