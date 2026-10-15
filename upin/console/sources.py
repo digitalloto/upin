@@ -111,6 +111,14 @@ class SimSource(Source):
     GNSS_SIGMA_M, GNSS_TAU_S, FC_GNSS_SIGMA_M = 1.5, 30.0, 2.0
     VEL_SIGMA_MS, HEADING_SIGMA_DEG, FLOW_SIGMA_MS = 0.1, 2.0, 0.2
     SPOOF_JUMP_M, SPOOF_DRAG_MS = 500.0, 1.0
+    # A steady breeze and the lean a multirotor needs to fly the circuit
+    # through it (ASSUMPTIONS: 3 m/s toward the north-east, no gusts; a
+    # quadratic drag of 0.02 /m, a cleaner airframe than the training
+    # simulator's, so 8 m/s needs about 14 degrees of lean). The attitude
+    # and IMU carry that lean; the ground track is unchanged.
+    WIND_NE_MS = (2.12, 2.12)
+    DRAG_K = 0.02
+    ATT_HZ = 10
     FLOW_ATTACK_MS = 2.5
     """Moving ground pattern (the laser-dot attack): the dots sweep east at
     this speed, so the flow sensor sees the ground move."""
@@ -136,7 +144,8 @@ class SimSource(Source):
                                     camera_flow=True, breadcrumbs=True,
                                     breadcrumb_spacing_m=150.0,   # the circuit is short
                                     formation=True, drone_id="lead",
-                                    formation_check_action="distrust")
+                                    formation_check_action="distrust",
+                                    wind_dr=True, airframe_id="sim-circuit-quad")
         self._lock = threading.Lock()
         self._reset()
 
@@ -214,6 +223,45 @@ class SimSource(Source):
         return (self.start_lat + n / DEG_M,
                 self.start_lon + e / (DEG_M * math.cos(math.radians(self.start_lat))))
 
+    def _dynamics(self, t):
+        """At time t: the circuit's acceleration, and the roll and pitch a
+        multirotor needs to produce it through the wind (drag plus the
+        acceleration is what the lean must supply), relative to its yaw."""
+        h = 0.01
+        n, e, vn, ve = self.truth(t)
+        _, _, vn1, ve1 = self.truth(t + h)
+        _, _, vn0, ve0 = self.truth(t - h)
+        an, ae = (vn1 - vn0) / (2 * h), (ve1 - ve0) / (2 * h)
+        air_n, air_e = vn - self.WIND_NE_MS[0], ve - self.WIND_NE_MS[1]
+        air = math.hypot(air_n, air_e)
+        ln, le = self.DRAG_K * air * air_n + an, self.DRAG_K * air * air_e + ae
+        tilt = math.atan2(math.hypot(ln, le), 9.80665)
+        yaw = math.atan2(ve, vn)
+        delta = math.atan2(le, ln) - yaw
+        roll = math.asin(math.sin(tilt) * math.sin(delta))
+        pitch = math.asin(max(-1.0, min(1.0, -math.sin(tilt) * math.cos(delta) / max(math.cos(roll), 1e-6))))
+        turn = (vn * ae - ve * an) / max(vn * vn + ve * ve, 1e-9)
+        return an, ae, roll, pitch, yaw, turn
+
+    def _fc_attitude_and_imu(self, tt, rng):
+        """One ATTITUDE and one RAW_IMU message at time tt: the lean above,
+        the yaw with compass noise, and the specific force the IMU sees in
+        that attitude (gravity rotated out)."""
+        an, ae, roll, pitch, yaw, turn = self._dynamics(tt)
+        yaw_meas = yaw + math.radians(rng.gauss(0, self.HEADING_SIGMA_DEG))
+        self.box.on_fc_message(Msg("ATTITUDE", roll=roll, pitch=pitch, yaw=yaw_meas), tt)
+        cr, sr, cp, sp, cy, sy = (math.cos(roll), math.sin(roll), math.cos(pitch),
+                                  math.sin(pitch), math.cos(yaw_meas), math.sin(yaw_meas))
+        f = (an, ae, -9.80665)                          # specific force, NED
+        fx = cy * cp * f[0] + sy * cp * f[1] - sp * f[2]
+        fy = ((cy * sp * sr - sy * cr) * f[0] + (sy * sp * sr + cy * cr) * f[1] + cp * sr * f[2])
+        fz = ((cy * sp * cr + sy * sr) * f[0] + (sy * sp * cr - cy * sr) * f[1] + cp * cr * f[2])
+        mg = 9.80665e-3
+        self.box.on_fc_message(Msg("RAW_IMU", xacc=(fx + rng.gauss(0, 0.05)) / mg,
+                                   yacc=(fy + rng.gauss(0, 0.05)) / mg, zacc=fz / mg,
+                                   xgyro=0.0, ygyro=0.0, zgyro=1000.0 * turn), tt)
+        return yaw_meas
+
     def _radio_line(self, line: str) -> None:
         """What the box writes to its radio: a crumb's provisioning stamp, or
         its own formation message (heard by the wingmen; nothing to do here,
@@ -232,10 +280,11 @@ class SimSource(Source):
 
     def _provision_crumb(self, rec: dict) -> None:
         """The box 'sends' a stamp to the crumb's radio; here the crumb lands
-        at the drone's TRUE position (no wind in this circuit) and broadcasts
-        the stamp."""
+        where the TRUE wind carries it during the fall and broadcasts the
+        stamp (which used the box's learned wind)."""
         n, e, _, _ = self.truth(self.t)
-        lat, lon = self._ll(n, e)
+        fall_s = self.ALT_M / self.box.crumbs.CRUMB_FALL_MS
+        lat, lon = self._ll(n + self.WIND_NE_MS[0] * fall_s, e + self.WIND_NE_MS[1] * fall_s)
         self.beacon_sim.drop_crumb(rec, lat, lon, 0.0)
         self.state.event(f"SIMULATION: crumb {rec['id']} dropped, stamped ±{rec['sigma_m']:.1f} m",
                          "sim")
@@ -268,7 +317,10 @@ class SimSource(Source):
                 msg = f"SIMULATION: GNSS {'jammed (no fix)' if self.deny else 'restored'}"
             elif action == "flow":
                 self.flow = not self.flow
-                msg = f"SIMULATION: optical-flow sensor {'ON' if self.flow else 'OFF'}"
+                self.cfg.camera_flow = self.flow
+                msg = (f"SIMULATION: flow sensors {'ON' if self.flow else 'OFF'} (the flow chip and the "
+                       f"camera flow; with both off and no model, wind dead reckoning is the last "
+                       f"velocity rung before coasting)")
             elif action == "beacons":
                 self.beacons_on = not self.beacons_on
                 msg = f"SIMULATION: beacons {'ON' if self.beacons_on else 'OFF'}"
@@ -326,38 +378,28 @@ class SimSource(Source):
             sn = self.drag_m
             se = self.SPOOF_JUMP_M if self.spoof_jump else 0.0
 
-            # The camera runs at 5 frames/s but the simulation steps once a
-            # second, so the flow layer gets the last 0.2 s pair: a frame at
-            # t-0.2 with that moment's attitude and height, then the frame at t.
+            # Attitude and IMU at ATT_HZ through the second: the lean the wind
+            # and the circuit's accelerations demand, and the specific force
+            # the IMU sees in that attitude. The camera runs at 5 frames/s but
+            # the simulation steps once a second, so the flow layer gets the
+            # last 0.2 s pair: a frame at t-0.2 with that moment's attitude
+            # and height, then the frame at t.
             t0 = t - 0.2
             n0, e0, vn0, ve0 = self.truth(t0)
             hdg0 = math.degrees(math.atan2(ve0, vn0)) % 360.0
-            box.on_fc_message(Msg("ATTITUDE", roll=0.0, pitch=0.0, yaw=math.radians(
-                hdg0 + rng.gauss(0, self.HEADING_SIGMA_DEG))), t0)
-            box.on_fc_message(Msg("DISTANCE_SENSOR", current_distance=round(self.ALT_M * 100),
-                                  orientation=25), t0)
             dots = ({"speed_ne": (0.0, self.FLOW_ATTACK_MS), "spacing_m": 4.0, "dot_m": 0.5}
                     if self.flow_attack else None)
-            frame0, _ = camera_frame(e0, n0, hdg0, self.ALT_M, self.CAM_FOV_DEG, self.CAM_PX, t0,
-                                     tags=self.sim_tags if self.tags_on else (), dots=dots,
-                                     pixel_noise=0.02, rng=self.nprng)
-            box.on_frame(frame0, t0, self.CAM_FOV_DEG)
-
-            yaw_meas = math.radians(heading + rng.gauss(0, self.HEADING_SIGMA_DEG))
-            box.on_fc_message(Msg("ATTITUDE", roll=0.0, pitch=0.0, yaw=yaw_meas), t)
-            # IMU: the acceleration the circuit implies (level attitude in this
-            # kinematic model), as body specific force in milli-g.
-            h = 0.01
-            _, _, vn1, ve1 = self.truth(t + h)
-            _, _, vn0, ve0 = self.truth(t - h)
-            an, ae = (vn1 - vn0) / (2 * h), (ve1 - ve0) / (2 * h)
-            turn = (vn * ae - ve * an) / max(vn * vn + ve * ve, 1e-9)   # heading rate, rad/s
-            cy, sy = math.cos(yaw_meas), math.sin(yaw_meas)
-            fx = an * cy + ae * sy + rng.gauss(0, 0.05)
-            fy = -an * sy + ae * cy + rng.gauss(0, 0.05)
-            mg = 9.80665e-3
-            box.on_fc_message(Msg("RAW_IMU", xacc=fx / mg, yacc=fy / mg, zacc=-1000.0,
-                                  xgyro=0.0, ygyro=0.0, zgyro=1000.0 * turn), t)
+            yaw_meas = None
+            for j in range(1, self.ATT_HZ + 1):
+                tt = t - dt + j * dt / self.ATT_HZ
+                yaw_meas = self._fc_attitude_and_imu(tt, rng)
+                if abs(tt - t0) < 1e-6:
+                    box.on_fc_message(Msg("DISTANCE_SENSOR", current_distance=round(self.ALT_M * 100),
+                                          orientation=25), t0)
+                    frame0, _ = camera_frame(e0, n0, hdg0, self.ALT_M, self.CAM_FOV_DEG, self.CAM_PX,
+                                             t0, tags=self.sim_tags if self.tags_on else (),
+                                             dots=dots, pixel_noise=0.02, rng=self.nprng)
+                    box.on_frame(frame0, t0, self.CAM_FOV_DEG)
             press = P0_HPA * (1 - self.ALT_M / 44330.0) ** 5.255
             box.on_fc_message(Msg("SCALED_PRESSURE", press_abs=press + rng.gauss(0, 0.05),
                                   temperature=3000), t)

@@ -127,6 +127,7 @@ What the box service uses on real data, today:
 |---|---|---|
 | Fix checks, reachability, constellation cross-check, return validation | `upin/box/gateway.py`, `upin/detection/` | tested in simulation |
 | HonestKalman: GNSS, heading, barometer, optical-flow velocity | `upin/fusion/honest_kalman.py` | tested in simulation |
+| Wind-and-tilt dead reckoning: the Wind and Speed Learners, the lean plus the frozen wind as the last velocity rung before coasting | `upin/box/wind_dr.py`, `upin/core/wind_learner.py`, `upin/core/speed_learner.py` | tested in simulation (`docs/WIND_DR.md`) |
 | UBX parser; replay | `upin/box/gnss_parser.py`, `replay.py` | tested on synthetic bytes |
 | Flight-controller reader; `GPS_INPUT` | `upin/box/fc_reader.py`, `mavlink_out.py` | UNTESTED until SITL |
 
@@ -137,7 +138,6 @@ Not used yet, and why:
 | L0 GPS/NavIC layers | they need raw pseudoranges plus satellite positions from the broadcast ephemeris; that decoder is not built |
 | Landmark chain (L4) | needs a camera and georeferenced maps |
 | Command dead reckoning | needs the flight controller's command stream mapped in; next step |
-| Wind and speed learners | ready, but not yet wired into the service |
 | Quantum layers | laboratory hardware |
 | **The 114 layers that fabricate readings** | **must stay off the drone**: they invent positions when nothing is connected. The box service does not load them |
 
@@ -189,6 +189,7 @@ No prices are listed. Get quotes from Indian distributors.
 | Pixhawk-standard flight controller with ArduPilot, or ArduPilot SITL on a laptop first | the `GPS_INPUT` path |
 | Breadcrumb units (ranging module, microcontroller, coin cell, streamer) and a servo dispenser | breadcrumb beacons (layer 152): dropped as jamming rises, ranged to inside the jam. Firmware not written; see `docs/BREADCRUMBS.md` |
 | A ranging radio and the box on each drone of a formation | formation cross-check and cooperative fix (layer 153): the same radio as layer 151, one message per drone per second plus two-way ranging; firmware not written; see `docs/FORMATION.md` |
+| Airspeed sensor (pitot), fixed wing only | wind-and-tilt dead reckoning's fixed-wing path (`docs/WIND_DR.md`); set `airspeed_sensor = true` only with a real sensor: without one ArduPilot's `VFR_HUD.airspeed` is its EKF's guess, which used GNSS |
 | RTL-SDR dongle and a VHF antenna | LEO Doppler anchor (layer 150); later the GNSS-band jamming monitor and the correlator research. `pip install -e ".[sdr]"` |
 | Ranging radio on the box and on each beacon (2.4 GHz LoRa-class with ranging, or UWB), beacons on tripods first, balloons later | known-position beacon ranging (layer 151): a GNSS-independent fix on another band. Hop and transmit only inside a permitted band; see `docs/BEACONS.md` |
 | Downward camera (Pi global-shutter module, CSI) and printed UPIN tags | tag landmarks (layer 149): ground truth on the range, landing pad, indoor tests; later camera optical flow. `pip install -e ".[camera]"` on the Pi; set the real lens's field of view in `box.toml` |

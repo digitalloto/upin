@@ -27,6 +27,11 @@ power_check_action = "warn"  # signal-power spoof check (layer 146): "warn" unti
 [learned]
 airframe_id = ""             # EDIT: the airframe id used with tools/learn_from_flight.py
 learned_io_model = ""        # AI motion predictor (layer 147): path to the live model
+wind_dr = true               # wind-and-tilt dead reckoning: the last velocity rung before coasting (docs/WIND_DR.md)
+speed_model = ""             # tilt-to-airspeed curve for this airframe and payload; learned in flight, saved here at exit
+payload_kg = 0.0             # the payload the curve belongs to; a curve for another payload is refused
+airspeed_sensor = false      # true ONLY with a real airspeed sensor (fixed wing); without one VFR_HUD.airspeed is the EKF's guess
+airspeed_sigma_ms = 1.0      # ASSUMPTION: pitot 1-sigma, from its datasheet
                              # from your flight library, e.g. upin_flights/models/v4.npz;
                              # "" keeps it off
 

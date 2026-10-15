@@ -317,6 +317,12 @@ function render(s) {
       " (" + cf.n_inliers + "/" + cf.n_valid + " agree, " + Math.round(cf.agreeing_trust * 100) + "% trust)" + (cf.fed ? "" : ", not fed")
     : null, cf ? "declined: " + cf.reason : (s.camera_frames ? "off" : "no camera configured"));
   const circ = sn.ignored_circular || {};
+  const wd = s.wind_dr;
+  setVal("s-winddr", !wd ? null : wd.status === "ok"
+    ? num(wd.vn, 1) + " / " + num(wd.ve, 1) + " m/s ±" + num(wd.sigma_ms, 1) + " (" + wd.air_source +
+      (wd.wind && wd.wind.frozen ? ", wind frozen " + num(wd.wind.age_s, 0) + " s" : "") + ")" +
+      (wd.fed ? ", feeding the filter" : "; standby: " + wd.why_not_fed)
+    : "declined: " + wd.reason, "off");
   setVal("s-circ", Object.keys(circ).length ? Object.entries(circ).map(([k, v]) => k + " ×" + v).join(", ") : null, "none received");
 
   setVal("p-epochs", String(s.epochs));

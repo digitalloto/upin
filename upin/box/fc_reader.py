@@ -15,6 +15,11 @@ WHAT IS READ, AND WHAT IS REFUSED
   DISTANCE_SENSOR   height above ground
   GPS_RAW_INT       the flight controller's own GPS -- an independent
                     second receiver for the cross-check
+  VFR_HUD           airspeed only. On an aircraft WITHOUT an airspeed sensor
+                    ArduPilot fills this field from its EKF, which used GNSS:
+                    the box uses it only when told a real sensor is fitted
+                    (airspeed_sensor = true). Its groundspeed and heading
+                    come from the EKF and are never read.
 
   GLOBAL_POSITION_INT, LOCAL_POSITION_NED, GPS2_RAW   ignored, on purpose
 
@@ -42,7 +47,7 @@ from typing import Dict, Optional, Union
 # MAVLink message ids, for SET_MESSAGE_INTERVAL
 MSG_IDS = {"GPS_RAW_INT": 24, "SCALED_PRESSURE": 29, "ATTITUDE": 30,
            "OPTICAL_FLOW": 100, "DISTANCE_SENSOR": 132,
-           "RAW_IMU": 27, "SERVO_OUTPUT_RAW": 36}
+           "RAW_IMU": 27, "SERVO_OUTPUT_RAW": 36, "VFR_HUD": 74}
 FAST_IDS = {"RAW_IMU": 50.0, "ATTITUDE": 50.0, "SERVO_OUTPUT_RAW": 25.0}
 """Rates (Hz) for the streams the AI motion predictor needs; others at the
 default rate."""
@@ -91,6 +96,12 @@ class Throttle:
 
 
 @dataclass
+class Airspeed:
+    t: float
+    ms: float                       # VFR_HUD.airspeed; real only with a sensor fitted
+
+
+@dataclass
 class Flow:
     t: float
     forward_ms: float               # sensor x, assumed forward -- check
@@ -118,7 +129,7 @@ class FcGps:
     vel_acc_ms: Optional[float] = None  # None when not reported
 
 
-FcSample = Union[Attitude, Baro, Flow, Range, FcGps, Imu, Throttle]
+FcSample = Union[Attitude, Baro, Flow, Range, FcGps, Imu, Throttle, Airspeed]
 
 MG = 9.80665e-3          # one milli-g in m/s^2
 
@@ -132,6 +143,7 @@ class FcState:
     gps: Optional[FcGps] = None
     imu: Optional[Imu] = None
     throttle: Optional[Throttle] = None
+    airspeed: Optional[Airspeed] = None
 
 
 class FcReader:
@@ -211,6 +223,16 @@ class FcReader:
         th = Throttle(now, max(0.0, min(1.0, (sum(pwm) / 4.0 - 1000.0) / 1000.0)))
         self.state.throttle = th
         return th
+
+    def _vfr_hud(self, m, now):
+        """Airspeed only. Groundspeed and heading in this message come from
+        the flight controller's EKF and are not read."""
+        a = getattr(m, "airspeed", None)
+        if a is None or not (a >= 0) or not math.isfinite(a):
+            return None
+        s = Airspeed(now, float(a))
+        self.state.airspeed = s
+        return s
 
     def _gps_raw_int(self, m, now):
         h_acc = getattr(m, "h_acc", 0) or 0       # MAVLink 2 extension, mm

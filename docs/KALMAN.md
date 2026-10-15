@@ -92,7 +92,10 @@ The filter cannot create information. These are the ways to give it more:
 - It cannot make a source better than it is. Fusion beats the best single
   source only when errors are independent and stated variances are true.
 - It cannot know the aircraft's position without any source. When every
-  source is gone the uncertainty grows, and the filter says so.
+  source is gone the uncertainty grows, and the filter says so. The last
+  velocity source before that is wind-and-tilt dead reckoning
+  (`docs/WIND_DR.md`): the lean's airspeed plus the frozen wind, from
+  sensors every drone has.
 - Simulation results are not field results. Real accuracy is measured on
   the Raspberry Pi rig (`ROADMAP.md`, Part 3).
 

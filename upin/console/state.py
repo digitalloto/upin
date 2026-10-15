@@ -178,6 +178,7 @@ class ConsoleState:
                 "beacons": getattr(box, "last_beacons", None),
                 "breadcrumbs": getattr(box, "last_crumbs", None),
                 "formation": getattr(box, "last_formation", None),
+                "wind_dr": getattr(box, "last_wind_dr", None),
                 "drops": [{"lat": d["lat"], "lon": d["lon"], "sigma_m": d["sigma_m"], "id": d["id"]}
                           for d in getattr(box, "drops", [])],
                 "leo_doppler": getattr(box, "last_leo", None),

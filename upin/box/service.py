@@ -35,6 +35,7 @@ Patent-pending. AIMCRS / Abheet Prem Manghnani.
 from __future__ import annotations
 
 import argparse
+import os
 from collections import deque
 import math
 import json
@@ -43,8 +44,10 @@ import tomllib
 from dataclasses import dataclass, fields
 from typing import IO, List, Optional, Tuple
 
-from upin.box.fc_reader import (Attitude, Baro, FcGps, FcReader, Flow, Imu, Range,
+from upin.box.fc_reader import (Airspeed, Attitude, Baro, FcGps, FcReader, Flow, Imu, Range,
                                 Throttle, request_streams)
+from upin.box.wind_dr import WindDeadReckoning, body_accel_ne
+from upin.core.speed_learner import SpeedLearner
 from upin.box.gateway import TRUSTED, Gateway, GatewayOutput, GnssEpoch
 from upin.box.gnss_parser import MonRf, NavPvt, NavSat, UbxStream, decode_ubx
 from upin.box.mavlink_out import GpsInput, GpsInputSender, build
@@ -87,6 +90,14 @@ class BoxConfig:
     power_check_action: str = "warn"   # "distrust" once calibrated on this receiver
     airframe_id: str = ""              # must match the AI predictor's model
     learned_io_model: str = ""         # AI motion predictor model file; "" = off
+    # wind-and-tilt dead reckoning (upin/box/wind_dr.py): the last velocity
+    # rung before coasting, from attitude, the frozen wind and a tilt-to-
+    # airspeed curve learned on the trusted leg (needs airframe_id)
+    wind_dr: bool = False
+    speed_model: str = ""              # curve file for this airframe and payload; "" = in-flight only
+    payload_kg: float = 0.0            # the payload the curve belongs to; another is refused
+    airspeed_sensor: bool = False      # a REAL airspeed sensor is fitted: VFR_HUD.airspeed is used
+    airspeed_sigma_ms: float = 1.0     # ASSUMPTION: pitot 1-sigma; from its datasheet
     # downward camera and tag landmarks (layer 149); "" = off
     camera: str = ""                   # "pi", or a folder of .npy frames
     camera_fov_deg: float = 62.0       # ASSUMPTION: Pi camera v2 horizontal FOV; use the real lens's
@@ -143,6 +154,8 @@ def load_config(path: str) -> BoxConfig:
         raise ValueError("formation = true needs drone_id: the name this drone broadcasts under")
     if cfg.formation and not cfg.beacon_secret_file:
         raise ValueError("formation = true needs beacon_secret_file: peers sign with it")
+    if cfg.speed_model and not cfg.airframe_id:
+        raise ValueError("speed_model needs airframe_id: the tilt-to-airspeed curve is per airframe")
     return cfg
 
 
@@ -168,6 +181,19 @@ class Box:
         self.wind = WindLearner()
         self._wind_frozen = False
         self._att_hist: deque = deque()      # last second of attitude, radians
+        self._acc_hist: deque = deque()      # last second of horizontal acceleration, NED
+        # Wind-and-tilt dead reckoning: the curve is per airframe and payload.
+        self.speed: Optional[SpeedLearner] = None
+        if cfg.airframe_id:
+            if cfg.speed_model and os.path.exists(cfg.speed_model):
+                self.speed = SpeedLearner.load(cfg.speed_model, cfg.airframe_id, cfg.payload_kg)
+            else:
+                self.speed = SpeedLearner(cfg.airframe_id, cfg.payload_kg)
+        self.wind_dr = WindDeadReckoning(self.wind, self.speed)
+        self.last_wind_dr: Optional[dict] = None
+        self._pending_speed: List[FlightSample] = []
+        self.speed_samples_learned = 0
+        self._velocity_fed: Tuple[float, str] = (float("-inf"), "")
         if cfg.flow_check_action not in ("warn", "distrust"):
             raise ValueError("flow_check_action must be 'warn' or 'distrust'")
         self.flow_check = FlowIntegrityCheck(heading_sigma_deg=cfg.heading_sigma_deg)
@@ -239,6 +265,13 @@ class Box:
             self.learned.feed_imu(s.acc_ms2, s.gyro_rads, now)
             self.flow_check.feed_imu(s.acc_ms2, now)
             self.camflow.feed_gyro(*s.gyro_rads, now)
+            att = self.fc.state.attitude
+            if att is not None and now - att.t < 0.5:
+                self._acc_hist.append((now, *body_accel_ne(
+                    s.acc_ms2, math.radians(att.roll_deg), math.radians(att.pitch_deg),
+                    math.radians(att.heading_deg))))
+                while self._acc_hist and self._acc_hist[0][0] < now - 1.0:
+                    self._acc_hist.popleft()
         elif isinstance(s, Range):
             self.camflow.feed_height(s.distance_m, cfg.range_sigma_m, now)
         elif isinstance(s, Throttle):
@@ -260,6 +293,7 @@ class Box:
                 if feed:
                     self.gateway.feed_flow(s.forward_ms, s.right_ms, att.heading_deg,
                                            cfg.flow_sigma_ms, now)
+                    self._velocity_fed = (now, "flow chip")
         elif isinstance(s, Baro):
             self.learned.set_temperature(s.temperature_c)
             # Only while GNSS is not trusted, and only as a change since the
@@ -295,6 +329,7 @@ class Box:
                 self.gateway.feed_flow(cf["forward_ms"], cf["right_ms"], att.heading_deg,
                                        cf["sigma_ms"], t, source="camera_flow")
                 cf["fed"] = True
+                self._velocity_fed = (t, "camera flow")
             self.last_camflow = cf
         return v
 
@@ -496,6 +531,7 @@ class Box:
             if p["status"] == "ok":
                 self.gateway.feed_velocity(p["vn"], p["ve"], p["sigma_ms"], ep.t,
                                            source="learned_io")
+                self._velocity_fed = (ep.t, "AI predictor")
                 self.flow_check.feed_predictor(p["vn"], p["ve"], p["sigma_ms"], ep.t)
         if self._flow_status is not None and ep.t - self._flow_status_time() <= 2.0:
             ep.flow_check = self._flow_status
@@ -509,6 +545,8 @@ class Box:
             self._baro_offset = baro.pressure_alt_m - ep.alt_m
         self._last_mode = out.mode
         self._update_wind(ep, out)
+        if self.cfg.wind_dr:
+            self.step_wind_dr(ep, out)
         if self.beacons._secret is not None:
             self.solve_beacons(ep.t)
         if self.crumbs.inner._secret is not None:
@@ -525,6 +563,65 @@ class Box:
             self.log.flush()
         return out, sent
 
+    SPEED_BATCH = 10
+    """Steady samples learned into the tilt curve at a time, so each batch's
+    correlation (gusts) is measured rather than counted as independent."""
+
+    def _learn_speed(self, t: float) -> None:
+        """Feed the steady samples the Wind Learner kept into the tilt curve,
+        once the wind they need is known."""
+        if self.speed is None or len(self._pending_speed) < self.SPEED_BATCH:
+            return
+        est = self.wind.estimate(t)
+        if est is None or est.frozen:
+            return
+        self.speed_samples_learned += self.speed.learn_from_samples(self._pending_speed, est)
+        self._pending_speed.clear()
+
+    def step_wind_dr(self, ep: GnssEpoch, out: GatewayOutput) -> None:
+        """The last velocity rung before coasting: the lean (or the pitot)
+        plus the frozen wind, fed only when nothing better has."""
+        cfg = self.cfg
+        att = self.fc.state.attitude
+        hist = [h for h in self._att_hist if h[0] >= ep.t - 1.0]
+        tilt = direction = turn_rate = None
+        if att is not None and ep.t - att.t <= 1.0 and len(hist) >= 3:
+            tilt, direction = mean_thrust_direction([h[1] for h in hist], [h[2] for h in hist],
+                                                    [h[3] for h in hist])
+            dyaw = (hist[-1][3] - hist[0][3] + math.pi) % (2 * math.pi) - math.pi
+            span = hist[-1][0] - hist[0][0]
+            turn_rate = math.degrees(dyaw / span) if span > 0.2 else None
+        acc = [a for a in self._acc_hist if a[0] >= ep.t - 1.0]
+        accel_ne = ((sum(a[1] for a in acc) / len(acc), sum(a[2] for a in acc) / len(acc))
+                    if len(acc) >= 5 else None)
+        airspeed = None
+        a = self.fc.state.airspeed
+        if cfg.airspeed_sensor and a is not None and ep.t - a.t <= 1.0:
+            airspeed = (a.ms, cfg.airspeed_sigma_ms)
+        v = dict(self.wind_dr.estimate(ep.t, tilt, direction, accel_ne, turn_rate, airspeed,
+                                       None if att is None else att.heading_deg))
+        v["fed"] = False
+        if v["status"] == "ok":
+            fed_t, fed_src = self._velocity_fed
+            if out.mode == TRUSTED:
+                v["why_not_fed"] = "own GNSS trusted"
+            elif ep.t - fed_t <= 1.0:
+                v["why_not_fed"] = f"{fed_src} fed the filter {ep.t - fed_t:.1f} s ago"
+            else:
+                self.gateway.feed_velocity(v["vn"], v["ve"], v["sigma_ms"], ep.t, source="wind_dr")
+                v["fed"] = True
+        v["curve_samples"] = self.speed_samples_learned
+        self.last_wind_dr = v
+
+    def save_models(self) -> List[str]:
+        """Persist what this flight learned: the tilt-to-airspeed curve, if a
+        file is configured and the flight added to it."""
+        saved = []
+        if self.speed is not None and self.cfg.speed_model and self.speed_samples_learned > 0:
+            self.speed.save(self.cfg.speed_model)
+            saved.append(self.cfg.speed_model)
+        return saved
+
     def _flow_status_time(self) -> float:
         f = self.fc.state.flow
         return f.t if f is not None else float("-inf")
@@ -540,8 +637,11 @@ class Box:
             tilt, direction = mean_thrust_direction([h[1] for h in hist],
                                                     [h[2] for h in hist],
                                                     [h[3] for h in hist])
-            self.wind.add_sample(FlightSample(ep.t, direction, tilt, ep.vel_ned_ms[0],
-                                              ep.vel_ned_ms[1], ep.s_acc_ms or 0.1))
+            sample = FlightSample(ep.t, direction, tilt, ep.vel_ned_ms[0],
+                                  ep.vel_ned_ms[1], ep.s_acc_ms or 0.1)
+            if self.wind.add_sample(sample):
+                self._pending_speed.append(sample)
+            self._learn_speed(ep.t)
         if out.mode == TRUSTED and ep.vel_ned_ms is not None:
             self.flow_check.feed_gnss_velocity(ep.vel_ned_ms[0], ep.vel_ned_ms[1],
                                                ep.s_acc_ms or 0.3, ep.t)
@@ -577,6 +677,10 @@ class Box:
                      "lat": sent.lat, "lon": sent.lon,
                      "horiz_accuracy": sent.horiz_accuracy},
             "ignored_circular": dict(self.fc.ignored),
+            "wind_dr": None if self.last_wind_dr is None else {
+                k: self.last_wind_dr.get(k) for k in
+                ("status", "reason", "vn", "ve", "sigma_ms", "airspeed_ms", "air_source", "fed",
+                 "why_not_fed", "effective_tilt_deg", "imu_corrected", "wind", "curve_samples")},
             "fixes": {k: dict(v) for k, v in self.gateway.last_fixes.items()},
             "leo_doppler": None if self.last_leo is None else {
                 k: self.last_leo.get(k) for k in
@@ -698,47 +802,51 @@ def run(cfg: BoxConfig, deny_gnss: bool = False, send: bool = True,
         if on_start is not None:
             on_start(box)
         last_mode = None
-        while stop is None or not stop():
-            if rx is not None:
-                data = rx.read(rx.in_waiting or 1)
-            else:
-                data = b""
-                time.sleep(0.02)
-            now, unix_s = time.monotonic(), time.time()
-            if schedule is not None:
-                was = box.deny_gnss
-                box.deny_gnss = schedule.denied(box._last_mode, now)
-                if box.deny_gnss != was:
-                    print(f"{time.strftime('%H:%M:%S')} --- GNSS "
-                          f"{'DENIED in software' if box.deny_gnss else 'restored'} ---")
-            results = []
-            if cam is not None:
-                frame = cam.read()
-                if frame is not None:
-                    box.on_frame(frame[0], now, cam.fov_deg)
-            if radio is not None:
-                for line in radio.read_lines():
-                    box.on_beacon_line(line, now)
-            box.step_leo(unix_s, now)
-            while True:
-                msg = conn.recv_match(blocking=False)
-                if msg is None:
-                    break
-                sample = box.on_fc_message(msg, now)
-                if gnss_source == "fc" and isinstance(sample, FcGps):
-                    results.append(box.process(box.epoch_from_fc_gps(sample, now),
-                                               unix_s))
-            results += box.on_receiver_bytes(data, now, unix_s)
-            for out, sent in results:
-                if send:
-                    sender.send(out, unix_s)
-                if on_result is not None:
-                    on_result(box, out, sent)
-                if out.mode != last_mode:
-                    print(f"{time.strftime('%H:%M:%S')} {out.mode}: "
-                          f"{'; '.join(out.reasons)}")
-                    last_mode = out.mode
+        try:
+            while stop is None or not stop():
+                if rx is not None:
+                    data = rx.read(rx.in_waiting or 1)
+                else:
+                    data = b""
+                    time.sleep(0.02)
+                now, unix_s = time.monotonic(), time.time()
+                if schedule is not None:
+                    was = box.deny_gnss
+                    box.deny_gnss = schedule.denied(box._last_mode, now)
+                    if box.deny_gnss != was:
+                        print(f"{time.strftime('%H:%M:%S')} --- GNSS "
+                              f"{'DENIED in software' if box.deny_gnss else 'restored'} ---")
+                results = []
+                if cam is not None:
+                    frame = cam.read()
+                    if frame is not None:
+                        box.on_frame(frame[0], now, cam.fov_deg)
+                if radio is not None:
+                    for line in radio.read_lines():
+                        box.on_beacon_line(line, now)
+                box.step_leo(unix_s, now)
+                while True:
+                    msg = conn.recv_match(blocking=False)
+                    if msg is None:
+                        break
+                    sample = box.on_fc_message(msg, now)
+                    if gnss_source == "fc" and isinstance(sample, FcGps):
+                        results.append(box.process(box.epoch_from_fc_gps(sample, now),
+                                                   unix_s))
+                results += box.on_receiver_bytes(data, now, unix_s)
+                for out, sent in results:
+                    if send:
+                        sender.send(out, unix_s)
+                    if on_result is not None:
+                        on_result(box, out, sent)
+                    if out.mode != last_mode:
+                        print(f"{time.strftime('%H:%M:%S')} {out.mode}: "
+                              f"{'; '.join(out.reasons)}")
+                        last_mode = out.mode
 
+        finally:
+            for path in box.save_models():
+                print(f"saved what this flight learned: {path}")
 
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description="UPIN box: GNSS checks, then "

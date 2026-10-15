@@ -158,6 +158,37 @@ def test_formation_controls():
     PASSED.append("formation")
 
 
+def test_wind_dr_in_console():
+    """The simulated circuit now has a breeze and the lean it needs: after a
+    lap the box has learned the wind and the tilt curve; with the flow
+    sensors off and GNSS denied, wind dead reckoning feeds the filter."""
+    st = ConsoleState("sim", "SIMULATION", True, SimSource.controls)
+    sim = SimSource(st, 13.0827, 80.2707, seed=4)
+    for _ in range(140):
+        sim.step()
+    s = st.get()
+    w = s["wind_dr"]
+    assert w and w["status"] == "ok" and not w["fed"] and w["why_not_fed"] == "own GNSS trusted", w
+    err = math.hypot(w["wind"]["north_ms"] - SimSource.WIND_NE_MS[0], w["wind"]["east_ms"] - SimSource.WIND_NE_MS[1])
+    assert err < 3.0 * w["wind"]["sigma_ms"] + 0.3, (err, w["wind"])
+    sim.control("flow")
+    sim.control("beacons")
+    sim.control("formation")
+    sim.control("deny")
+    fed = 0
+    for _ in range(40):
+        sim.step()
+        s = st.get()
+        fed += bool(s["wind_dr"] and s["wind_dr"]["fed"])
+    assert s["mode"] == "DEGRADED" and fed >= 35, (s["mode"], fed, s["wind_dr"])
+    assert s["wind_dr"]["wind"]["frozen"] and s["wind_dr"]["air_source"] == "tilt curve"
+    assert s["truth"]["error_m"] < 60.0, s["truth"]
+    print(f"[ok] console: wind learned on the circuit to {err:.2f} m/s (stated ±{w['wind']['sigma_m' + 's']:.2f}); "
+          f"flow off, GNSS denied 40 s -> wind DR fed {fed}/40 epochs, error vs truth "
+          f"{s['truth']['error_m']:.0f} m")
+    PASSED.append("wind_dr")
+
+
 def test_browser_source():
     st = ConsoleState("browser", "X", False, BrowserSource.controls)
     src = BrowserSource(st)
@@ -243,7 +274,8 @@ def test_server():
 
 if __name__ == "__main__":
     tests = [test_page_has_nothing_made_up, test_missing_stays_missing,
-             test_sim_drives_the_real_box, test_formation_controls, test_browser_source,
+             test_sim_drives_the_real_box, test_formation_controls, test_wind_dr_in_console,
+             test_browser_source,
              test_board_only_epoch, test_replay_redecides, test_server]
     for t in tests:
         t()

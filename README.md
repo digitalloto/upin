@@ -34,6 +34,8 @@ The gap between those numbers and the total is the work tracked in [`FABRICATION
 | [`docs/BEACONS.md`](docs/BEACONS.md) | Known-position beacons, balloons included: the idea made honest |
 | [`docs/LEO_DOPPLER.md`](docs/LEO_DOPPLER.md) | LEO Doppler anchor: a coarse GNSS-free fix from a satellite pass on a cheap radio |
 | [`docs/BREADCRUMBS.md`](docs/BREADCRUMBS.md) | Breadcrumb beacons: dropped while the fix is trusted, ranged to inside the jam |
+| [`docs/FORMATION.md`](docs/FORMATION.md) | Formation cross-check and cooperative fix: three drones confirming each other through measured ranges |
+| [`docs/WIND_DR.md`](docs/WIND_DR.md) | Wind-and-tilt dead reckoning: the last velocity rung before coasting, from sensors every drone has |
 | [`BALLOON_CARRY.md`](BALLOON_CARRY.md) | Should the drone carry a balloon beacon? The numbers, from labelled physics |
 | [`docs/MISSION_INDEX.md`](docs/MISSION_INDEX.md) | **Mission index**: every honest way to get a position, and what to load for a mission |
 | [`FABRICATION_AUDIT.md`](FABRICATION_AUDIT.md) | Every place the code invents a number, what it costs, and the staged plan to remove it |

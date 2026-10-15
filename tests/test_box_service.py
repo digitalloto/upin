@@ -243,10 +243,18 @@ shadow = true
             g.write(text + '\n[formation]\nformation = true\ndrone_id = "lead"\n'
                     'beacon_secret_file = "/etc/upin/beacon.key"\n')
         assert load_config(f.name).drone_id == "lead"
+        with open(f.name, "w") as g:
+            g.write(text + '\n[learned]\nspeed_model = "/tmp/curve.json"\n')
+        try:
+            load_config(f.name)
+            raise AssertionError("a speed curve without an airframe was accepted")
+        except ValueError as exc:
+            assert "airframe_id" in str(exc)
     finally:
         os.unlink(f.name)
     example = load_config("deploy/box.example.toml")
     assert example.shadow and example.gps_id == 1 and not example.formation
+    assert example.wind_dr and not example.airspeed_sensor
     print("[ok] config loads; shadow mode refuses to be GPS 1; misspelt keys "
           "refused; formation needs a drone_id and a secret; deploy/box.example.toml is valid")
     PASSED.append("config")

@@ -300,8 +300,12 @@ sudo systemctl stop upin-box       # stop it
 
 1. Measure the GNSS-denied error from your logs (Step 9). These become the
    first real numbers in `ROADMAP.md`.
-2. Add an optical-flow sensor and rangefinder to the flight controller. That
+2. Set `airframe_id` and `wind_dr = true` in `box.toml` and fly a leg with a
+   few turns before the denial: the box learns the wind and the lean-to-
+   airspeed curve and dead reckons on them instead of coasting
+   (`docs/WIND_DR.md`). No extra hardware.
+3. Add an optical-flow sensor and rangefinder to the flight controller. That
    is the biggest single improvement to the GNSS-denied error.
-3. Only after SITL tests and good bench logs, and only if you decide so:
+4. Only after SITL tests and good bench logs, and only if you decide so:
    UPIN as the primary GPS.
-4. Then, if wanted, port the light layers to an ESP32-S3.
+5. Then, if wanted, port the light layers to an ESP32-S3.

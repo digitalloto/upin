@@ -35,6 +35,7 @@ HARDWARE_TAGS: Dict[str, str] = {
     "beacons_deployed": "three or more known-position beacons on the beacon band",
     "crumb_dispenser": "breadcrumb units and a release mechanism",
     "formation_peers": "two or more drones flying together, each with the box and a ranging radio",
+    "pitot": "a real airspeed sensor (fixed wing)",
     "sdr": "an RTL-SDR dongle and a VHF antenna, with fresh orbit elements",
     "trained_model": "an AI motion predictor model trained on this airframe's flights",
     "georeferenced_map": "an Indian-source map with charted landmarks",
@@ -154,6 +155,20 @@ ENTRIES: List[Entry] = [
       "pattern is caught by the IMU check (flow_integrity).",
       "automatic from MAVLink OPTICAL_FLOW; flow_check_action = \"distrust\"",
       "docs/HARDWARE.md", "simulation", falls_back_to="camera flow, then the AI predictor, then coasting"),
+    E("box:wind_dr", "Wind-and-tilt dead reckoning (lean + frozen wind, or pitot)",
+      frozenset({"VELOCITY"}), frozenset({"flight_controller"}),
+      _w(jammed=(YES, "no sensor to jam; the frozen wind goes stale"),
+         long_denial=(LIMITED, "the frozen wind's sigma grows 0.15 m/s a minute (assumption); a "
+                      "wind shift is not seen"),
+         spoofed=(YES, "nothing to spoof once frozen"),
+         still=(LIMITED, "hovering: zero lean is zero airspeed, so the wind alone"),
+         fast=(LIMITED, "only inside the learned lean range")),
+      "Simulation: 120 s dead reckoning at 0.72 m/s rms (stated 0.48, 95% circle covers 91%); "
+      "60 s drift 25 m against 73 m holding the last velocity; through the box 16 m against 331 m "
+      "coasting; a 3 m/s wind shift after the freeze gives a 3.2 m/s error, stated limit.",
+      "wind_dr = true\nairframe_id = \"my-quad\"\nspeed_model = \"/var/lib/upin/speed.json\"",
+      "docs/WIND_DR.md", "simulation",
+      falls_back_to="coasting on the filter's prediction"),
     E("camflow_e24", "Camera optical flow with weighted RANSAC (148)", frozenset({"VELOCITY"}),
       frozenset({"camera", "rangefinder", "flight_controller"}),
       _w(night=(NO, "needs light"), featureless=(NO, "no texture: declines"),
@@ -267,6 +282,7 @@ LADDERS: Dict[str, List[Tuple[str, str]]] = {
         ("box:flow_chip", "sub-metre per second; needs light and texture"),
         ("camflow_e24", "about 0.2-0.4 m/s; throws out moving patterns"),
         ("learnedio_b14", "about 0.5 m/s, worse outside its training; no camera needed"),
+        ("box:wind_dr", "about 1 m/s, growing as the frozen wind goes stale; no extra sensor"),
         ("box:kalman", "coasting: the circle grows with the square of time"),
     ],
     "position": [
