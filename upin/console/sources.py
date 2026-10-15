@@ -34,7 +34,8 @@ from upin.box.gateway import GnssEpoch
 from upin.box.replay import epoch_from_json
 from upin.box.service import Box, BoxConfig
 from upin.layers.optical.fiducial import TagEntry, TagMap
-from upin.simulation.markers import SimTag, ground_patch_with_tags
+from upin.simulation.attacks import camera_frame
+from upin.simulation.markers import SimTag
 from upin.console.state import ConsoleState
 from upin.detection.reachability import DEG_M
 
@@ -120,7 +121,8 @@ class SimSource(Source):
         self.start_lat, self.start_lon = start_lat, start_lon
         self.speed = speed
         self.seed = seed
-        self.cfg = cfg or BoxConfig(max_accel_ms2=6.0, max_airspeed_ms=20.0)
+        self.cfg = cfg or BoxConfig(max_accel_ms2=6.0, max_airspeed_ms=20.0,
+                                    camera_flow=True)
         self._lock = threading.Lock()
         self._reset()
 
@@ -222,6 +224,23 @@ class SimSource(Source):
             sn = self.drag_m
             se = self.SPOOF_JUMP_M if self.spoof_jump else 0.0
 
+            # The camera runs at 5 frames/s but the simulation steps once a
+            # second, so the flow layer gets the last 0.2 s pair: a frame at
+            # t-0.2 with that moment's attitude and height, then the frame at t.
+            t0 = t - 0.2
+            n0, e0, vn0, ve0 = self.truth(t0)
+            hdg0 = math.degrees(math.atan2(ve0, vn0)) % 360.0
+            box.on_fc_message(Msg("ATTITUDE", roll=0.0, pitch=0.0, yaw=math.radians(
+                hdg0 + rng.gauss(0, self.HEADING_SIGMA_DEG))), t0)
+            box.on_fc_message(Msg("DISTANCE_SENSOR", current_distance=round(self.ALT_M * 100),
+                                  orientation=25), t0)
+            dots = ({"speed_ne": (0.0, self.FLOW_ATTACK_MS), "spacing_m": 4.0, "dot_m": 0.5}
+                    if self.flow_attack else None)
+            frame0, _ = camera_frame(e0, n0, hdg0, self.ALT_M, self.CAM_FOV_DEG, self.CAM_PX, t0,
+                                     tags=self.sim_tags if self.tags_on else (), dots=dots,
+                                     pixel_noise=0.02, rng=self.nprng)
+            box.on_frame(frame0, t0, self.CAM_FOV_DEG)
+
             yaw_meas = math.radians(heading + rng.gauss(0, self.HEADING_SIGMA_DEG))
             box.on_fc_message(Msg("ATTITUDE", roll=0.0, pitch=0.0, yaw=yaw_meas), t)
             # IMU: the acceleration the circuit implies (level attitude in this
@@ -230,12 +249,13 @@ class SimSource(Source):
             _, _, vn1, ve1 = self.truth(t + h)
             _, _, vn0, ve0 = self.truth(t - h)
             an, ae = (vn1 - vn0) / (2 * h), (ve1 - ve0) / (2 * h)
+            turn = (vn * ae - ve * an) / max(vn * vn + ve * ve, 1e-9)   # heading rate, rad/s
             cy, sy = math.cos(yaw_meas), math.sin(yaw_meas)
             fx = an * cy + ae * sy + rng.gauss(0, 0.05)
             fy = -an * sy + ae * cy + rng.gauss(0, 0.05)
             mg = 9.80665e-3
             box.on_fc_message(Msg("RAW_IMU", xacc=fx / mg, yacc=fy / mg, zacc=-1000.0,
-                                  xgyro=0.0, ygyro=0.0, zgyro=0.0), t)
+                                  xgyro=0.0, ygyro=0.0, zgyro=1000.0 * turn), t)
             press = P0_HPA * (1 - self.ALT_M / 44330.0) ** 5.255
             box.on_fc_message(Msg("SCALED_PRESSURE", press_abs=press + rng.gauss(0, 0.05),
                                   temperature=3000), t)
@@ -294,9 +314,11 @@ class SimSource(Source):
                      ve + rng.gauss(0, self.VEL_SIGMA_MS), 0.0),
                     self.VEL_SIGMA_MS * 1.5)
             results = box.on_receiver_bytes(data, t, time.time())
-            frame, _ = ground_patch_with_tags(e, n, heading, self.ALT_M, self.CAM_FOV_DEG,
-                                              self.CAM_PX, self.sim_tags if self.tags_on else [],
-                                              pixel_noise=0.02, rng=self.nprng)
+            box.on_fc_message(Msg("DISTANCE_SENSOR", current_distance=round(self.ALT_M * 100),
+                                  orientation=25), t)
+            frame, _ = camera_frame(e, n, heading, self.ALT_M, self.CAM_FOV_DEG, self.CAM_PX, t,
+                                    tags=self.sim_tags if self.tags_on else (), dots=dots,
+                                    pixel_noise=0.02, rng=self.nprng)
             box.on_frame(frame, t, self.CAM_FOV_DEG)
             tlat, tlon = self._ll(n, e)
             for out, sent in results:

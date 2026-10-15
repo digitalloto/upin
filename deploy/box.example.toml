@@ -42,6 +42,9 @@ camera_fov_deg = 62.0        # ASSUMPTION: Pi camera v2; put the real lens's hor
 camera_size_px = 256
 tag_map = ""                 # e.g. /etc/upin/tags.json (see deploy/tags.example.json):
                              # surveyed UPIN tags; layer 149 gives a fix whenever one is in view
+camera_flow = false          # layer 148: UPIN's own optical flow from the camera frames,
+                             # with weighted RANSAC against moving ground patterns
+range_sigma_m = 0.1          # ASSUMPTION: the rangefinder's 1-sigma, from its datasheet
 
 [sensors]
 heading_sigma_deg = 5.0      # ASSUMPTION: compass/attitude heading error

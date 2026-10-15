@@ -290,9 +290,9 @@ def test_quantum_layers_graceful_without_world():
 def test_registry_total():
     from upin.layers.registry import ALL_LAYER_CLASSES
     # 129 original + 8 Group Q + cmddr_b12 + lmkchain_e23 + mapclick_b13
-    # + cn0spoof_a20 + learnedio_b14 + fiducial_e25. Deliberately exact:
-    # adding or losing a layer should be a decision.
-    assert len(ALL_LAYER_CLASSES) == 143, f"got {len(ALL_LAYER_CLASSES)}"
+    # + cn0spoof_a20 + learnedio_b14 + fiducial_e25 + camflow_e24. Deliberately
+    # exact: adding or losing a layer should be a decision.
+    assert len(ALL_LAYER_CLASSES) == 144, f"got {len(ALL_LAYER_CLASSES)}"
     groups = {}
     for cls in ALL_LAYER_CLASSES.values():
         g = cls().group.value

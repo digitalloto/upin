@@ -174,6 +174,7 @@ class ConsoleState:
                 if ep is not None and ep.power_check is not None else None,
                 "fixes": {k: dict(v) for k, v in getattr(gw, "last_fixes", {}).items()},
                 "tag": getattr(box, "last_tag", None),
+                "camera_flow": getattr(box, "last_camflow", None),
                 "camera_frames": getattr(box, "frames_seen", 0),
                 "learned_io": None if not hasattr(box, "learned") else (
                     box.learned.last if box.learned.model is not None and box.learned.last

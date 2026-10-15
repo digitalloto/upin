@@ -10,11 +10,11 @@ This table is measured, not claimed. Every layer below was constructed with noth
 
 | Status | Layers | Meaning |
 |---|---:|---|
-| **DECLINES** | 16 | Reports no fix when it has no input, and says what is missing. Honours the no-fabrication contract. |
+| **DECLINES** | 17 | Reports no fix when it has no input, and says what is missing. Honours the no-fabrication contract. |
 | **PLACEHOLDER** | 13 | Returns the same fixed reading whenever nothing is connected. Not random, but not measured either. |
 | **FABRICATES** | 114 | Invents a reading when nothing is connected, and invents a different one each time it is read. |
 
-**16 of 143 layers** currently refuse to invent a position. **143 of 143** have declared what hardware and data they need.
+**17 of 144 layers** currently refuse to invent a position. **144 of 144** have declared what hardware and data they need.
 
 The gap between those numbers and the total is the work tracked in [`FABRICATION_AUDIT.md`](FABRICATION_AUDIT.md), which explains what each fabricating layer does and what it would cost in flight.
 
@@ -30,6 +30,7 @@ The gap between those numbers and the total is the work tracked in [`FABRICATION
 | [`docs/PI_GUIDE.md`](docs/PI_GUIDE.md) | Step by step, from unboxing a Raspberry Pi to UPIN as GPS 2 |
 | [`docs/LEARNED_IO.md`](docs/LEARNED_IO.md) | The AI motion predictor: learning from every test flight |
 | [`docs/TAGS.md`](docs/TAGS.md) | Tag landmarks: a fix from a printed tag; ground truth for the range |
+| [`docs/CAMERA_FLOW.md`](docs/CAMERA_FLOW.md) | Camera optical flow with weighted RANSAC: laser dots thrown out |
 | [`FABRICATION_AUDIT.md`](FABRICATION_AUDIT.md) | Every place the code invents a number, what it costs, and the staged plan to remove it |
 | [`UPIN_MASTER.md`](UPIN_MASTER.md) | The full project document |
 | [`QUANTUM.md`](QUANTUM.md) | Group Q hardware readiness and patent sequencing |
@@ -43,7 +44,7 @@ What it would take for each layer to work for real, independent of whether it wo
 | Class | Layers | Meaning |
 |---|---:|---|
 | specialist | 35 | Real, buyable hardware that typical drones do not carry. |
-| drone-ready | 30 | Hardware a drone commonly carries or can easily add. |
+| drone-ready | 31 | Hardware a drone commonly carries or can easily add. |
 | platform-specific | 24 | Works only on a particular platform -- ships, submarines, ground vehicles. |
 | needs infrastructure | 21 | Needs beacons, networks or other people's equipment in place first. |
 | laboratory | 20 | Physics demonstrated in laboratories; not yet deployable on a drone. |
@@ -141,7 +142,7 @@ What it would take for each layer to work for real, independent of whether it wo
 | 118 | [RFID/NFC Localisation](docs/layers/rfid_d25.md) | `rfid_d25` | fabricates | needs infrastructure |
 | 119 | [VLC/Li-Fi Positioning](docs/layers/vlc_d26.md) | `vlc_d26` | fabricates | needs infrastructure |
 
-### Group E — Optical & Vision (24 layers, 2 clean)
+### Group E — Optical & Vision (25 layers, 3 clean)
 
 | # | Layer | ID | Status | Operating class |
 |---:|---|---|---|---|
@@ -168,6 +169,7 @@ What it would take for each layer to work for real, independent of whether it wo
 | 95 | [Sextant Angle Fix (HSA/VSA)](docs/layers/sextant_e21.md) | `sextant_e21` | fabricates | specialist |
 | 100 | [Polynesian Wayfinding (Wave/Cloud/Bird)](docs/layers/polynesian_e22.md) | `polynesian_e22` | fabricates | platform-specific |
 | 144 | [Landmark Chain Navigation](docs/layers/lmkchain_e23.md) | `lmkchain_e23` | clean | drone-ready |
+| 148 | [Camera Optical Flow (weighted RANSAC)](docs/layers/camflow_e24.md) | `camflow_e24` | clean | drone-ready |
 | 149 | [Tag Landmarks (printed fiducials)](docs/layers/fiducial_e25.md) | `fiducial_e25` | clean | drone-ready |
 
 ### Group F — Acoustic (6 layers, 0 clean)

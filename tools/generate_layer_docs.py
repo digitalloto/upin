@@ -397,6 +397,8 @@ def render_root(facts: List[LayerFacts]) -> str:
           "learning from every test flight |",
           "| [`docs/TAGS.md`](docs/TAGS.md) | Tag landmarks: a fix from a printed "
           "tag; ground truth for the range |",
+          "| [`docs/CAMERA_FLOW.md`](docs/CAMERA_FLOW.md) | Camera optical flow with "
+          "weighted RANSAC: laser dots thrown out |",
           "| [`FABRICATION_AUDIT.md`](FABRICATION_AUDIT.md) | Every place the "
           "code invents a number, what it costs, and the staged plan to remove it |",
           "| [`UPIN_MASTER.md`](UPIN_MASTER.md) | The full project document |",

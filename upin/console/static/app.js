@@ -286,6 +286,11 @@ function render(s) {
   setVal("s-flow", sn.flow ? num(sn.flow.forward_ms, 2) + " / " + num(sn.flow.right_ms, 2) + " m/s, q " + sn.flow.quality : null, "not connected");
   setVal("s-range", sn.range ? num(sn.range.m, 2) + " m" + age(sn.range.age_s) : null, "not connected");
   setVal("s-gps", sn.fc_gps ? (FIX[sn.fc_gps.fix_type] || sn.fc_gps.fix_type) + (sn.fc_gps.h_acc_m !== null ? ", ±" + num(sn.fc_gps.h_acc_m, 1) + " m" : ", accuracy not stated") : null, "not connected");
+  const cf = s.camera_flow;
+  setVal("s-camflow", cf && cf.status === "ok"
+    ? num(cf.forward_ms, 2) + " / " + num(cf.right_ms, 2) + " m/s ±" + num(cf.sigma_ms, 2) +
+      " (" + cf.n_inliers + "/" + cf.n_valid + " agree, " + Math.round(cf.agreeing_trust * 100) + "% trust)" + (cf.fed ? "" : ", not fed")
+    : null, cf ? "declined: " + cf.reason : (s.camera_frames ? "off" : "no camera configured"));
   const circ = sn.ignored_circular || {};
   setVal("s-circ", Object.keys(circ).length ? Object.entries(circ).map(([k, v]) => k + " ×" + v).join(", ") : null, "none received");
 

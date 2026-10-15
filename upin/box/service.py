@@ -43,8 +43,8 @@ import tomllib
 from dataclasses import dataclass, fields
 from typing import IO, List, Optional, Tuple
 
-from upin.box.fc_reader import (Attitude, Baro, FcGps, FcReader, Flow, Imu, Throttle,
-                                request_streams)
+from upin.box.fc_reader import (Attitude, Baro, FcGps, FcReader, Flow, Imu, Range,
+                                Throttle, request_streams)
 from upin.box.gateway import TRUSTED, Gateway, GatewayOutput, GnssEpoch
 from upin.box.gnss_parser import MonRf, NavPvt, NavSat, UbxStream, decode_ubx
 from upin.box.mavlink_out import GpsInput, GpsInputSender, build
@@ -55,6 +55,7 @@ from upin.detection.reachability import Envelope
 from upin.core.wind_learner import FlightSample, WindLearner
 from upin.box.camera import open_camera
 from upin.layers.inertial.learned_io import LearnedInertialOdometryLayer
+from upin.layers.optical.camera_flow import CameraFlowLayer
 from upin.layers.optical.fiducial import FiducialTagLayer, TagMap
 from upin.layers.satellite.signal_power import SignalPowerCheckLayer
 from upin.learned.features import mean_thrust_direction
@@ -84,6 +85,8 @@ class BoxConfig:
     camera_fov_deg: float = 62.0       # ASSUMPTION: Pi camera v2 horizontal FOV; use the real lens's
     camera_size_px: int = 256
     tag_map: str = ""                  # tags.json: surveyed tag positions
+    camera_flow: bool = False          # layer 148: UPIN's own flow from the camera frames
+    range_sigma_m: float = 0.1         # ASSUMPTION: rangefinder 1-sigma; from its datasheet
     flow_check_action: str = "distrust"
     """Suspect optical flow is not fed to the filter. Distrust is the default
     here, unlike the signal-power check: a false alarm only costs a few
@@ -148,6 +151,10 @@ class Box:
             self.tags.set_map(TagMap.load_json(cfg.tag_map))
         self.last_tag: Optional[dict] = None
         self.frames_seen = 0
+        # Camera optical flow (layer 148): runs on the same frames when enabled.
+        self.camflow = CameraFlowLayer()
+        self.camflow.initialize()
+        self.last_camflow: Optional[dict] = None
         self._flow_status: Optional[dict] = None
         self.fc = FcReader()
         self.ubx = UbxStream()
@@ -169,6 +176,7 @@ class Box:
             r, p, y = (math.radians(s.roll_deg), math.radians(s.pitch_deg),
                        math.radians(s.heading_deg))
             self.learned.feed_attitude(r, p, y, now)
+            self.camflow.feed_attitude(r, p, s.heading_deg, now)
             self.flow_check.feed_attitude(r, p, y, now)
             self._att_hist.append((now, r, p, y))
             while self._att_hist and self._att_hist[0][0] < now - 1.0:
@@ -176,6 +184,9 @@ class Box:
         elif isinstance(s, Imu):
             self.learned.feed_imu(s.acc_ms2, s.gyro_rads, now)
             self.flow_check.feed_imu(s.acc_ms2, now)
+            self.camflow.feed_gyro(*s.gyro_rads, now)
+        elif isinstance(s, Range):
+            self.camflow.feed_height(s.distance_m, cfg.range_sigma_m, now)
         elif isinstance(s, Throttle):
             self.learned.feed_throttle(s.value, now)
         elif isinstance(s, Flow):
@@ -222,6 +233,15 @@ class Box:
                 v["lat"], v["lon"], v["sigma_m"], t, source="fiducial",
                 alt_m=v["alt_m"], sigma_alt_m=v["sigma_alt_m"], anchor=True)
         self.last_tag = v
+        if self.cfg.camera_flow:
+            self.camflow.feed_frame(image, t, fov_deg or self.cfg.camera_fov_deg)
+            cf = dict(self.camflow.solve())
+            cf["fed"] = False
+            if cf["status"] == "ok" and att is not None and t - att.t < 0.5:
+                self.gateway.feed_flow(cf["forward_ms"], cf["right_ms"], att.heading_deg,
+                                       cf["sigma_ms"], t, source="camera_flow")
+                cf["fed"] = True
+            self.last_camflow = cf
         return v
 
     def on_receiver_bytes(self, data: bytes, now: float,
@@ -356,6 +376,10 @@ class Box:
                      "horiz_accuracy": sent.horiz_accuracy},
             "ignored_circular": dict(self.fc.ignored),
             "fixes": {k: dict(v) for k, v in self.gateway.last_fixes.items()},
+            "camera_flow": None if self.last_camflow is None else {
+                k: self.last_camflow.get(k) for k in
+                ("status", "reason", "forward_ms", "right_ms", "sigma_ms", "agreeing_trust",
+                 "n_inliers", "n_valid", "fed")},
             "tag": None if self.last_tag is None else {
                 k: self.last_tag.get(k) for k in
                 ("status", "reason", "tag_id", "range_m", "sigma_m", "lat", "lon", "t")},
