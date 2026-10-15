@@ -127,7 +127,7 @@ def build(args) -> tuple:
         if cfg is None or not args.log:
             raise SystemExit("--config and --log are required for replay")
         state = ConsoleState("replay", label, False, [], note)
-        src = ReplaySource(state, args.log, cfg, args.speed)
+        src = ReplaySource(state, args.log, cfg, args.speed, getattr(args, "frames", None))
     config = {"tiles": args.tiles, "tiles_attribution": args.tiles_attribution,
               "source": args.source}
     return state, src, config
@@ -138,7 +138,8 @@ def main(argv=None) -> None:
     ap.add_argument("--source", required=True,
                     choices=["sim", "browser", "board", "live", "replay"])
     ap.add_argument("--config", help="box config (TOML); required for board/live/replay")
-    ap.add_argument("--log", help="box log to replay")
+    ap.add_argument("--log", help="box log (epochs) or flight recording (inputs.jsonl) to replay")
+    ap.add_argument("--frames", default=None, help="replay: the recording's frames folder")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8080)
     ap.add_argument("--speed", type=float, default=1.0,

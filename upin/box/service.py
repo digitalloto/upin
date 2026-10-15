@@ -57,6 +57,7 @@ from upin.detection.flow_integrity import FlowIntegrityCheck
 from upin.detection.reachability import Envelope
 from upin.core.wind_learner import FlightSample, WindLearner
 from upin.box.beacon_radio import BeaconRadio
+from upin.box.recorder import FlightRecorder
 from upin.box.camera import open_camera
 from upin.box.leo_pass import LeoPassRunner
 from upin.layers.inertial.learned_io import LearnedInertialOdometryLayer
@@ -133,6 +134,10 @@ class BoxConfig:
     baro_sigma_m: float = 1.0
     fc_gps_max_age_s: float = 1.0
     log_path: str = "upin_box.jsonl"
+    # flight recording for the offline replay (docs/RECORDING.md); "" = off
+    input_log_path: str = ""           # every input the box received, in order (JSON lines)
+    frames_dir: str = ""               # camera frames as <t>.npy
+    frame_record_hz: float = 2.0       # ASSUMPTION: enough for the camera layers; raise for exact replay
 
 
 def load_config(path: str) -> BoxConfig:
@@ -244,10 +249,19 @@ class Box:
         self.last_epoch: Optional[GnssEpoch] = None
         self.last_record: Optional[dict] = None
         self.last_processing_ms: Optional[float] = None
+        # Flight recorder: what the box received, for the offline replay.
+        self.recorder: Optional[FlightRecorder] = None
+        if cfg.input_log_path or cfg.frames_dir:
+            header = {k: v for k, v in cfg.__dict__.items()
+                      if k not in ("input_log_path", "frames_dir", "log_path", "beacon_secret_file")}
+            self.recorder = FlightRecorder(cfg.input_log_path, cfg.frames_dir, cfg.frame_record_hz,
+                                           header=header)
 
     # -- flight controller ---------------------------------------------------
 
     def on_fc_message(self, msg, now: float):
+        if self.recorder is not None:
+            self.recorder.fc_message(msg, now)
         s = self.fc.handle(msg, now)
         cfg = self.cfg
         if isinstance(s, Attitude):
@@ -310,6 +324,8 @@ class Box:
         and re-anchors the reachability guard; the result is recorded either
         way, including why there was no fix."""
         self.frames_seen += 1
+        if self.recorder is not None:
+            self.recorder.frame(image, t, fov_deg or self.cfg.camera_fov_deg)
         att = self.fc.state.attitude
         if att is not None:
             self.tags.feed_attitude(math.radians(att.roll_deg), math.radians(att.pitch_deg),
@@ -336,6 +352,8 @@ class Box:
     def on_beacon_line(self, line: str, t: float) -> Optional[str]:
         """One JSON line from the beacon radio: a beacon's signed message or a
         range. Returns what the layer did with it."""
+        if self.recorder is not None:
+            self.recorder.radio_line(line, t)
         try:
             d = json.loads(line)
         except json.JSONDecodeError:
@@ -561,6 +579,8 @@ class Box:
         if self.log is not None:
             self.log.write(json.dumps(self.last_record) + "\n")
             self.log.flush()
+        if self.recorder is not None:
+            self.recorder.epoch(epoch_to_json(ep), ep.t, unix_s)
         return out, sent
 
     SPEED_BATCH = 10
@@ -612,6 +632,18 @@ class Box:
                 v["fed"] = True
         v["curve_samples"] = self.speed_samples_learned
         self.last_wind_dr = v
+
+    def close(self) -> dict:
+        """End of flight: save what was learned, close the recorder."""
+        saved = self.save_models()
+        status = None
+        if self.recorder is not None:
+            self.recorder._write({"kind": "note", "t": -1.0,
+                                  "text": f"frames seen live: {self.frames_seen}"})
+            status = self.recorder.status()
+            status["frames_seen_live"] = self.frames_seen
+            self.recorder.close()
+        return {"saved": saved, "recorder": status}
 
     def save_models(self) -> List[str]:
         """Persist what this flight learned: the tilt-to-airspeed curve, if a
@@ -820,7 +852,7 @@ def run(cfg: BoxConfig, deny_gnss: bool = False, send: bool = True,
                 if cam is not None:
                     frame = cam.read()
                     if frame is not None:
-                        box.on_frame(frame[0], now, cam.fov_deg)
+                        box.on_frame(frame[0], frame[1], cam.fov_deg)   # the frame's own time
                 if radio is not None:
                     for line in radio.read_lines():
                         box.on_beacon_line(line, now)
@@ -845,8 +877,13 @@ def run(cfg: BoxConfig, deny_gnss: bool = False, send: bool = True,
                         last_mode = out.mode
 
         finally:
-            for path in box.save_models():
+            done = box.close()
+            for path in done["saved"]:
                 print(f"saved what this flight learned: {path}")
+            if done["recorder"]:
+                r = done["recorder"]
+                print(f"recorded {r['counts']} ({r['megabytes']:.0f} MB)"
+                      + (f"; {r['stopped']}" if r["stopped"] else ""))
 
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description="UPIN box: GNSS checks, then "

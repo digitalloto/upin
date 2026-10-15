@@ -274,6 +274,35 @@ I can measure UPIN's real error against it.
 Never use a real jammer: it is illegal outside an authorised range.
 Software denial does the job.
 
+## Step 9b: Record a whole flight, then measure it on the ground
+
+Zero flight risk: fly the normal route in shadow mode with everything
+recording, then re-run the whole box on your Mac with GNSS denied from
+any moment you choose, and read the error against the receiver's own log.
+
+In `/etc/upin/box.toml`:
+
+```toml
+input_log_path = "/var/log/upin/inputs.jsonl"
+frames_dir = "/var/log/upin/frames"       # only if a camera is fitted
+```
+
+Fly. Afterwards, copy `inputs.jsonl` (and the `frames` folder) to the
+Mac and run:
+
+```bash
+python tools/replay_flight.py --config box.toml --log inputs.jsonl --frames frames \
+    --deny-after 60 --deny-for 120 --report denied.md
+```
+
+`denied.md` gives the mode timeline, the error at +30, +60 and +120 s,
+which sensor kept the estimate moving each second, and which fixes were
+accepted. Try different `--deny-from` moments on the same flight: a turn,
+a straight, over the tags. See `docs/RECORDING.md`. A 256-pixel camera at
+2 frames a second is about 30 MB a minute (an estimate until measured on
+the card); the recorder stops saving frames, never the flight, when the
+card is nearly full.
+
 ## Step 10: Make it start by itself (only once Steps 7–9 work)
 
 ```bash

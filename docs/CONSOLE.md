@@ -32,6 +32,7 @@ python -m upin.console --source browser                   # this computer's or p
 python -m upin.console --source board  --config box.toml  # your flight controller on USB
 python -m upin.console --source live   --config box.toml  # the full box
 python -m upin.console --source replay --config box.toml --log box.jsonl
+python -m upin.console --source replay --config box.toml --log inputs.jsonl --frames frames/
 ```
 
 Then open **http://localhost:8080**.
@@ -42,7 +43,7 @@ Then open **http://localhost:8080**.
 | `browser` | **Real**: this device's location from the browser (the part of the old demo that was real). The browser's 95% accuracy is converted to 1σ | A real moving input from a laptop or phone. Laptop and phone positioning is far less accurate than a GNSS receiver |
 | `board` | **Real**: the flight controller's own GPS, heading, barometer, flow and rangefinder, over USB. Listen only | Testing with just your board, before the new receiver arrives |
 | `live` | **Real**: the full box (new receiver + flight controller) | The bench and the drone |
-| `replay` | **Real**: a box log, re-decided by today's code (GNSS decisions only) | Looking at a test run again |
+| `replay` | **Real**: a flight recording (`inputs.jsonl` + frames, `docs/RECORDING.md`) re-run through the whole box in time, or a plain epoch log re-decided for GNSS only | Looking at a test run again, every layer live |
 
 Notes:
 - `board` and `live` need `pip install -e ".[box]"`, which adds pyserial and pymavlink.

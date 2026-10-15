@@ -31,6 +31,7 @@ from typing import List, Optional
 from upin.box.fc_reader import P0_HPA
 from upin.box.gnss_parser import encode_mon_rf, encode_nav_pvt, encode_nav_sat
 from upin.box.gateway import GnssEpoch
+from upin.box.flight_replay import is_input_log, replay as replay_flight
 from upin.box.replay import epoch_from_json
 from upin.box.service import Box, BoxConfig
 from upin.layers.optical.fiducial import TagEntry, TagMap
@@ -608,12 +609,33 @@ class LiveSource(Source):
 
 
 class ReplaySource(Source):
-    def __init__(self, state, path: str, cfg: BoxConfig, speed: float = 1.0):
+    def __init__(self, state, path: str, cfg: BoxConfig, speed: float = 1.0,
+                 frames_dir: Optional[str] = None):
         super().__init__(state)
         self.path, self.cfg, self.speed = path, cfg, speed
+        self.frames_dir = frames_dir
+        self.full = is_input_log(path)
 
     def start(self):
         def loop():
+            if self.full:
+                self.state.event(f"replaying the whole box from the flight recording {self.path}"
+                                 + (f" with frames from {self.frames_dir}" if self.frames_dir
+                                    else " (no frames folder given: camera layers idle)"))
+
+                def pace(last_t, t):
+                    if t > last_t:
+                        self._stop.wait((t - last_t) / self.speed)
+
+                def on_epoch(box, out, sent, row):
+                    self.state.update(box, out, sent, sending=False)
+
+                try:
+                    replay_flight(self.cfg, "", self.path, self.frames_dir, on_epoch=on_epoch, pace=pace)
+                except ValueError as exc:
+                    self.state.event(f"replay refused: {exc}", "bad")
+                self.state.event("replay finished")
+                return
             box = Box(self.cfg)
             with open(self.path, encoding="utf-8") as f:
                 epochs = [epoch_from_json(l) for l in f if l.strip()]

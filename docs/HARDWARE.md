@@ -129,6 +129,7 @@ What the box service uses on real data, today:
 | HonestKalman: GNSS, heading, barometer, optical-flow velocity | `upin/fusion/honest_kalman.py` | tested in simulation |
 | Wind-and-tilt dead reckoning: the Wind and Speed Learners, the lean plus the frozen wind as the last velocity rung before coasting | `upin/box/wind_dr.py`, `upin/core/wind_learner.py`, `upin/core/speed_learner.py` | tested in simulation (`docs/WIND_DR.md`) |
 | UBX parser; replay | `upin/box/gnss_parser.py`, `replay.py` | tested on synthetic bytes |
+| Flight recorder and whole-box offline replay with a software denial, measured against the receiver's logged fix | `upin/box/recorder.py`, `upin/box/flight_replay.py`, `tools/replay_flight.py` | tested on simulated flights (`docs/RECORDING.md`) |
 | Flight-controller reader; `GPS_INPUT` | `upin/box/fc_reader.py`, `mavlink_out.py` | UNTESTED until SITL |
 
 Not used yet, and why:
