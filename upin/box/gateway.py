@@ -43,7 +43,7 @@ from __future__ import annotations
 import copy
 import math
 from dataclasses import dataclass, field
-from typing import List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from upin.detection.constellation_check import (CANNOT_RULE_OUT,
                                                 ConstellationFix, cross_check)
@@ -126,6 +126,7 @@ class Gateway:
         self._trusted_h_acc: Optional[float] = None
         self._trusted_drms: float = 0.0
         self.last_checks: List[dict] = []
+        self.last_fixes: Dict[str, dict] = {}     # non-GNSS fixes, by source
         self.log: List[GatewayOutput] = []
 
     # -- inputs besides GNSS ------------------------------------------------
@@ -138,6 +139,30 @@ class Gateway:
             return
         self.kf.predict(t)
         self.kf.update_velocity(vn, ve, sigma_ms, source=source)
+
+    def feed_position(self, lat: float, lon: float, sigma_m: float, t: float,
+                      source: str, alt_m: Optional[float] = None,
+                      sigma_alt_m: Optional[float] = None,
+                      anchor: bool = False) -> dict:
+        """A position fix from a non-GNSS layer (a tag, beacons, a Doppler
+        pass). It goes through the filter's gate like everything else. With
+        anchor=True an accepted fix also re-anchors the reachability guard
+        and the accuracy floor, as a trusted GNSS fix would."""
+        d = self.kf.update_position(lat, lon, sigma_m, source=source, t=t,
+                                    alt=alt_m, sigma_v_m=sigma_alt_m)
+        rec = {"source": source, "t": t, "lat": lat, "lon": lon, "sigma_m": sigma_m,
+               "accepted": d.accepted, "reason": d.reason or "accepted",
+               "nis": d.nis, "anchored": False}
+        if d.accepted and anchor:
+            est = self.kf.estimate()
+            self.guard.anchor(lat, lon, t, velocity_ne=est.velocity_ne,
+                              sigma_pos_m=sigma_m,
+                              sigma_vel_ms=max(est.sigma_velocity_ms, 0.3))
+            self._trusted_h_acc = sigma_m
+            self._trusted_drms = est.drms_m
+            rec["anchored"] = True
+        self.last_fixes[source] = rec
+        return rec
 
     def feed_flow(self, forward_ms: float, right_ms: float, heading_deg: float,
                   sigma_ms: float, t: float, source: str = "optical_flow") -> None:

@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import json
 import math
+
+import numpy as np
 import random
 import threading
 import time
@@ -31,6 +33,8 @@ from upin.box.gnss_parser import encode_mon_rf, encode_nav_pvt, encode_nav_sat
 from upin.box.gateway import GnssEpoch
 from upin.box.replay import epoch_from_json
 from upin.box.service import Box, BoxConfig
+from upin.layers.optical.fiducial import TagEntry, TagMap
+from upin.simulation.markers import SimTag, ground_patch_with_tags
 from upin.console.state import ConsoleState
 from upin.detection.reachability import DEG_M
 
@@ -85,10 +89,16 @@ class _GaussMarkov:
 class SimSource(Source):
     """A drone flying a stadium-shaped circuit at constant speed."""
 
-    controls = ["spoof_jump", "spoof_drag", "smart_spoofer", "deny", "flow",
+    controls = ["spoof_jump", "spoof_drag", "smart_spoofer", "deny", "flow", "tags",
                 "flow_attack", "reset"]
 
     STRAIGHT_M, RADIUS_M, SPEED_MS, ALT_M = 300.0, 60.0, 8.0, 50.0
+    # Simulated downward camera and two painted ground tags: id 7 at the
+    # circuit's start, surveyed into the box's tag map; id 20 on the far
+    # straight, deliberately NOT in the map, so the console shows the honest
+    # "seen but not in the map" decline once a lap.
+    CAM_PX, CAM_FOV_DEG = 256, 40.0
+    TAG_SIZE_M = 4.0
     GNSS_SIGMA_M, GNSS_TAU_S, FC_GNSS_SIGMA_M = 1.5, 30.0, 2.0
     VEL_SIGMA_MS, HEADING_SIGMA_DEG, FLOW_SIGMA_MS = 0.1, 2.0, 0.2
     SPOOF_JUMP_M, SPOOF_DRAG_MS = 500.0, 1.0
@@ -124,7 +134,16 @@ class SimSource(Source):
         self.flow = True
         self.smart = False
         self.flow_attack = False
+        self.tags_on = True
         self.drag_m = 0.0
+        self.nprng = np.random.default_rng(self.seed)
+        L, R = self.STRAIGHT_M, self.RADIUS_M
+        self.sim_tags = [SimTag(7, -R, -L / 2, self.TAG_SIZE_M, 30.0),
+                         SimTag(20, R, L / 2, self.TAG_SIZE_M, 0.0)]
+        lat7, lon7 = self._ll(-R, -L / 2)
+        self.box.tags.set_map(TagMap([TagEntry(7, lat7, lon7, self.TAG_SIZE_M,
+                                               "field_survey", 0.3, altitude_m=0.0,
+                                               name="start tag")]))
 
     def truth(self, t):
         """(north, east, vn, ve) on the circuit at time t."""
@@ -177,6 +196,9 @@ class SimSource(Source):
             elif action == "flow":
                 self.flow = not self.flow
                 msg = f"SIMULATION: optical-flow sensor {'ON' if self.flow else 'OFF'}"
+            elif action == "tags":
+                self.tags_on = not self.tags_on
+                msg = f"SIMULATION: ground tags {'painted' if self.tags_on else 'removed'}"
             elif action == "reset":
                 self._reset()
                 msg = "SIMULATION: reset"
@@ -272,6 +294,10 @@ class SimSource(Source):
                      ve + rng.gauss(0, self.VEL_SIGMA_MS), 0.0),
                     self.VEL_SIGMA_MS * 1.5)
             results = box.on_receiver_bytes(data, t, time.time())
+            frame, _ = ground_patch_with_tags(e, n, heading, self.ALT_M, self.CAM_FOV_DEG,
+                                              self.CAM_PX, self.sim_tags if self.tags_on else [],
+                                              pixel_noise=0.02, rng=self.nprng)
+            box.on_frame(frame, t, self.CAM_FOV_DEG)
             tlat, tlon = self._ll(n, e)
             for out, sent in results:
                 self.state.update(box, out, sent, sending=False,

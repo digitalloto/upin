@@ -1,0 +1,7 @@
+{
+  "_comment": "Surveyed UPIN tags. Print with: python -m upin.vision.upin_tag 7 tag7.png. source must be an Indian map source or field_survey; position_accuracy_m is the survey's 1-sigma, stated honestly.",
+  "tags": [
+    {"tag_id": 7, "latitude": 13.082700, "longitude": 80.270700, "size_m": 0.5,
+     "source": "field_survey", "position_accuracy_m": 0.3, "altitude_m": 12.0, "name": "landing pad"}
+  ]
+}

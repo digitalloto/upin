@@ -26,7 +26,7 @@ Last updated 1 October 2026. Measured layer status lives in
 | 0.2 | Layers declare the sensors and data they need | done |
 | 0.3 | Simulation moved out of layers into a harness; real/sim/off modes; real feed rejects agents that fall back to simulation | done |
 | 0.4 | A generated README for every layer, status measured not claimed | done |
-| — | Sensor requirements and operating class for all 142 layers (`upin/layers/requirements_catalog.py`) | done |
+| — | Sensor requirements and operating class for all 143 layers (`upin/layers/requirements_catalog.py`) | done |
 | 1 | Convert the remaining fabricating layers, one at a time | **114 left** |
 | 2 | Delete `set_simulated_position` and the simulation default | after Phase 1 |
 
@@ -45,6 +45,7 @@ Last updated 1 October 2026. Measured layer status lives in
 | — | **Layer 146, GNSS signal-power spoof check** (`cn0spoof_a20`): C/N0 uniformity, elevation dependence, strength, simultaneous rise, AGC vs C/N0, this antenna's learned profile. Warn-only in the box until calibrated | done (simulation; thresholds unmeasured) | `upin/layers/satellite/signal_power.py` |
 | — | **Layer 147, AI motion predictor** (`learnedio_b14`): learned inertial odometry trained flight by flight (`tools/learn_from_flight.py`); each flight scored before it is learned from; promotion only if no worse; measured weather per flight; flags conditions outside training. Off in the box unless configured | done (simulated flights only; real-log parsing untested) | `upin/layers/inertial/learned_io.py`, `upin/learned/`, [`docs/LEARNED_IO.md`](docs/LEARNED_IO.md) |
 | — | **Optical-flow integrity check** (from the laser-dot reel): flow vs IMU, trusted GNSS and the AI predictor; latches an unexplained jump until it reverses or is confirmed; suspect flow not fed to the filter (default) | done (simulation; thresholds unmeasured) | `upin/detection/flow_integrity.py` |
+| — | **Layer 149, tag landmarks** (`fiducial_e25`): our own printed tag; one tag at a surveyed spot is a full fix with accuracy from the geometry; re-anchors the reachable region; `tools/tag_truth.py` measures every other source against it | done (simulation; camera driver untested) | `upin/layers/optical/fiducial.py`, `upin/vision/upin_tag.py`, [`docs/TAGS.md`](docs/TAGS.md) |
 | 4 | L1 completion: strapdown INS wired in, retained command log (§3) | next | `upin/core/strapdown_ins.py` |
 | 5 | Navigation Arbiter: explicit mode, DR time limit (§9) | | |
 | 6 | Escape Manager: retrace, rally, jammer gradient, swarm spread (§10) | | |
@@ -163,7 +164,7 @@ From the reels of 12 October 2026, built only when the trigger happens:
 
 | Item | Trigger |
 |---|---|
-| Fiducial-tag landmark layer: tags at surveyed spots give a precise fix (home, landing pad, test-range ground truth for calibrating every other layer) | a downward camera is on the drone |
+| Fiducial-tag landmark layer: tags at surveyed spots give a precise fix (home, landing pad, test-range ground truth for calibrating every other layer) | **built** (layer 149, 15 Oct 2026, pulled forward at the user's request; still needs the camera) |
 | Same code in simulation and on the drone: ArduPilot SITL + Gazebo, extending `tools/sitl_box.py` | the box first runs against SITL (bench plan, day 1) |
 | Independent GNSS-band jamming monitor with a cheap software radio (RTL-SDR): noise in the band vs a learned baseline; also the cheap way into the correlator research | GNSS hardware is on the bench and a second jamming opinion is wanted |
 | Weighted RANSAC inside UPIN's own camera flow, trusting points that have agreed since takeoff | roadmap item 8 (L3 camera flow) is built |

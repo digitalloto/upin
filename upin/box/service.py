@@ -53,7 +53,9 @@ from upin.detection.constellation_check import ConstellationFix
 from upin.detection.flow_integrity import FlowIntegrityCheck
 from upin.detection.reachability import Envelope
 from upin.core.wind_learner import FlightSample, WindLearner
+from upin.box.camera import open_camera
 from upin.layers.inertial.learned_io import LearnedInertialOdometryLayer
+from upin.layers.optical.fiducial import FiducialTagLayer, TagMap
 from upin.layers.satellite.signal_power import SignalPowerCheckLayer
 from upin.learned.features import mean_thrust_direction
 
@@ -77,6 +79,11 @@ class BoxConfig:
     power_check_action: str = "warn"   # "distrust" once calibrated on this receiver
     airframe_id: str = ""              # must match the AI predictor's model
     learned_io_model: str = ""         # AI motion predictor model file; "" = off
+    # downward camera and tag landmarks (layer 149); "" = off
+    camera: str = ""                   # "pi", or a folder of .npy frames
+    camera_fov_deg: float = 62.0       # ASSUMPTION: Pi camera v2 horizontal FOV; use the real lens's
+    camera_size_px: int = 256
+    tag_map: str = ""                  # tags.json: surveyed tag positions
     flow_check_action: str = "distrust"
     """Suspect optical flow is not fed to the filter. Distrust is the default
     here, unlike the signal-power check: a false alarm only costs a few
@@ -134,6 +141,13 @@ class Box:
         if cfg.flow_check_action not in ("warn", "distrust"):
             raise ValueError("flow_check_action must be 'warn' or 'distrust'")
         self.flow_check = FlowIntegrityCheck(heading_sigma_deg=cfg.heading_sigma_deg)
+        # Tag landmarks (layer 149): a fix only when a tag map is configured.
+        self.tags = FiducialTagLayer()
+        self.tags.initialize()
+        if cfg.tag_map:
+            self.tags.set_map(TagMap.load_json(cfg.tag_map))
+        self.last_tag: Optional[dict] = None
+        self.frames_seen = 0
         self._flow_status: Optional[dict] = None
         self.fc = FcReader()
         self.ubx = UbxStream()
@@ -191,6 +205,24 @@ class Box:
         return s
 
     # -- receiver ------------------------------------------------------------
+
+    def on_frame(self, image, t: float, fov_deg: Optional[float] = None) -> dict:
+        """A downward-camera frame. A tag fix goes through the filter's gate
+        and re-anchors the reachability guard; the result is recorded either
+        way, including why there was no fix."""
+        self.frames_seen += 1
+        att = self.fc.state.attitude
+        if att is not None:
+            self.tags.feed_attitude(math.radians(att.roll_deg), math.radians(att.pitch_deg),
+                                    att.heading_deg, att.t)
+        self.tags.feed_frame(image, t, fov_deg or self.cfg.camera_fov_deg)
+        v = dict(self.tags.solve(t))
+        if v["status"] == "ok":
+            v["fix"] = self.gateway.feed_position(
+                v["lat"], v["lon"], v["sigma_m"], t, source="fiducial",
+                alt_m=v["alt_m"], sigma_alt_m=v["sigma_alt_m"], anchor=True)
+        self.last_tag = v
+        return v
 
     def on_receiver_bytes(self, data: bytes, now: float,
                           unix_s: float) -> List[Tuple[GatewayOutput, GpsInput]]:
@@ -323,6 +355,10 @@ class Box:
                      "lat": sent.lat, "lon": sent.lon,
                      "horiz_accuracy": sent.horiz_accuracy},
             "ignored_circular": dict(self.fc.ignored),
+            "fixes": {k: dict(v) for k, v in self.gateway.last_fixes.items()},
+            "tag": None if self.last_tag is None else {
+                k: self.last_tag.get(k) for k in
+                ("status", "reason", "tag_id", "range_m", "sigma_m", "lat", "lon", "t")},
             "learned_io": self.learned.last if self.learned.model is not None else None,
             # the signal-power verdict, per-satellite C/N0 and elevation
             # travel inside "epoch" (power_check), for calibration later
@@ -391,6 +427,8 @@ def run(cfg: BoxConfig, deny_gnss: bool = False, send: bool = True,
     request_streams(conn)
     sender = GpsInputSender(cfg.fc_connection, cfg.forward_degraded,
                             gps_id=cfg.gps_id, conn=conn)
+    cam = (open_camera(cfg.camera, cfg.camera_size_px, cfg.camera_fov_deg)
+           if cfg.camera else None)
     print(f"UPIN box running: GNSS from {gnss_source}, GPS instance "
           f"{cfg.gps_id + 1}, {'shadow' if cfg.shadow else 'LIVE'}, "
           f"{'GNSS DENIED in software, ' if deny_gnss else ''}"
@@ -414,6 +452,10 @@ def run(cfg: BoxConfig, deny_gnss: bool = False, send: bool = True,
                     print(f"{time.strftime('%H:%M:%S')} --- GNSS "
                           f"{'DENIED in software' if box.deny_gnss else 'restored'} ---")
             results = []
+            if cam is not None:
+                frame = cam.read()
+                if frame is not None:
+                    box.on_frame(frame[0], now, cam.fov_deg)
             while True:
                 msg = conn.recv_match(blocking=False)
                 if msg is None:

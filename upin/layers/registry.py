@@ -131,6 +131,7 @@ from upin.layers.optical.landmark_chain import LandmarkChainLayer
 from upin.layers.guidance.map_click import MapClickGuidedLayer
 from upin.layers.satellite.signal_power import SignalPowerCheckLayer
 from upin.layers.inertial.learned_io import LearnedInertialOdometryLayer
+from upin.layers.optical.fiducial import FiducialTagLayer
 from upin.quantum.layers import (
     EntangledPhotonRangingLayer, DistributedQuantumSensingLayer,
     QuantumClockNetworkLayer, AtomInterferometerGyroLayer,
@@ -319,6 +320,8 @@ ALL_LAYER_CLASSES: dict[str, type[NavigationLayer]] = {
     "cn0spoof_a20": SignalPowerCheckLayer,
     # ── AI motion predictor: learned inertial odometry, trained per flight ──
     "learnedio_b14": LearnedInertialOdometryLayer,
+    # ── Tag landmarks: a full fix from a printed tag at a surveyed spot ──
+    "fiducial_e25": FiducialTagLayer,
 }
 
 

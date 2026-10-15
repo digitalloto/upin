@@ -295,6 +295,7 @@ function render(s) {
 
   renderSky(s.signal_power);
   renderAI(s.learned_io);
+  renderFixes(s);
   renderEvents(s.events || []);
   $("map-status").textContent = s.region
     ? "Reachable region: " + num(s.region.seconds_since_anchor, 0) + " s since last trusted fix, radius " + num(s.region.manoeuvre_radius_m, 0) + " m"
@@ -382,7 +383,38 @@ function renderAI(ai) {
   box.appendChild(f);
 }
 
+// ---------- other fixes: tag landmarks (149), later beacons and Doppler ----------
+function renderFixes(s) {
+  const box = $("fixes-body");
+  box.innerHTML = "";
+  const row = (k, v, cls) => {
+    const d = document.createElement("div"); d.className = "kv";
+    const a = document.createElement("span"); a.textContent = k;
+    const b = document.createElement("b"); b.textContent = v; if (cls) b.classList.add(cls);
+    d.append(a, b); box.appendChild(d);
+  };
+  const tag = s.tag, fx = (s.fixes || {}).fiducial;
+  if (!s.camera_frames) {
+    row("Tag landmark (149)", "no camera configured", "na");
+  } else if (tag && tag.status === "ok") {
+    row("Tag landmark (149)", "tag " + tag.tag_id + (tag.name ? " (" + tag.name + ")" : "") +
+        ": range " + num(tag.range_m, 1) + " m, ±" + num(tag.sigma_m, 2) + " m");
+    if (fx) row("  → filter", (fx.accepted ? "accepted" : "REJECTED: " + fx.reason) +
+                (fx.anchored ? ", re-anchored the reachable region" : ""), fx.accepted ? "" : "na");
+  } else if (tag) {
+    row("Tag landmark (149)", "declined: " + tag.reason, "na");
+    if (fx) row("  last accepted fix", "sim clock " + num(fx.t, 0) + " s", "na");
+  } else {
+    row("Tag landmark (149)", "no frame yet", "na");
+  }
+  Object.entries(s.fixes || {}).forEach(([src, f]) => {
+    if (src === "fiducial") return;
+    row(src, (f.accepted ? "accepted" : "rejected: " + f.reason) + ", ±" + num(f.sigma_m, 1) + " m");
+  });
+}
+
 const CONTROL_LABEL = {
+  tags: "Ground tags on/off",
   smart_spoofer: "Spoofer type: simple/smart",
   flow_attack: "Flow attack: moving ground pattern",
   spoof_jump: "Spoof: 500 m jump", spoof_drag: "Spoof: slow drag 1 m/s",

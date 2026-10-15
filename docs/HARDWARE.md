@@ -58,6 +58,7 @@ ArduPilot's EKF weights it.
 | Receiver 3-D fix and accuracy | lost signal; poor geometry | anything the receiver itself believes |
 | Receiver jamming state (`MON-RF`) | jamming the receiver notices | spoofing, which looks clean |
 | Optical-flow integrity (`upin/detection/flow_integrity.py`) | a moving pattern under the flow sensor (laser dots): jumps the IMU did not feel, accelerations the flow did not show, disagreement with trusted GNSS or the AI predictor. Suspect flow is **not fed** to the filter by default | a drag slow enough to hide in IMU noise when there is no GNSS or predictor to compare with |
+| Tag landmarks (layer 149, `upin/layers/optical/fiducial.py`) | with a downward camera and a surveyed printed tag in view: a full fix with accuracy from the geometry, which re-anchors the reachable region, so a GNSS jump away from the tag is physically impossible | nothing while no tag is in view; needs light; survey errors pass straight into the fix |
 | Signal-power pattern (layer 146, `upin/layers/satellite/signal_power.py`) | a simple spoofer: satellites too uniform, too strong, no rise with elevation, all jumping up together, AGC dropping as extra power arrives; also tells jamming from spoofing | **a spoofer that shapes power by elevation at realistic levels.** Thresholds are assumptions until calibrated, so the box only **warns** by default (`power_check_action = "warn"`) |
 | Constellations agree (`upin/detection/constellation_check.py`) | a spoofer faking one constellation; with three or more, it names that one | **a spoofer faking all constellations consistently.** Commercial multi-constellation simulators can do this. Agreement raises the cost of an attack; it does not make spoofing impossible |
 | Reachability (`upin/detection/reachability.py`) | any jump the airframe physically could not make. No statistics: an honest fix never fails it (0 of 11,600 in simulation) | a slow drag-off within what the airframe could fly |
@@ -171,6 +172,7 @@ No prices are listed. Get quotes from Indian distributors.
 | GNSS receiver with UBX output (NAV-PVT, NAV-SAT, MON-RF) | the parsers are written for UBX; NMEA GGA/RMC works as a fallback without the jamming state |
 | A second receiver, or one with NavIC (check the datasheet for NavIC L5) | the constellation cross-check |
 | Pixhawk-standard flight controller with ArduPilot, or ArduPilot SITL on a laptop first | the `GPS_INPUT` path |
+| Downward camera (Pi global-shutter module, CSI) and printed UPIN tags | tag landmarks (layer 149): ground truth on the range, landing pad, indoor tests; later camera optical flow. `pip install -e ".[camera]"` on the Pi; set the real lens's field of view in `box.toml` |
 | Optical-flow sensor and downward rangefinder | keep the degraded estimate tight. In simulation, 60 s with no GNSS gave an `h_acc` of 269 m coasting and 4.7 m with flow velocity (the flow sigma of 0.3 m/s is assumed, not measured). The coasting figure is set by the filter's assumed manoeuvre noise and is pessimistic for a steady flight |
 | USB-UART adapters, antennas, cables | |
 

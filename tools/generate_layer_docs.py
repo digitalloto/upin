@@ -395,6 +395,8 @@ def render_root(facts: List[LayerFacts]) -> str:
           "unboxing a Raspberry Pi to UPIN as GPS 2 |",
           "| [`docs/LEARNED_IO.md`](docs/LEARNED_IO.md) | The AI motion predictor: "
           "learning from every test flight |",
+          "| [`docs/TAGS.md`](docs/TAGS.md) | Tag landmarks: a fix from a printed "
+          "tag; ground truth for the range |",
           "| [`FABRICATION_AUDIT.md`](FABRICATION_AUDIT.md) | Every place the "
           "code invents a number, what it costs, and the staged plan to remove it |",
           "| [`UPIN_MASTER.md`](UPIN_MASTER.md) | The full project document |",
