@@ -189,6 +189,39 @@ def test_wind_dr_in_console():
     PASSED.append("wind_dr")
 
 
+def test_patch_map_in_console():
+    """Lap 1 builds the map while the fix is trusted; lap 2 with the far-
+    straight jammer on, in match mode, gets patch-map fixes inside the jam."""
+    st = ConsoleState("sim", "SIMULATION", True, SimSource.controls)
+    sim = SimSource(st, 13.0827, 80.2707, seed=5)
+    for _ in range(125):
+        sim.step()
+    s = st.get()
+    assert s["patch_map"]["status"] == "building" and s["patch_map"]["map_patches"] >= 20, s["patch_map"]
+    n_built = s["patch_map"]["map_patches"]
+    sim.control("patch_map")                       # match
+    sim.control("beacons")                         # off: the patch map alone must hold it
+    sim.control("formation")
+    sim.control("breadcrumbs")
+    sim.control("jam_zone")
+    fixes, errs, in_jam = 0, [], 0
+    for _ in range(125):
+        sim.step()
+        s = st.get()
+        if s["input"]["fix_type"] == 0:
+            in_jam += 1
+            pm = s["patch_map"]
+            if pm and pm["status"] == "ok" and s["fixes"].get("patch_map", {}).get("accepted"):
+                fixes += 1
+            errs.append(s["truth"]["error_m"])
+    assert in_jam >= 8 and fixes >= 0.5 * in_jam, (in_jam, fixes, s["patch_map"])
+    assert max(errs) < 25.0, max(errs)
+    print(f"[ok] console: lap 1 stored {n_built} patches while trusted; lap 2 in the far-straight jam "
+          f"({in_jam} epochs without a fix): {fixes} patch-map fixes accepted, worst error vs truth "
+          f"{max(errs):.0f} m with beacons, formation and crumbs off")
+    PASSED.append("patch_map")
+
+
 def test_browser_source():
     st = ConsoleState("browser", "X", False, BrowserSource.controls)
     src = BrowserSource(st)
@@ -275,7 +308,7 @@ def test_server():
 if __name__ == "__main__":
     tests = [test_page_has_nothing_made_up, test_missing_stays_missing,
              test_sim_drives_the_real_box, test_formation_controls, test_wind_dr_in_console,
-             test_browser_source,
+             test_patch_map_in_console, test_browser_source,
              test_board_only_epoch, test_replay_redecides, test_server]
     for t in tests:
         t()

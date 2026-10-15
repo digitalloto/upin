@@ -63,6 +63,8 @@ from upin.box.leo_pass import LeoPassRunner
 from upin.layers.inertial.learned_io import LearnedInertialOdometryLayer
 from upin.layers.optical.camera_flow import CameraFlowLayer
 from upin.layers.optical.fiducial import FiducialTagLayer, TagMap
+from upin.layers.optical.patch_map import PatchMapLayer
+from upin.vision.patch_map import DEG_M as _DEG_M, PatchMap
 from upin.layers.rf.beacon_ranging import BeaconRangingLayer
 from upin.layers.rf.breadcrumbs import (CRUMB_PREFIX, THREAT_CLEAR, THREAT_JAMMED, THREAT_RISING,
                                         BreadcrumbLayer, DropPolicy)
@@ -105,6 +107,10 @@ class BoxConfig:
     camera_size_px: int = 256
     tag_map: str = ""                  # tags.json: surveyed tag positions
     camera_flow: bool = False          # layer 148: UPIN's own flow from the camera frames
+    # self-surveyed patch map (layer 154): "" = off; a file to load, saved there when built
+    patch_map: str = ""
+    patch_map_build: bool = False      # store patches while the fix is TRUSTED; saved at exit
+    patch_spacing_m: float = 15.0      # ASSUMPTION: patches 24 m wide every 15 m overlap along track
     # known-position beacons (layer 151); "" = off
     beacon_radio: str = ""             # serial port of the ranging radio (JSON lines)
     beacon_radio_baud: int = 115200
@@ -213,6 +219,12 @@ class Box:
         self.camflow = CameraFlowLayer()
         self.camflow.initialize()
         self.last_camflow: Optional[dict] = None
+        # Patch map (layer 154): matches when a map exists; builds while trusted if asked.
+        self.patchmap = PatchMapLayer(cfg.patch_spacing_m)
+        self.patchmap.initialize()
+        if cfg.patch_map and os.path.exists(cfg.patch_map):
+            self.patchmap.set_map(PatchMap.load(cfg.patch_map))
+        self.last_patch: Optional[dict] = None
         # Known-position beacons (layer 151): fixes only with a secret and radio.
         self.beacons = BeaconRangingLayer()
         self.beacons.initialize()
@@ -271,6 +283,7 @@ class Box:
                        math.radians(s.heading_deg))
             self.learned.feed_attitude(r, p, y, now)
             self.camflow.feed_attitude(r, p, s.heading_deg, now)
+            self.patchmap.feed_attitude(r, p, s.heading_deg, now)
             self.flow_check.feed_attitude(r, p, y, now)
             self._att_hist.append((now, r, p, y))
             while self._att_hist and self._att_hist[0][0] < now - 1.0:
@@ -288,6 +301,7 @@ class Box:
                     self._acc_hist.popleft()
         elif isinstance(s, Range):
             self.camflow.feed_height(s.distance_m, cfg.range_sigma_m, now)
+            self.patchmap.feed_height(s.distance_m, cfg.range_sigma_m, now)
         elif isinstance(s, Throttle):
             self.learned.feed_throttle(s.value, now)
         elif isinstance(s, Flow):
@@ -347,7 +361,43 @@ class Box:
                 cf["fed"] = True
                 self._velocity_fed = (t, "camera flow")
             self.last_camflow = cf
+        if self.cfg.patch_map or self.cfg.patch_map_build:
+            self.patchmap.feed_frame(image, t, fov_deg or self.cfg.camera_fov_deg)
+            self.step_patch_map(t)
         return v
+
+    def step_patch_map(self, t: float) -> None:
+        """Build: store this frame at the trusted receiver fix, moved to the
+        frame time with the fix's velocity. Match: when the fix is not
+        trusted and a map exists, an accepted match re-anchors the filter."""
+        pm = self.patchmap
+        ep = self.last_epoch
+        v: dict = {"status": "idle", "map_patches": len(pm.map) if pm.map is not None else 0}
+        trusted = self._last_mode == TRUSTED and ep is not None and ep.fix_type >= 3
+        if self.cfg.patch_map_build:
+            if trusted and t - ep.t <= 1.5:
+                vn, ve = (ep.vel_ned_ms[0], ep.vel_ned_ms[1]) if ep.vel_ned_ms else (0.0, 0.0)
+                dt = t - ep.t
+                lat = ep.lat + vn * dt / _DEG_M
+                lon = ep.lon + ve * dt / (_DEG_M * math.cos(math.radians(ep.lat)))
+                sigma = math.hypot(ep.h_acc_m, (ep.s_acc_ms or 0.5) * dt)
+                r = pm.learn(lat, lon, ep.alt_m if ep.alt_m is not None else 0.0, sigma, True, t)
+            else:
+                r = pm.learn(0.0, 0.0, 0.0, float("inf"), False, t)
+            v = {"status": "building", "stored": r["stored"], "reason": r.get("reason"),
+                 "map_patches": len(pm.map) if pm.map is not None else 0, "learned": pm.learned}
+        if not trusted and pm.map is not None and len(pm.map):
+            est = self.gateway.kf.estimate()
+            if est is not None:
+                pm.set_prior(est.lat, est.lon, max(est.drms_m, 1.0))
+            m = dict(pm.solve(t))
+            if m["status"] == "ok":
+                m["fix"] = self.gateway.feed_position(m["lat"], m["lon"], m["sigma_m"], t,
+                                                      source="patch_map", anchor=True)
+            m["building"] = v if v["status"] == "building" else None
+            m["map_patches"] = len(pm.map)
+            v = m
+        self.last_patch = v
 
     def on_beacon_line(self, line: str, t: float) -> Optional[str]:
         """One JSON line from the beacon radio: a beacon's signed message or a
@@ -652,6 +702,10 @@ class Box:
         if self.speed is not None and self.cfg.speed_model and self.speed_samples_learned > 0:
             self.speed.save(self.cfg.speed_model)
             saved.append(self.cfg.speed_model)
+        pm = self.patchmap
+        if self.cfg.patch_map_build and self.cfg.patch_map and pm.map is not None and pm.learned > 0:
+            pm.map.save(self.cfg.patch_map)
+            saved.append(self.cfg.patch_map)
         return saved
 
     def _flow_status_time(self) -> float:
@@ -738,6 +792,10 @@ class Box:
                 k: self.last_camflow.get(k) for k in
                 ("status", "reason", "forward_ms", "right_ms", "sigma_ms", "agreeing_trust",
                  "n_inliers", "n_valid", "fed")},
+            "patch_map": None if self.last_patch is None else {
+                k: self.last_patch.get(k) for k in
+                ("status", "reason", "lat", "lon", "sigma_m", "peak", "second", "candidates",
+                 "map_patches", "stored", "learned", "offset_from_prior_m")},
             "tag": None if self.last_tag is None else {
                 k: self.last_tag.get(k) for k in
                 ("status", "reason", "tag_id", "range_m", "sigma_m", "lat", "lon", "t")},

@@ -36,6 +36,7 @@ HARDWARE_TAGS: Dict[str, str] = {
     "crumb_dispenser": "breadcrumb units and a release mechanism",
     "formation_peers": "two or more drones flying together, each with the box and a ranging radio",
     "pitot": "a real airspeed sensor (fixed wing)",
+    "patch_map_surveyed": "a patch map built on an earlier trusted flight over the same ground",
     "sdr": "an RTL-SDR dongle and a VHF antenna, with fresh orbit elements",
     "trained_model": "an AI motion predictor model trained on this airframe's flights",
     "georeferenced_map": "an Indian-source map with charted landmarks",
@@ -169,6 +170,21 @@ ENTRIES: List[Entry] = [
       "wind_dr = true\nairframe_id = \"my-quad\"\nspeed_model = \"/var/lib/upin/speed.json\"",
       "docs/WIND_DR.md", "simulation",
       falls_back_to="coasting on the filter's prediction"),
+    E("patchmap_e26", "Self-surveyed patch map matching (154)", frozenset({"POSITION"}),
+      frozenset({"camera", "rangefinder", "flight_controller", "patch_map_surveyed"}),
+      _w(jammed=(YES, "an absolute fix over surveyed ground; nothing to jam"),
+         spoofed=(YES, "the ground cannot be spoofed; re-anchors the estimate"),
+         long_denial=(YES, "every pass over surveyed ground resets the drift"),
+         night=(NO, "needs light"), featureless=(NO, "no texture: declines"),
+         indoor=(LIMITED, "a textured floor surveyed before"),
+         fast=(LIMITED, "motion blur; the search radius grows with the prior"),
+         gnss_healthy=(LIMITED, "builds the map; no fix needed then")),
+      "Simulation: flown back along a surveyed 600 m track with a lean and heading jitter, "
+      "78 of 83 frames fixed at 1.6 m rms (stated 1.6 m, 95% circle covers 100%); water, night, "
+      "off-corridor, repeating and changed ground decline with reasons.",
+      "patch_map = \"/var/lib/upin/patches.npz\"\npatch_map_build = true", "docs/PATCH_MAP.md",
+      "simulation; camera untested",
+      falls_back_to="tags if placed, then beacons, breadcrumbs, formation, then dead reckoning"),
     E("camflow_e24", "Camera optical flow with weighted RANSAC (148)", frozenset({"VELOCITY"}),
       frozenset({"camera", "rangefinder", "flight_controller"}),
       _w(night=(NO, "needs light"), featureless=(NO, "no texture: declines"),
@@ -288,6 +304,7 @@ LADDERS: Dict[str, List[Tuple[str, str]]] = {
     "position": [
         ("box:receiver_fix", "metres, while trusted"),
         ("fiducial_e25", "sub-metre while a tag is in view"),
+        ("patchmap_e26", "metres over ground surveyed on an earlier trusted pass, by day"),
         ("beaconrng_d27", "metres to tens of metres while beacons are up"),
         ("breadcrumb_d28", "tens of metres along the trail"),
         ("formation_d29", "about ten metres while two peers keep trusted GNSS"),
@@ -309,6 +326,8 @@ PROFILES: List[Tuple[str, str, FrozenSet[str]]] = [
     ("Indoor test", "indoor", frozenset({"flight_controller", "camera", "rangefinder", "tags_surveyed"})),
     ("Formation of three into spoofing", "spoofed",
      frozenset({"flight_controller", "gnss_receiver", "beacon_radio", "formation_peers"})),
+    ("Return flight over surveyed ground, day, into jamming", "jammed",
+     frozenset({"flight_controller", "gnss_receiver", "camera", "rangefinder", "patch_map_surveyed"})),
 ]
 
 

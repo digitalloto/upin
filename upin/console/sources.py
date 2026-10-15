@@ -96,7 +96,7 @@ class SimSource(Source):
 
     controls = ["spoof_jump", "spoof_drag", "smart_spoofer", "deny", "flow", "tags",
                 "beacons", "jam_beacons", "jam_zone", "breadcrumbs",
-                "formation", "deny_lead", "tailored_spoofer",
+                "formation", "deny_lead", "tailored_spoofer", "patch_map",
                 "flow_attack", "reset"]
 
     STRAIGHT_M, RADIUS_M, SPEED_MS, ALT_M = 300.0, 60.0, 8.0, 50.0
@@ -146,7 +146,8 @@ class SimSource(Source):
                                     breadcrumb_spacing_m=150.0,   # the circuit is short
                                     formation=True, drone_id="lead",
                                     formation_check_action="distrust",
-                                    wind_dr=True, airframe_id="sim-circuit-quad")
+                                    wind_dr=True, airframe_id="sim-circuit-quad",
+                                    patch_map="sim-patch-map", patch_map_build=True)
         self._lock = threading.Lock()
         self._reset()
 
@@ -166,6 +167,7 @@ class SimSource(Source):
         self.jam_zone_on = False          # a GNSS jammer on the far straight
         self.crumbs_on = True
         self.formation_on = self.cfg.formation
+        self.patch_mode = "build" if self.cfg.patch_map_build else "match" if self.cfg.patch_map else "off"
         self.deny_lead = False            # the lead's box receiver fails; the wingmen keep GNSS
         self.tailored = False             # a multi-transmitter spoofer, the stated limit
         self.drag_m = 0.0
@@ -246,9 +248,13 @@ class SimSource(Source):
 
     def _fc_attitude_and_imu(self, tt, rng):
         """One ATTITUDE and one RAW_IMU message at time tt: the lean above,
-        the yaw with compass noise, and the specific force the IMU sees in
-        that attitude (gravity rotated out)."""
+        the yaw with compass noise, the specific force the IMU sees in that
+        attitude (gravity rotated out), and the body rates."""
         an, ae, roll, pitch, yaw, turn = self._dynamics(tt)
+        h = 0.05
+        _, _, r1, p1, _, _ = self._dynamics(tt + h)
+        _, _, r0, p0, _, _ = self._dynamics(tt - h)
+        roll_rate, pitch_rate = (r1 - r0) / (2 * h), (p1 - p0) / (2 * h)
         yaw_meas = yaw + math.radians(rng.gauss(0, self.HEADING_SIGMA_DEG))
         self.box.on_fc_message(Msg("ATTITUDE", roll=roll, pitch=pitch, yaw=yaw_meas), tt)
         cr, sr, cp, sp, cy, sy = (math.cos(roll), math.sin(roll), math.cos(pitch),
@@ -260,7 +266,8 @@ class SimSource(Source):
         mg = 9.80665e-3
         self.box.on_fc_message(Msg("RAW_IMU", xacc=(fx + rng.gauss(0, 0.05)) / mg,
                                    yacc=(fy + rng.gauss(0, 0.05)) / mg, zacc=fz / mg,
-                                   xgyro=0.0, ygyro=0.0, zgyro=1000.0 * turn), tt)
+                                   xgyro=1000.0 * roll_rate, ygyro=1000.0 * pitch_rate,
+                                   zgyro=1000.0 * turn), tt)
         return yaw_meas
 
     def _radio_line(self, line: str) -> None:
@@ -347,6 +354,14 @@ class SimSource(Source):
                 self.deny_lead = not self.deny_lead
                 msg = (f"SIMULATION: the lead's box receiver {'FAILED' if self.deny_lead else 'restored'} "
                        f"(the wingmen keep GNSS; the flight controller's own GPS is untouched)")
+            elif action == "patch_map":
+                self.patch_mode = {"build": "match", "match": "off", "off": "build"}[self.patch_mode]
+                self.cfg.patch_map_build = self.patch_mode == "build"
+                self.cfg.patch_map = "sim-patch-map" if self.patch_mode != "off" else ""
+                n = len(self.box.patchmap.map) if self.box.patchmap.map is not None else 0
+                msg = (f"SIMULATION: patch map {self.patch_mode.upper()} ({n} patches stored; build "
+                       f"stores the ground every {self.cfg.patch_spacing_m:.0f} m while the fix is "
+                       f"trusted, match fixes against it when the fix is not)")
             elif action == "tailored_spoofer":
                 self.tailored = not self.tailored
                 kind = ("TAILORED per drone: each receiver shifted by the same offset, geometry "
@@ -397,9 +412,11 @@ class SimSource(Source):
                 if abs(tt - t0) < 1e-6:
                     box.on_fc_message(Msg("DISTANCE_SENSOR", current_distance=round(self.ALT_M * 100),
                                           orientation=25), t0)
+                    _, _, roll0, pitch0, _, _ = self._dynamics(t0)
                     frame0, _ = camera_frame(e0, n0, hdg0, self.ALT_M, self.CAM_FOV_DEG, self.CAM_PX,
                                              t0, tags=self.sim_tags if self.tags_on else (),
-                                             dots=dots, pixel_noise=0.02, rng=self.nprng)
+                                             dots=dots, pixel_noise=0.02, rng=self.nprng,
+                                             roll=roll0, pitch=pitch0)
                     box.on_frame(frame0, t0, self.CAM_FOV_DEG)
             press = P0_HPA * (1 - self.ALT_M / 44330.0) ** 5.255
             box.on_fc_message(Msg("SCALED_PRESSURE", press_abs=press + rng.gauss(0, 0.05),
@@ -500,9 +517,10 @@ class SimSource(Source):
             results = box.on_receiver_bytes(data, t, time.time())
             box.on_fc_message(Msg("DISTANCE_SENSOR", current_distance=round(self.ALT_M * 100),
                                   orientation=25), t)
+            _, _, roll_t, pitch_t, _, _ = self._dynamics(t)
             frame, _ = camera_frame(e, n, heading, self.ALT_M, self.CAM_FOV_DEG, self.CAM_PX, t,
                                     tags=self.sim_tags if self.tags_on else (), dots=dots,
-                                    pixel_noise=0.02, rng=self.nprng)
+                                    pixel_noise=0.02, rng=self.nprng, roll=roll_t, pitch=pitch_t)
             box.on_frame(frame, t, self.CAM_FOV_DEG)
             tlat, tlon = self._ll(n, e)
             for out, sent in results:

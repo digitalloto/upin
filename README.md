@@ -10,11 +10,11 @@ This table is measured, not claimed. Every layer below was constructed with noth
 
 | Status | Layers | Meaning |
 |---|---:|---|
-| **DECLINES** | 21 | Reports no fix when it has no input, and says what is missing. Honours the no-fabrication contract. |
+| **DECLINES** | 22 | Reports no fix when it has no input, and says what is missing. Honours the no-fabrication contract. |
 | **PLACEHOLDER** | 13 | Returns the same fixed reading whenever nothing is connected. Not random, but not measured either. |
 | **FABRICATES** | 114 | Invents a reading when nothing is connected, and invents a different one each time it is read. |
 
-**21 of 148 layers** currently refuse to invent a position. **148 of 148** have declared what hardware and data they need.
+**22 of 149 layers** currently refuse to invent a position. **149 of 149** have declared what hardware and data they need.
 
 The gap between those numbers and the total is the work tracked in [`FABRICATION_AUDIT.md`](FABRICATION_AUDIT.md), which explains what each fabricating layer does and what it would cost in flight.
 
@@ -34,9 +34,6 @@ The gap between those numbers and the total is the work tracked in [`FABRICATION
 | [`docs/BEACONS.md`](docs/BEACONS.md) | Known-position beacons, balloons included: the idea made honest |
 | [`docs/LEO_DOPPLER.md`](docs/LEO_DOPPLER.md) | LEO Doppler anchor: a coarse GNSS-free fix from a satellite pass on a cheap radio |
 | [`docs/BREADCRUMBS.md`](docs/BREADCRUMBS.md) | Breadcrumb beacons: dropped while the fix is trusted, ranged to inside the jam |
-| [`docs/FORMATION.md`](docs/FORMATION.md) | Formation cross-check and cooperative fix: three drones confirming each other through measured ranges |
-| [`docs/WIND_DR.md`](docs/WIND_DR.md) | Wind-and-tilt dead reckoning: the last velocity rung before coasting, from sensors every drone has |
-| [`docs/RECORDING.md`](docs/RECORDING.md) | Flight recording and offline replay: fly in shadow mode, deny GNSS on the ground, measure every layer |
 | [`BALLOON_CARRY.md`](BALLOON_CARRY.md) | Should the drone carry a balloon beacon? The numbers, from labelled physics |
 | [`docs/MISSION_INDEX.md`](docs/MISSION_INDEX.md) | **Mission index**: every honest way to get a position, and what to load for a mission |
 | [`FABRICATION_AUDIT.md`](FABRICATION_AUDIT.md) | Every place the code invents a number, what it costs, and the staged plan to remove it |
@@ -52,7 +49,7 @@ What it would take for each layer to work for real, independent of whether it wo
 | Class | Layers | Meaning |
 |---|---:|---|
 | specialist | 36 | Real, buyable hardware that typical drones do not carry. |
-| drone-ready | 33 | Hardware a drone commonly carries or can easily add. |
+| drone-ready | 34 | Hardware a drone commonly carries or can easily add. |
 | platform-specific | 24 | Works only on a particular platform -- ships, submarines, ground vehicles. |
 | needs infrastructure | 22 | Needs beacons, networks or other people's equipment in place first. |
 | laboratory | 20 | Physics demonstrated in laboratories; not yet deployable on a drone. |
@@ -154,7 +151,7 @@ What it would take for each layer to work for real, independent of whether it wo
 | 152 | [Breadcrumb Beacons (self-dropped, position-stamped)](docs/layers/breadcrumb_d28.md) | `breadcrumb_d28` | clean | drone-ready |
 | 153 | [Formation Cross-Check and Cooperative Fix (peers confirm each other)](docs/layers/formation_d29.md) | `formation_d29` | clean | drone-ready |
 
-### Group E — Optical & Vision (25 layers, 3 clean)
+### Group E — Optical & Vision (26 layers, 4 clean)
 
 | # | Layer | ID | Status | Operating class |
 |---:|---|---|---|---|
@@ -183,6 +180,7 @@ What it would take for each layer to work for real, independent of whether it wo
 | 144 | [Landmark Chain Navigation](docs/layers/lmkchain_e23.md) | `lmkchain_e23` | clean | drone-ready |
 | 148 | [Camera Optical Flow (weighted RANSAC)](docs/layers/camflow_e24.md) | `camflow_e24` | clean | drone-ready |
 | 149 | [Tag Landmarks (printed fiducials)](docs/layers/fiducial_e25.md) | `fiducial_e25` | clean | drone-ready |
+| 154 | [Self-Surveyed Patch Map Matching](docs/layers/patchmap_e26.md) | `patchmap_e26` | clean | drone-ready |
 
 ### Group F — Acoustic (6 layers, 0 clean)
 

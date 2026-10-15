@@ -136,6 +136,7 @@ from upin.layers.optical.fiducial import FiducialTagLayer
 from upin.layers.rf.beacon_ranging import BeaconRangingLayer
 from upin.layers.rf.breadcrumbs import BreadcrumbLayer
 from upin.layers.rf.formation import FormationLayer
+from upin.layers.optical.patch_map import PatchMapLayer
 from upin.layers.satellite.leo_doppler import LeoDopplerLayer
 from upin.quantum.layers import (
     EntangledPhotonRangingLayer, DistributedQuantumSensingLayer,
@@ -337,6 +338,8 @@ ALL_LAYER_CLASSES: dict[str, type[NavigationLayer]] = {
     "breadcrumb_d28": BreadcrumbLayer,
     # ── Formation: peers confirm each other's fixes through measured ranges ──
     "formation_d29": FormationLayer,
+    # ── Patch map: ground the drone surveyed itself, matched for an absolute fix ──
+    "patchmap_e26": PatchMapLayer,
 }
 
 

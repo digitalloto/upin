@@ -34,15 +34,18 @@ def laser_dots(image: np.ndarray, north: np.ndarray, east: np.ndarray, t: float,
 def camera_frame(center_east_m: float, center_north_m: float, heading_deg: float,
                  agl_m: float, fov_deg: float, size_px: int, t: float,
                  tags: Sequence[SimTag] = (), dots: Optional[dict] = None,
-                 seed: int = 911, pixel_noise: float = 0.0, rng=None) -> Tuple[np.ndarray, float]:
-    """One downward-camera frame: texture, optional tags, optional dots."""
+                 seed: int = 911, pixel_noise: float = 0.0, rng=None,
+                 roll: float = 0.0, pitch: float = 0.0) -> Tuple[np.ndarray, float]:
+    """One downward-camera frame: texture, optional tags, optional dots.
+    roll and pitch (radians) lean the camera with the airframe."""
     north, east, gsd = patch_mapping(center_east_m, center_north_m, heading_deg,
-                                     agl_m, fov_deg, size_px)
-    img = ground_texture(east, north, seed)
+                                     agl_m, fov_deg, size_px, roll, pitch)
+    img = ground_texture(np.nan_to_num(east), np.nan_to_num(north), seed)
+    img = np.where(np.isnan(north), 0.0, img)
     if tags:
-        img = paint_tags(img, north, east, tags)
+        img = paint_tags(img, np.nan_to_num(north), np.nan_to_num(east), tags)
     if dots:
-        img = laser_dots(img, north, east, t, **dots)
+        img = laser_dots(img, np.nan_to_num(north), np.nan_to_num(east), t, **dots)
     if pixel_noise > 0:
         img = img + (rng or np.random.default_rng(0)).normal(0.0, pixel_noise, img.shape)
     return img, gsd

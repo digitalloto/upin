@@ -39,6 +39,7 @@ python tools/mission_index.py --have flight_controller,gnss_receiver,camera,rang
 | `crumb_dispenser` | breadcrumb units and a release mechanism |
 | `formation_peers` | two or more drones flying together, each with the box and a ranging radio |
 | `pitot` | a real airspeed sensor (fixed wing) |
+| `patch_map_surveyed` | a patch map built on an earlier trusted flight over the same ground |
 | `sdr` | an RTL-SDR dongle and a VHF antenna, with fresh orbit elements |
 | `trained_model` | an AI motion predictor model trained on this airframe's flights |
 | `georeferenced_map` | an Indian-source map with charted landmarks |
@@ -129,6 +130,17 @@ Situation `spoofed`; fitted: `beacon_radio`, `flight_controller`, `formation_pee
 - **GNSS signal-power spoof check (146)** (limited: catches one transmitter with uniform power; an elevation-shaped spoofer passes) — [docs/layers/cn0spoof_a20.md](../docs/layers/cn0spoof_a20.md)
 - **Physically reachable region** (limited: a jump is impossible; a slow drag inside the envelope is not seen) — [docs/HARDWARE.md](../docs/HARDWARE.md)
 
+### Return flight over surveyed ground, day, into jamming
+
+Situation `jammed`; fitted: `camera`, `flight_controller`, `gnss_receiver`, `patch_map_surveyed`, `rangefinder`
+
+- **Camera optical flow with weighted RANSAC (148)** (yes) — [docs/CAMERA_FLOW.md](../docs/CAMERA_FLOW.md)
+- **Wind-and-tilt dead reckoning (lean + frozen wind, or pitot)** (yes: no sensor to jam; the frozen wind goes stale) — [docs/WIND_DR.md](../docs/WIND_DR.md)
+- **HonestKalman fusion** (limited: coasts; uncertainty grows honestly; velocity sensors keep it tight) — [docs/KALMAN.md](../docs/KALMAN.md)
+- **Self-surveyed patch map matching (154)** (yes: an absolute fix over surveyed ground; nothing to jam) — [docs/PATCH_MAP.md](../docs/PATCH_MAP.md)
+- **GNSS signal-power spoof check (146)** (limited: reports jamming from the receiver's gain control) — [docs/layers/cn0spoof_a20.md](../docs/layers/cn0spoof_a20.md)
+- **Physically reachable region** (limited: bounds where the drone can be from the last trusted fix) — [docs/HARDWARE.md](../docs/HARDWARE.md)
+
 ## Fallback ladders
 
 When a rung is missing or declines, the next one carries on, at the cost shown.
@@ -145,11 +157,12 @@ When a rung is missing or declines, the next one carries on, at the cost shown.
 
 1. **The receiver's own fix, checked (box gateway)** — metres, while trusted
 2. **Tag landmarks (149)** — sub-metre while a tag is in view
-3. **Known-position beacons, balloons included (151)** — metres to tens of metres while beacons are up
-4. **Breadcrumb beacons (152)** — tens of metres along the trail
-5. **Formation cross-check and cooperative fix (153)** — about ten metres while two peers keep trusted GNSS
-6. **LEO Doppler anchor (150)** — hundreds of metres, once per pass, when still
-7. **HonestKalman fusion** — dead reckoning from the last fix: the circle grows
+3. **Self-surveyed patch map matching (154)** — metres over ground surveyed on an earlier trusted pass, by day
+4. **Known-position beacons, balloons included (151)** — metres to tens of metres while beacons are up
+5. **Breadcrumb beacons (152)** — tens of metres along the trail
+6. **Formation cross-check and cooperative fix (153)** — about ten metres while two peers keep trusted GNSS
+7. **LEO Doppler anchor (150)** — hundreds of metres, once per pass, when still
+8. **HonestKalman fusion** — dead reckoning from the last fix: the circle grows
 
 ## Every honest component
 
@@ -164,6 +177,7 @@ When a rung is missing or declines, the next one carries on, at the cost shown.
 | **HonestKalman fusion** `box:kalman` | ALTITUDE, HEADING, POSITION, VELOCITY | `flight_controller` | GNSS jammed (no fix): limited (coasts; uncertainty grows honestly; velocity sensors keep it tight); GNSS denied for minutes: limited (only as good as the velocity and fix sources below) | Simulation: 95% circle covers 94.8% (theory 95%); Doppler cut 60 s drift from 13.4 to 5.1 m; the only option that rejected a 300 m outlier. | `always on in the box` | [docs/KALMAN.md](../docs/KALMAN.md) | simulation |
 | **Flight controller's flow sensor, integrity-checked** `box:flow_chip` | VELOCITY | `flight_controller`, `flow_chip`, `rangefinder` | night or no light: limited (the chip needs light); featureless ground or water: no (no texture to track); indoor: limited (works on a textured floor) | Simulation: 60 s without GNSS, h_acc 4.7 m with flow vs 269 m coasting; a moving ground pattern is caught by the IMU check (flow_integrity). | `automatic from MAVLink OPTICAL_FLOW; flow_check_action = "distrust"` | [docs/HARDWARE.md](../docs/HARDWARE.md) | simulation |
 | **Wind-and-tilt dead reckoning (lean + frozen wind, or pitot)** `box:wind_dr` | VELOCITY | `flight_controller` | GNSS denied for minutes: limited (the frozen wind's sigma grows 0.15 m/s a minute (assumption); a wind shift is not seen); moving fast: limited (only inside the learned lean range); stationary or hovering: limited (hovering: zero lean is zero airspeed, so the wind alone) | Simulation: 120 s dead reckoning at 0.72 m/s rms (stated 0.48, 95% circle covers 91%); 60 s drift 25 m against 73 m holding the last velocity; through the box 16 m against 331 m coasting; a 3 m/s wind shift after the freeze gives a 3.2 m/s error, stated limit. | `wind_dr = true<br>airframe_id = "my-quad"<br>speed_model = "/var/lib/upin/speed.json"` | [docs/WIND_DR.md](../docs/WIND_DR.md) | simulation |
+| **Self-surveyed patch map matching (154)** `patchmap_e26` | POSITION | `camera`, `flight_controller`, `patch_map_surveyed`, `rangefinder` | GNSS healthy: limited (builds the map; no fix needed then); night or no light: no (needs light); featureless ground or water: no (no texture: declines); indoor: limited (a textured floor surveyed before); moving fast: limited (motion blur; the search radius grows with the prior) | Simulation: flown back along a surveyed 600 m track with a lean and heading jitter, 78 of 83 frames fixed at 1.6 m rms (stated 1.6 m, 95% circle covers 100%); water, night, off-corridor, repeating and changed ground decline with reasons. | `patch_map = "/var/lib/upin/patches.npz"<br>patch_map_build = true` | [docs/PATCH_MAP.md](../docs/PATCH_MAP.md) | simulation; camera untested |
 | **Camera optical flow with weighted RANSAC (148)** `camflow_e24` | VELOCITY | `camera`, `flight_controller`, `rangefinder` | night or no light: no (needs light); featureless ground or water: no (no texture: declines); indoor: limited (a textured floor); moving fast: limited (search radius; measure) | Simulation: 0.22 m/s rms honest flight; laser dots 4 m apart: naive tracker dragged 1.6 m/s, ours within 0.40 m/s; dots in every patch followed (stated limit). | `camera = "pi"<br>camera_fov_deg = 62.0<br>camera_flow = true` | [docs/CAMERA_FLOW.md](../docs/CAMERA_FLOW.md) | simulation; camera untested |
 | **AI motion predictor (147)** `learnedio_b14` | VELOCITY | `flight_controller`, `trained_model` | GNSS denied for minutes: limited (errors persist; the record measures it); indoor: limited (no wind, so stamps assume calm); moving fast: limited (only within the conditions it trained in; flags outside) | Simulation: 0.46 m/s air-velocity rms on held-out flights; through the box 60 s without GNSS: 23 m vs 309 m coasting. A model trained on the simulator knows only the simulator. | `airframe_id = "my-quad-1"<br>learned_io_model = "upin_flights/models/vN.npz"` | [docs/LEARNED_IO.md](../docs/LEARNED_IO.md) | simulation; needs real flight logs |
 | **Command-based dead reckoning (143)** `cmddr_b12` | POSITION, VELOCITY | `command_log`, `flight_controller` | GNSS denied for minutes: limited (drifts with unmodelled wind; needs a calibrated airframe model) | Simulation: accurate to 1-2 m over a 500 m denied leg while stating 20-42 m (overconfident statement noted). | `not in the box yet: needs the flight controller's command stream mapped in` | [docs/layers/cmddr_b12.md](../docs/layers/cmddr_b12.md) | simulation; not wired into the box |

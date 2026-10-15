@@ -175,6 +175,11 @@ function draw() {
       const [x, y] = toScreen(d.lat, d.lon);
       ctx.strokeStyle = "#ffb020"; ctx.lineWidth = 1.5; ctx.strokeRect(x - 4, y - 4, 8, 8);
     });
+    // patch map (154): faint squares where ground patches were stored
+    (s.patch_map_centres || []).forEach((p) => {
+      const [x, y] = toScreen(p[0], p[1]);
+      ctx.strokeStyle = "rgba(180,200,255,0.35)"; ctx.lineWidth = 1; ctx.strokeRect(x - 3, y - 3, 6, 6);
+    });
     // formation peers (153): triangles at the positions they REPORTED, a thin
     // line from our own input fix labelled with the range the radio MEASURED.
     // Under a single spoofer the triangles collapse onto the input dot while
@@ -476,6 +481,20 @@ function renderFixes(s) {
   } else {
     row("LEO Doppler (150)", "no software radio configured", "na");
   }
+  const pm = s.patch_map, pfx = (s.fixes || {}).patch_map;
+  if (pm && pm.status === "ok") {
+    row("Patch map (154)", "match: peak " + num(pm.peak, 2) + ", ±" + num(pm.sigma_m, 1) + " m, " + pm.candidates + " of " + pm.map_patches + " patches searched");
+    if (pfx) row("  → filter", (pfx.accepted ? "accepted" : "REJECTED: " + pfx.reason) +
+                 (pfx.anchored ? ", re-anchored the reachable region" : ""), pfx.accepted ? "" : "na");
+  } else if (pm && pm.status === "building") {
+    row("Patch map (154)", "building: " + pm.map_patches + " patches" + (pm.stored ? ", stored one here" : pm.reason ? "; " + pm.reason : ""), "na");
+  } else if (pm && pm.status === "declined") {
+    row("Patch map (154)", pm.map_patches + " patches; declined: " + pm.reason, "na");
+  } else if (pm) {
+    row("Patch map (154)", pm.status + " (" + pm.map_patches + " patches)", "na");
+  } else {
+    row("Patch map (154)", "off", "na");
+  }
   const fm = s.formation, ffx = (s.fixes || {}).formation;
   if (fm) {
     const ck = fm.check;
@@ -503,7 +522,7 @@ function renderFixes(s) {
     row("Formation (153)", "off", "na");
   }
   Object.entries(s.fixes || {}).forEach(([src, f]) => {
-    if (src === "fiducial" || src === "beacons" || src === "leo_doppler" || src === "breadcrumbs" || src === "formation") return;
+    if (src === "fiducial" || src === "beacons" || src === "leo_doppler" || src === "breadcrumbs" || src === "formation" || src === "patch_map") return;
     row(src, (f.accepted ? "accepted" : "rejected: " + f.reason) + ", ±" + num(f.sigma_m, 1) + " m");
   });
 }
@@ -513,6 +532,7 @@ const CONTROL_LABEL = {
   jam_zone: "GNSS jammer on the far straight", breadcrumbs: "Breadcrumbs on/off",
   formation: "Formation of three on/off", deny_lead: "Lead's receiver fails (wingmen keep GNSS)",
   tailored_spoofer: "Spoofer: single/tailored per drone",
+  patch_map: "Patch map: build / match / off",
   smart_spoofer: "Spoofer type: simple/smart",
   flow_attack: "Flow attack: moving ground pattern",
   spoof_jump: "Spoof: 500 m jump", spoof_drag: "Spoof: slow drag 1 m/s",

@@ -19,7 +19,7 @@ from typing import Sequence, Tuple
 import numpy as np
 
 from upin.simulation.environment import ground_texture
-from upin.vision.upin_tag import GRID, cell_colours
+from upin.vision.upin_tag import GRID, _rot_body_to_ned, cell_colours
 
 
 @dataclass(frozen=True)
@@ -32,16 +32,32 @@ class SimTag:
 
 
 def patch_mapping(center_east_m: float, center_north_m: float, heading_deg: float,
-                  agl_m: float, fov_deg: float, size_px: int
+                  agl_m: float, fov_deg: float, size_px: int,
+                  roll: float = 0.0, pitch: float = 0.0
                   ) -> Tuple[np.ndarray, np.ndarray, float]:
-    """(north, east, gsd) per pixel: the same mapping as ground_patch."""
+    """(north, east, gsd) per pixel. Level: the same mapping as ground_patch.
+    With a lean (roll, pitch in radians) the camera looks along the body
+    axis: each pixel's ray is rotated by the attitude and intersected with
+    the flat ground, the exact inverse of upin_tag.pose()'s geometry, so a
+    leaning drone sees ground ahead of or beside its nadir point."""
     gsd = 2.0 * agl_m * math.tan(math.radians(fov_deg) / 2.0) / size_px
-    idx = (np.arange(size_px) - (size_px - 1) / 2.0) * gsd
-    forward = idx[::-1][:, None]
-    right = idx[None, :]
     psi = math.radians(heading_deg)
-    north = center_north_m + forward * math.cos(psi) - right * math.sin(psi)
-    east = center_east_m + forward * math.sin(psi) + right * math.cos(psi)
+    if roll == 0.0 and pitch == 0.0:
+        idx = (np.arange(size_px) - (size_px - 1) / 2.0) * gsd
+        forward = idx[::-1][:, None]
+        right = idx[None, :]
+        north = center_north_m + forward * math.cos(psi) - right * math.sin(psi)
+        east = center_east_m + forward * math.sin(psi) + right * math.cos(psi)
+        return north, east, gsd
+    f = (size_px / 2.0) / math.tan(math.radians(fov_deg) / 2.0)
+    c = (size_px - 1) / 2.0
+    rows, cols = np.meshgrid(np.arange(size_px), np.arange(size_px), indexing="ij")
+    rays = np.stack([-(rows - c) / f, (cols - c) / f, np.ones_like(rows, dtype=float)], axis=-1)
+    R = _rot_body_to_ned(roll, pitch, psi)
+    d = rays @ R.T
+    dz = np.where(d[..., 2] > 1e-3, d[..., 2], np.nan)      # rays above the horizon hit nothing
+    north = center_north_m + agl_m * d[..., 0] / dz
+    east = center_east_m + agl_m * d[..., 1] / dz
     return north, east, gsd
 
 
@@ -64,9 +80,10 @@ def paint_tags(image: np.ndarray, north: np.ndarray, east: np.ndarray,
 def ground_patch_with_tags(center_east_m: float, center_north_m: float,
                            heading_deg: float, agl_m: float, fov_deg: float,
                            size_px: int, tags: Sequence[SimTag], seed: int = 911,
-                           pixel_noise: float = 0.0, rng=None) -> Tuple[np.ndarray, float]:
+                           pixel_noise: float = 0.0, rng=None, roll: float = 0.0,
+                           pitch: float = 0.0) -> Tuple[np.ndarray, float]:
     north, east, gsd = patch_mapping(center_east_m, center_north_m, heading_deg,
-                                     agl_m, fov_deg, size_px)
+                                     agl_m, fov_deg, size_px, roll, pitch)
     img = paint_tags(ground_texture(east, north, seed), north, east, tags)
     if pixel_noise > 0:
         img = img + (rng or np.random.default_rng(0)).normal(0.0, pixel_noise, img.shape)

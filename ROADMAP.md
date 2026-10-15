@@ -53,14 +53,15 @@ Last updated 1 October 2026. Measured layer status lives in
 | — | **Layer 153, formation cross-check and cooperative fix** (`formation_d29`): drones in formation broadcast their checked fixes and measured ranges to each other; a single spoofer gives every receiver the same place while the ranges show the formation intact (caught); a drone that lost GNSS is placed by two peers that still trust theirs, the mirror resolved by its own prior; a tailored multi-transmitter spoof passes (stated and tested) | done (simulation; radio firmware not built; check warn-only until the ranging sigma is measured) | `upin/layers/rf/formation.py`, [`docs/FORMATION.md`](docs/FORMATION.md) |
 | — | **Wind-and-tilt dead reckoning** (`upin/box/wind_dr.py`): the Wind and Speed Learners wired into the box; ground velocity = the lean's airspeed (IMU-corrected for turns) + the frozen wind, or a real pitot on a fixed wing; fed only when no flow, camera flow or predictor has; the curve saved per airframe and payload | done (simulation: 16 m after 60 s denied against 331 m coasting; a wind shift after the freeze is the stated limit) | [`docs/WIND_DR.md`](docs/WIND_DR.md) |
 | — | **Flight recorder and offline replay** (`upin/box/recorder.py`, `upin/box/flight_replay.py`, `tools/replay_flight.py`): every input the box received, in order, plus camera frames; the whole box re-run on the ground with GNSS denied from any moment and measured against the receiver's own logged fix; the console replays a recording live | done (simulation: a 70 s run with a spoof and a denial replayed with every mode and fix identical; Pi disk and write rates unmeasured) | [`docs/RECORDING.md`](docs/RECORDING.md) |
+| 9 | **Layer 154, self-surveyed patch map** (`patchmap_e26`): the map-matching rung of the three-concept stack; north-up metre-scaled patches stored while the fix is trusted (never from a guess), matched by normalised cross-correlation for an absolute fix that resets the drift; the simulated camera now leans with the airframe; an Indian-source orthophoto import is the next step once a licence is confirmed | done (simulation: 1.6 m rms flown back along a surveyed track; camera untested) | `upin/layers/optical/patch_map.py`, `upin/vision/patch_map.py`, [`docs/PATCH_MAP.md`](docs/PATCH_MAP.md) |
 | — | **Aerostat beacon and the carry-and-release numbers**: a `tethered` beacon kind whose stated sigma grows with wind uncertainty; `tools/compare_balloon_carry.py` → `BALLOON_CARRY.md` (balloon size, drag, deflated mass, release timeline inside a jammer, balloon-lifted drone, comparison table) | done (labelled physics, not measurements) | `upin/simulation/balloon_physics.py`, [`docs/BEACONS.md`](docs/BEACONS.md) |
 | — | **Mission index**: `upin/layers/mission_catalog.py` (every honest component: gives, needs, situations, simulation figures, config, README), `tools/mission_index.py` (the index and a "what do I load" query), "When to use it" on every honest layer's page | done | [`docs/MISSION_INDEX.md`](docs/MISSION_INDEX.md) |
 | 4 | L1 completion: strapdown INS wired in, retained command log (§3) | next | `upin/core/strapdown_ins.py` |
 | 5 | Navigation Arbiter: explicit mode, DR time limit (§9) | | |
 | 6 | Escape Manager: retrace, rally, jammer gradient, swarm spread (§10) | | |
 | 7 | Army grid converter + offline map manager (§11.1–11.2) | | replaces the fake converter in `missions/target_coordination.py` |
-| 8 | L3 visual odometry / optical flow (§4) | flow done as layer 148 (above); visual odometry (position from frames) not built | |
-| 9 | L4 landmark matching on georeferenced maps (§5) | | builds on `lmkchain_e23` |
+| 8 | L3 visual odometry / optical flow (§4) | flow done as layer 148 (above); position from frames done as the patch map, layer 154 | |
+| 9 | L4 landmark matching on georeferenced maps (§5) | the self-surveyed patch map (layer 154) is the honest first form; an Indian-source orthophoto import into the same patch format is next, once a licence is confirmed | builds on `lmkchain_e23` for charted landmarks |
 | 10 | L5 terrain matching (§6) | | |
 | 11 | L6 swarm cooperative ranging (§7) | | |
 | 12 | Datalink, console adapters, security — replaces unsafe `SecureComm` (§11.3–11.5) | | |
@@ -239,3 +240,22 @@ then folded into that layer's design rather than decided in isolation.
   has no such constellations.
 - The Army grid datum in field use must be confirmed with Army contacts.
 - Licensing of Bhuvan, Survey of India and elevation data is unverified.
+
+## The three-concept stack, and where each concept lives in UPIN
+
+A concept note describing an onboard stack of (1) high-frequency closed-loop
+correction with a rangefinder, (2) visual odometry plus map matching against
+stored imagery, and (3) wind-compensated dead reckoning, with a fallback
+loop and a passive-logging test roadmap. Checked against this repository:
+
+| Concept | In UPIN | Status |
+|---|---|---|
+| 1. High-frequency closed-loop correction | The flight controller's own job: ArduPilot runs the control loop; UPIN is its GPS 2 and supplies the position. The rangefinder is read from the flight controller and scales the camera flow, the tags and the patch map | have, by design split |
+| 2a. Visual odometry + altimeter | Layer 148 camera flow, the flight controller's flow chip, layer 147 AI predictor; drift honest in the Kalman filter | have |
+| 2b. Map matching against stored imagery | Layer 154, the self-surveyed patch map (`docs/PATCH_MAP.md`); an Indian-source orthophoto import is next | have (simulation) |
+| 3. Wind compensation + dead reckoning | The Wind and Speed Learners wired as wind-and-tilt dead reckoning (`docs/WIND_DR.md`); a pitot path for fixed wings | have (simulation) |
+| Fallback loop | The gateway, the filter and the re-anchoring fixes; the ladders in `docs/MISSION_INDEX.md` | have |
+| Passive logging, then offline processing | The flight recorder and the whole-box replay with a software denial (`docs/RECORDING.md`) | have (simulation) |
+
+Nothing in that table is flight-proven; every figure behind it is a
+simulation figure until the bench and the range say otherwise.

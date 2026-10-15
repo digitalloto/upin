@@ -179,6 +179,10 @@ class ConsoleState:
                 "breadcrumbs": getattr(box, "last_crumbs", None),
                 "formation": getattr(box, "last_formation", None),
                 "wind_dr": getattr(box, "last_wind_dr", None),
+                "patch_map": getattr(box, "last_patch", None),
+                "patch_map_centres": (box.patchmap.map.centres()[:400]
+                                      if getattr(box, "patchmap", None) is not None
+                                      and box.patchmap.map is not None else []),
                 "drops": [{"lat": d["lat"], "lon": d["lon"], "sigma_m": d["sigma_m"], "id": d["id"]}
                           for d in getattr(box, "drops", [])],
                 "leo_doppler": getattr(box, "last_leo", None),

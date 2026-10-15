@@ -462,7 +462,7 @@ DECLARED_CLASS: Dict[str, str] = {
     "mapclick_b13": D, "cn0spoof_a20": OperatingClass.SUPPORT,
     "learnedio_b14": D, "fiducial_e25": D, "camflow_e24": D,
     "beaconrng_d27": OperatingClass.INFRASTRUCTURE, "leodoppler_a21": OperatingClass.SPECIALIST,
-    "breadcrumb_d28": D, "formation_d29": D,
+    "breadcrumb_d28": D, "formation_d29": D, "patchmap_e26": D,
 }
 
 

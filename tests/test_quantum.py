@@ -291,9 +291,9 @@ def test_registry_total():
     from upin.layers.registry import ALL_LAYER_CLASSES
     # 129 original + 8 Group Q + cmddr_b12 + lmkchain_e23 + mapclick_b13
     # + cn0spoof_a20 + learnedio_b14 + fiducial_e25 + camflow_e24 + beaconrng_d27
-    # + leodoppler_a21 + breadcrumb_d28 + formation_d29. Deliberately exact:
-    # adding or losing a layer should be a decision.
-    assert len(ALL_LAYER_CLASSES) == 148, f"got {len(ALL_LAYER_CLASSES)}"
+    # + leodoppler_a21 + breadcrumb_d28 + formation_d29 + patchmap_e26.
+    # Deliberately exact: adding or losing a layer should be a decision.
+    assert len(ALL_LAYER_CLASSES) == 149, f"got {len(ALL_LAYER_CLASSES)}"
     groups = {}
     for cls in ALL_LAYER_CLASSES.values():
         g = cls().group.value
