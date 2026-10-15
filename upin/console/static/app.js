@@ -175,6 +175,26 @@ function draw() {
       const [x, y] = toScreen(d.lat, d.lon);
       ctx.strokeStyle = "#ffb020"; ctx.lineWidth = 1.5; ctx.strokeRect(x - 4, y - 4, 8, 8);
     });
+    // formation peers (153): triangles at the positions they REPORTED, a thin
+    // line from our own input fix labelled with the range the radio MEASURED.
+    // Under a single spoofer the triangles collapse onto the input dot while
+    // the labels still read the formation's true spacing.
+    const peers = (s.formation && s.formation.peers) || [];
+    peers.forEach((p) => {
+      if (p.lat === null || p.lon === null) return;
+      const [x, y] = toScreen(p.lat, p.lon);
+      const c = p.suspect ? "#ff5c5c" : p.trusted ? "#3ddc84" : "#9aa5b8";
+      if (p.range_m !== null && s.input && s.input.lat !== null) {
+        const [x0, y0] = toScreen(s.input.lat, s.input.lon);
+        ctx.strokeStyle = "rgba(230,236,247,0.35)"; ctx.lineWidth = 1; ctx.setLineDash([2, 4]);
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x, y); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = "rgba(230,236,247,0.7)"; ctx.font = "10px -apple-system, sans-serif";
+        ctx.fillText(p.range_m.toFixed(0) + " m ranged", (x0 + x) / 2 + 4, (y0 + y) / 2 - 2);
+      }
+      ctx.fillStyle = c; ctx.beginPath();
+      ctx.moveTo(x, y - 7); ctx.lineTo(x - 6, y + 5); ctx.lineTo(x + 6, y + 5); ctx.closePath(); ctx.fill();
+      label(p.lat, p.lon, String(p.id).replace(/^drone-/, ""), c);
+    });
     // truth marker
     if (s.truth) {
       const [x, y] = toScreen(s.truth.lat, s.truth.lon);
@@ -450,8 +470,34 @@ function renderFixes(s) {
   } else {
     row("LEO Doppler (150)", "no software radio configured", "na");
   }
+  const fm = s.formation, ffx = (s.fixes || {}).formation;
+  if (fm) {
+    const ck = fm.check;
+    if (ck) {
+      row("Formation check (153)", ck.verdict === "NOT_RUN" ? "not run: " + ck.reason : ck.verdict + ": " + ck.reason,
+          ck.verdict === "PASS" ? "" : ck.verdict === "NOT_RUN" ? "na" : "bad");
+    }
+    if (fm.status === "ok") {
+      row("Formation fix (153)", fm.n_anchors + " peers: ±" + num(fm.sigma_m, 1) + " m, HDOP " + num(fm.hdop, 1) +
+          (fm.mirror_distance_m ? ", mirror " + num(fm.mirror_distance_m, 0) + " m away" : ""));
+      if (ffx) row("  → filter", (ffx.accepted ? "accepted" : "REJECTED: " + ffx.reason) +
+                   (ffx.anchored ? ", re-anchored the reachable region" : ""), ffx.accepted ? "" : "na");
+    } else if (fm.status === "standby") {
+      row("Formation fix (153)", fm.reason + " (" + fm.n_anchors + " peer" + (fm.n_anchors === 1 ? "" : "s") + " could place us)", "na");
+    } else {
+      row("Formation fix (153)", "declined: " + fm.reason, "na");
+    }
+    (fm.peers || []).forEach((p) => {
+      row("  " + String(p.id).replace(/^drone-/, ""),
+          (p.suspect ? "SUSPECT, " : "") + (p.trusted ? "trusts its GNSS" : "untrusted (" + p.source + ")") +
+          ", ±" + num(p.sigma_m, 1) + " m" + (p.range_m !== null ? ", ranged " + num(p.range_m, 0) + " m" : ", no range"),
+          p.suspect ? "bad" : p.trusted ? "" : "na");
+    });
+  } else {
+    row("Formation (153)", "off", "na");
+  }
   Object.entries(s.fixes || {}).forEach(([src, f]) => {
-    if (src === "fiducial" || src === "beacons" || src === "leo_doppler" || src === "breadcrumbs") return;
+    if (src === "fiducial" || src === "beacons" || src === "leo_doppler" || src === "breadcrumbs" || src === "formation") return;
     row(src, (f.accepted ? "accepted" : "rejected: " + f.reason) + ", ±" + num(f.sigma_m, 1) + " m");
   });
 }
@@ -459,6 +505,8 @@ function renderFixes(s) {
 const CONTROL_LABEL = {
   tags: "Ground tags on/off", beacons: "Beacons on/off", jam_beacons: "Jam the beacon band",
   jam_zone: "GNSS jammer on the far straight", breadcrumbs: "Breadcrumbs on/off",
+  formation: "Formation of three on/off", deny_lead: "Lead's receiver fails (wingmen keep GNSS)",
+  tailored_spoofer: "Spoofer: single/tailored per drone",
   smart_spoofer: "Spoofer type: simple/smart",
   flow_attack: "Flow attack: moving ground pattern",
   spoof_jump: "Spoof: 500 m jump", spoof_drag: "Spoof: slow drag 1 m/s",

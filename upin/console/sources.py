@@ -36,6 +36,7 @@ from upin.box.service import Box, BoxConfig
 from upin.layers.optical.fiducial import TagEntry, TagMap
 from upin.simulation.attacks import camera_frame
 from upin.simulation.beacons import BeaconSim, SimBeacon
+from upin.simulation.formation import SimDrone, SimFormation
 from upin.simulation.environment import JammingField, JammingZone
 from upin.simulation.markers import SimTag
 from upin.console.state import ConsoleState
@@ -94,6 +95,7 @@ class SimSource(Source):
 
     controls = ["spoof_jump", "spoof_drag", "smart_spoofer", "deny", "flow", "tags",
                 "beacons", "jam_beacons", "jam_zone", "breadcrumbs",
+                "formation", "deny_lead", "tailored_spoofer",
                 "flow_attack", "reset"]
 
     STRAIGHT_M, RADIUS_M, SPEED_MS, ALT_M = 300.0, 60.0, 8.0, 50.0
@@ -127,9 +129,14 @@ class SimSource(Source):
         self.start_lat, self.start_lon = start_lat, start_lon
         self.speed = speed
         self.seed = seed
+        # formation_check_action is "distrust" here, unlike the deploy default,
+        # because the simulator's ranging sigma is known; on hardware it stays
+        # "warn" until measured
         self.cfg = cfg or BoxConfig(max_accel_ms2=6.0, max_airspeed_ms=20.0,
                                     camera_flow=True, breadcrumbs=True,
-                                    breadcrumb_spacing_m=150.0)   # the circuit is short
+                                    breadcrumb_spacing_m=150.0,   # the circuit is short
+                                    formation=True, drone_id="lead",
+                                    formation_check_action="distrust")
         self._lock = threading.Lock()
         self._reset()
 
@@ -148,6 +155,9 @@ class SimSource(Source):
         self.jam_beacons = False
         self.jam_zone_on = False          # a GNSS jammer on the far straight
         self.crumbs_on = True
+        self.formation_on = self.cfg.formation
+        self.deny_lead = False            # the lead's box receiver fails; the wingmen keep GNSS
+        self.tailored = False             # a multi-transmitter spoofer, the stated limit
         self.drag_m = 0.0
         self.nprng = np.random.default_rng(self.seed)
         L, R = self.STRAIGHT_M, self.RADIUS_M
@@ -162,7 +172,15 @@ class SimSource(Source):
             self.BEACON_SECRET, seed=self.seed or 0)
         self.box.beacons.set_secret(self.BEACON_SECRET)
         self.box.crumbs.set_secret(self.BEACON_SECRET)
-        self.box._radio_out = self._provision_crumb
+        self.box.formation.set_secret(self.BEACON_SECRET)
+        self.box._radio_out = self._radio_line
+        # Two simulated wingmen (layer 153) in a V: 40 m back, ±40 m aside,
+        # each with its own receiver; the lead's receiver is the UBX stream
+        # above. Ranges are true distances plus the assumed ranging noise.
+        self.formation_sim = SimFormation(
+            [SimDrone("lead", 0.0, 0.0), SimDrone("w1", -40.0, -40.0), SimDrone("w2", -40.0, 40.0)],
+            self.BEACON_SECRET, self.truth, self._ll, self.SPEED_MS, self.ALT_M,
+            seed=self.seed or 0)
         L, R = self.STRAIGHT_M, self.RADIUS_M
         # sized from the simulator's own jammer model (6 dB per doubling of
         # distance): the far (north) straight is denied, the near one only
@@ -196,11 +214,26 @@ class SimSource(Source):
         return (self.start_lat + n / DEG_M,
                 self.start_lon + e / (DEG_M * math.cos(math.radians(self.start_lat))))
 
-    def _provision_crumb(self, line: str) -> None:
+    def _radio_line(self, line: str) -> None:
+        """What the box writes to its radio: a crumb's provisioning stamp, or
+        its own formation message (heard by the wingmen; nothing to do here,
+        their simulated receivers do not need it)."""
+        rec = json.loads(line)
+        if rec.get("type") == "provision":
+            self._provision_crumb(rec)
+
+    def _tracked_at(self, lat, lon, t) -> int:
+        """Satellites a receiver at (lat, lon) would track in the simulated
+        sky: the same model as the lead's, without the noise."""
+        zone_db = self.jam_zone.cn0_drop_db(lat, lon) if self.jam_zone_on else 0.0
+        return sum(1 for i, (_, _, base) in enumerate(self.SKY)
+                   if self.CN0_BASE + self.CN0_PER_DEG * (base + 3.0 * math.sin(t / 600.0 + i))
+                   - zone_db >= 25.0)
+
+    def _provision_crumb(self, rec: dict) -> None:
         """The box 'sends' a stamp to the crumb's radio; here the crumb lands
         at the drone's TRUE position (no wind in this circuit) and broadcasts
         the stamp."""
-        rec = json.loads(line)
         n, e, _, _ = self.truth(self.t)
         lat, lon = self._ll(n, e)
         self.beacon_sim.drop_crumb(rec, lat, lon, 0.0)
@@ -252,6 +285,21 @@ class SimSource(Source):
                 self.crumbs_on = not self.crumbs_on
                 self.cfg.breadcrumbs = self.crumbs_on
                 msg = f"SIMULATION: breadcrumb dropping {'ON' if self.crumbs_on else 'OFF'}"
+            elif action == "formation":
+                self.formation_on = not self.formation_on
+                self.cfg.formation = self.formation_on
+                msg = (f"SIMULATION: formation {'ON' if self.formation_on else 'OFF'} (two wingmen "
+                       f"40 m back and ±40 m aside, each with its own receiver, ranging to the lead)")
+            elif action == "deny_lead":
+                self.deny_lead = not self.deny_lead
+                msg = (f"SIMULATION: the lead's box receiver {'FAILED' if self.deny_lead else 'restored'} "
+                       f"(the wingmen keep GNSS; the flight controller's own GPS is untouched)")
+            elif action == "tailored_spoofer":
+                self.tailored = not self.tailored
+                kind = ("TAILORED per drone: each receiver shifted by the same offset, geometry "
+                        "preserved -- the stated limit" if self.tailored else
+                        "SINGLE transmitter: every receiver reports the same place")
+                msg = f"SIMULATION: spoofer {kind} (applies when a spoof is on)"
             elif action == "tags":
                 self.tags_on = not self.tags_on
                 msg = f"SIMULATION: ground tags {'painted' if self.tags_on else 'removed'}"
@@ -365,7 +413,7 @@ class SimSource(Source):
             sat_bytes = encode_nav_sat(int(t * 1000), sky)
 
             h_acc = self.GNSS_SIGMA_M
-            if self.deny or zone_denied:
+            if self.deny or self.deny_lead or zone_denied:
                 data = sat_bytes + encode_mon_rf("critical", 240, round(agc), 200) + encode_nav_pvt(
                     int(t * 1000), 0.0, 0.0, 0.0, 0.0, 0.0, (0.0, 0.0, 0.0), 0.0,
                     fix_type=0, num_sv=0)
@@ -390,6 +438,21 @@ class SimSource(Source):
             for bid, r, sg in self.beacon_sim.ranges(tlat_b, tlon_b, self.ALT_M, t, jam):
                 if audible(bid):
                     box.on_beacon_line(json.dumps({"type": "range", "id": bid, "range_m": r,
+                                                   "sigma_m": sg}), t)
+            # the wingmen: their receivers see the same sky and jammer at their
+            # own positions, and the same spoofer (one transmitter: one place)
+            spoof_pos = (n + sn, e + se) if spoofing and not self.tailored else None
+            tailored = (sn, se) if spoofing and self.tailored else None
+            self.formation_sim.step(
+                t, dt, spoof=spoof_pos, tailored=tailored,
+                has_fix=lambda did, lat_, lon_: (not self.deny) and self._tracked_at(lat_, lon_, t) >= 4)
+            if self.formation_on and not self.jam_beacons:
+                for wid in ("w1", "w2"):
+                    m = self.formation_sim.message(wid, t)
+                    if m is not None:
+                        box.on_beacon_line(json.dumps({"type": "msg", **m}), t)
+                for pid, r, sg in self.formation_sim.ranges_for("lead"):
+                    box.on_beacon_line(json.dumps({"type": "range", "id": pid, "range_m": r,
                                                    "sigma_m": sg}), t)
             results = box.on_receiver_bytes(data, t, time.time())
             box.on_fc_message(Msg("DISTANCE_SENSOR", current_distance=round(self.ALT_M * 100),

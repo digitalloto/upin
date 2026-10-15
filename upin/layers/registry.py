@@ -135,6 +135,7 @@ from upin.layers.optical.camera_flow import CameraFlowLayer
 from upin.layers.optical.fiducial import FiducialTagLayer
 from upin.layers.rf.beacon_ranging import BeaconRangingLayer
 from upin.layers.rf.breadcrumbs import BreadcrumbLayer
+from upin.layers.rf.formation import FormationLayer
 from upin.layers.satellite.leo_doppler import LeoDopplerLayer
 from upin.quantum.layers import (
     EntangledPhotonRangingLayer, DistributedQuantumSensingLayer,
@@ -334,6 +335,8 @@ ALL_LAYER_CLASSES: dict[str, type[NavigationLayer]] = {
     "leodoppler_a21": LeoDopplerLayer,
     # ── Breadcrumb beacons: dropped on the way in, ranged to inside the jam ──
     "breadcrumb_d28": BreadcrumbLayer,
+    # ── Formation: peers confirm each other's fixes through measured ranges ──
+    "formation_d29": FormationLayer,
 }
 
 

@@ -1,0 +1,118 @@
+# Formation Cross-Check and Cooperative Fix (peers confirm each other)
+
+`formation_d29` · Layer 153 · Group D — RF & Terrestrial
+
+> Drones in formation compare the distances their receivers imply with the distances a ranging radio measures: a single spoofer gives every receiver the same position and is caught; two trusted peers place a third that lost GNSS.
+
+## Current status
+
+**DECLINES** — Reports no fix when it has no input, and says what is missing. Honours the no-fabrication contract.
+
+Measured by constructing this layer with nothing attached and reading it three times: declines with `no_calibration` — no shared secret set.
+
+With simulation switched off it declines cleanly.
+
+This layer declares `NO_FABRICATION = True` and is held to the contract in [`upin/core/no_fabrication.py`](../../upin/core/no_fabrication.py) by tests.
+
+## Operating class
+
+**drone-ready** — Hardware a drone commonly carries or can easily add.
+
+## Sensors and data it needs
+
+### Hardware
+
+| Component | Why | Typical part | Approx cost | Common on drones |
+|---|---|---|---|---|
+| ranging radio on every drone | carries the signed messages and measures the real distance between the drones on a band GNSS attacks do not touch | 2.4 GHz LoRa-class ranging module (SX1280 family) or UWB | — | no |
+| two or more drones flying together, each with the box | each broadcasts its own checked fix; two trusted peers can place a third | — | — | no |
+
+### Live inputs
+
+| Input | Units | Supplied via | Why |
+|---|---|---|---|
+| shared secret | bytes | `set_secret()` | hop schedule and message signatures |
+| peer messages | id, time, position, sigma, velocity, trusted, source, ranges, seq, channel, signature | `feed_message()` | — |
+| ranges to peers | m, 1-sigma m | `feed_range()` | — |
+| own fix to check | degrees, m, 1-sigma m | `check()` | compared with the formation |
+| barometric altitude | m MSL, 1-sigma m | `set_altitude()` | turns two slant ranges into a fix |
+| own prior position | degrees, 1-sigma m | `set_prior()` | picks between the two mirror solutions |
+
+### Conditions that must hold
+
+Even with every sensor attached, this layer declines unless:
+
+- at least one peer with a fresh signed message and range for the check
+- two peers with TRUSTED own-GNSS fixes, plus altitude and a prior, for a fix
+- the drone off the line between its peers
+
+### Notes
+
+A single spoofer gives every receiver the same position; the ranges show the formation intact. A tailored multi-transmitter spoof passes (stated). Peers whose fix came from this layer are never anchors.
+
+## How to run it
+
+This layer takes real input through its own methods and never invents a reading:
+
+- `set_secret()`
+- `feed_message()`
+- `feed_range()`
+- `check()`
+- `set_altitude()`
+- `set_prior()`
+
+Call those methods from a driver or the application. With nothing supplied it declines and names what is missing.
+
+## When to use it
+
+From the mission index ([`docs/MISSION_INDEX.md`](../MISSION_INDEX.md)); every figure is a simulation figure.
+
+| Situation | Works? | Why |
+|---|---|---|
+| GNSS healthy | yes | every fix is checked against the measured ranges to the peers |
+| GNSS jammed (no fix) | limited | a fix only while two peers keep trusted GNSS; a wide-area jammer takes the whole formation down together |
+| GNSS spoofed (a fix, but a lie) | yes | a single spoofer gives every receiver the same place while the ranges show the formation intact; a tailored multi-transmitter spoof passes (stated) |
+| GNSS denied for minutes | limited | as jammed |
+| night or no light | yes |  |
+| featureless ground or water | yes |  |
+| indoor | limited | short range; same rules |
+| moving fast | yes |  |
+| stationary or hovering | limited | a hovering formation keeps its geometry; the fix needs the drone off the line between its peers |
+
+**Gives:** ALTITUDE, CHECK, POSITION. **Needs:** `beacon_radio`, `formation_peers`.
+
+**Measured (simulation):** Simulation: a V of three, 40 m back and ±40 m aside, 10 m ranging: no false alarm in 300 s (0.45% of pairs over 3 sigma, as noise predicts); a single spoofer caught on every epoch; a lead without GNSS placed to 12 m rms with a stated 11 m; a tailored spoof passes, stated.
+
+**Enable:**
+
+```toml
+beacon_radio = "/dev/ttyUSB1"
+beacon_secret_file = "/etc/upin/beacon.key"
+formation = true
+drone_id = "lead"
+```
+
+**Falls back to:** beacons or breadcrumbs if deployed, then the AI predictor and coasting
+
+**Status:** simulation; radio firmware not built. README: [`docs/FORMATION.md`](../../docs/FORMATION.md)
+
+## Details
+
+| | |
+|---|---|
+| Class | `FormationLayer` |
+| Source | [`upin/layers/rf/formation.py`](../../upin/layers/rf/formation.py) |
+| Capabilities | POSITION, ALTITUDE, THREAT_DETECT |
+| Accuracy rating | 0.60 |
+| Novel | no |
+
+## How it works
+
+```
+Peers in formation confirm each other's fixes through measured
+ranges, and place a peer that lost its own.
+```
+
+---
+
+*Generated by `tools/generate_layer_docs.py`. Do not edit by hand — regenerate instead. The status above is measured at generation time, not asserted.*

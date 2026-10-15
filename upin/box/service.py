@@ -62,6 +62,7 @@ from upin.layers.optical.fiducial import FiducialTagLayer, TagMap
 from upin.layers.rf.beacon_ranging import BeaconRangingLayer
 from upin.layers.rf.breadcrumbs import (CRUMB_PREFIX, THREAT_CLEAR, THREAT_JAMMED, THREAT_RISING,
                                         BreadcrumbLayer, DropPolicy)
+from upin.layers.rf.formation import PEER_PREFIX, SOURCE_GNSS, SOURCE_UPIN, FormationLayer
 from upin.layers.satellite.leo_doppler import LeoDopplerLayer
 from upin.layers.satellite.signal_power import SignalPowerCheckLayer
 from upin.learned.features import mean_thrust_direction
@@ -100,6 +101,10 @@ class BoxConfig:
     breadcrumb_spacing_m: float = 300.0
     breadcrumb_max: int = 6
     breadcrumb_drop_agl_m: float = 50.0  # ASSUMPTION used only when no rangefinder reports height
+    # formation cross-check and cooperative fix (layer 153); off by default
+    formation: bool = False            # peers on the beacon radio confirm each other's fixes
+    drone_id: str = ""                 # this drone's name in the formation ("lead", "w1", ...)
+    formation_check_action: str = "warn"   # "distrust" once the radio's ranging sigma is measured
     # LEO Doppler anchor (layer 150); "" = off
     sdr: str = ""                      # "rtl" for an RTL-SDR dongle
     leo_satellites: str = ""           # satellites.json: name, TLE lines, carrier_hz
@@ -134,6 +139,10 @@ def load_config(path: str) -> BoxConfig:
     if cfg.shadow and cfg.gps_id == 0:
         raise ValueError("shadow mode must not send as GPS 1 (gps_id 0): "
                          "use gps_id = 1 so the flight controller keeps its own GPS")
+    if cfg.formation and not cfg.drone_id:
+        raise ValueError("formation = true needs drone_id: the name this drone broadcasts under")
+    if cfg.formation and not cfg.beacon_secret_file:
+        raise ValueError("formation = true needs beacon_secret_file: peers sign with it")
     return cfg
 
 
@@ -146,7 +155,8 @@ class Box:
         self.gateway = Gateway(Envelope(cfg.max_accel_ms2, cfg.max_airspeed_ms,
                                         cfg.max_wind_ms),
                                max_degraded_h_acc_m=cfg.max_degraded_h_acc_m,
-                               power_check_action=cfg.power_check_action)
+                               power_check_action=cfg.power_check_action,
+                               formation_check_action=cfg.formation_check_action)
         self.power = SignalPowerCheckLayer()
         self.power.initialize()
         # AI motion predictor (layer 147) and the live wind it needs. The
@@ -187,6 +197,13 @@ class Box:
         self.drops: List[dict] = []
         self.last_crumbs: Optional[dict] = None
         self._radio_out = None            # callable(line) to the beacon radio
+        # Formation (layer 153): peers on the same radio and secret.
+        self.formation = FormationLayer(cfg.drone_id)
+        self.formation.initialize()
+        if cfg.beacon_secret_file:
+            self.formation.set_secret(self.beacons._secret)
+        self.last_formation: Optional[dict] = None
+        self.last_own_message: Optional[dict] = None
         # LEO Doppler anchor (layer 150): runs only with an SDR and satellites.
         self.leo = LeoDopplerLayer()
         self.leo.initialize()
@@ -288,12 +305,13 @@ class Box:
             d = json.loads(line)
         except json.JSONDecodeError:
             return "unreadable line"
-        crumb = str(d.get("id", "")).startswith(CRUMB_PREFIX)
+        bid = str(d.get("id", ""))
+        target = (self.crumbs if bid.startswith(CRUMB_PREFIX)
+                  else self.formation if bid.startswith(PEER_PREFIX) else self.beacons)
         if d.get("type") == "msg":
-            return (self.crumbs if crumb else self.beacons).feed_message(d, t)
+            return target.feed_message(d, t)
         if d.get("type") == "range":
-            return (self.crumbs if crumb else self.beacons).feed_range(
-                str(d.get("id")), float(d.get("range_m", 0)), float(d.get("sigma_m", 0)), t)
+            return target.feed_range(bid, float(d.get("range_m", 0)), float(d.get("sigma_m", 0)), t)
         return "unknown line type"
 
     def threat_level(self, ep: GnssEpoch, out: GatewayOutput) -> int:
@@ -338,6 +356,50 @@ class Box:
                                                   source="breadcrumbs", alt_m=v["alt_m"],
                                                   sigma_alt_m=v["sigma_alt_m"], anchor=True)
         self.last_crumbs = v
+
+    def formation_check(self, ep: GnssEpoch) -> dict:
+        """Layer 153's verdict on this epoch's own fix, before the gateway
+        decides; NOT_RUN with the reason when there is no fix to check."""
+        if ep.fix_type < 3 or not (math.isfinite(ep.h_acc_m) and ep.h_acc_m > 0):
+            return {"verdict": "NOT_RUN", "reason": "no own GNSS fix to check against the formation"}
+        return self.formation.check(ep.lat, ep.lon, ep.alt_m, ep.h_acc_m, ep.t)
+
+    def step_formation(self, ep: GnssEpoch, out: GatewayOutput) -> None:
+        """Broadcast my own checked fix to the peers; when my fix is not
+        trusted, take a fix from two or more peers that still trust theirs."""
+        f = self.formation
+        baro = self.fc.state.baro
+        alt = None
+        if baro is not None and self._baro_offset is not None and ep.t - baro.t < 2.0:
+            alt = baro.pressure_alt_m - self._baro_offset
+            f.set_altitude(alt, self.cfg.baro_sigma_m, ep.t)
+        est = self.gateway.kf.estimate()
+        if out.lat is not None and out.h_acc_m:
+            f.set_prior(out.lat, out.lon, out.h_acc_m)
+        elif est is not None:
+            f.set_prior(est.lat, est.lon, est.drms_m)
+        trusted = out.mode == TRUSTED
+        msg_alt = out.alt_m if out.alt_m is not None else alt
+        if out.lat is not None and out.h_acc_m and msg_alt is not None:
+            vel = out.vel_ned_ms if out.vel_ned_ms is not None else (
+                (est.velocity_ne[0], est.velocity_ne[1]) if est is not None else (0.0, 0.0))
+            m = f.own_message(out.lat, out.lon, msg_alt, out.h_acc_m, vel[0], vel[1], trusted,
+                              SOURCE_GNSS if trusted else SOURCE_UPIN, ep.t)
+            self.last_own_message = m
+            if self._radio_out is not None:
+                self._radio_out(json.dumps({"type": "msg", **m}))
+        if trusted:
+            v = {"status": "standby", "reason": "own GNSS trusted: no peer fix needed",
+                 "n_anchors": len(f.anchors(ep.t))}
+        else:
+            v = dict(f.solve(ep.t))
+            if v["status"] == "ok":
+                v["fix"] = self.gateway.feed_position(v["lat"], v["lon"], v["sigma_m"], ep.t,
+                                                      source="formation", alt_m=v["alt_m"],
+                                                      sigma_alt_m=v["sigma_alt_m"], anchor=True)
+        v["check"] = ep.formation_check
+        v["peers"] = f.peers_snapshot(ep.t)
+        self.last_formation = v
 
     def step_leo(self, now_unix: float, t: float) -> None:
         """Advance the LEO pass runner; an accepted fix enters the filter
@@ -437,6 +499,8 @@ class Box:
                 self.flow_check.feed_predictor(p["vn"], p["ve"], p["sigma_ms"], ep.t)
         if self._flow_status is not None and ep.t - self._flow_status_time() <= 2.0:
             ep.flow_check = self._flow_status
+        if self.cfg.formation:
+            ep.formation_check = self.formation_check(ep)
         out = self.gateway.process(ep)
         self.last_processing_ms = (time.perf_counter() - started) * 1000.0
         baro = self.fc.state.baro
@@ -449,6 +513,8 @@ class Box:
             self.solve_beacons(ep.t)
         if self.crumbs.inner._secret is not None:
             self.step_breadcrumbs(ep, out)
+        if self.cfg.formation and self.formation._secret is not None:
+            self.step_formation(ep, out)
         if ep.power_check is not None:
             self.power.learn(out.mode == TRUSTED and not self.deny_gnss)
         sent = build(out, unix_s, self.cfg.forward_degraded, gps_id=self.cfg.gps_id)
@@ -524,6 +590,14 @@ class Box:
             "beacons": None if self.last_beacons is None else {
                 k: self.last_beacons.get(k) for k in
                 ("status", "reason", "n_beacons", "sigma_m", "hdop", "lat", "lon", "rejected")},
+            "formation": None if self.last_formation is None else {
+                **{k: self.last_formation.get(k) for k in
+                   ("status", "reason", "n_anchors", "anchors", "sigma_m", "hdop", "lat", "lon",
+                    "mirror_distance_m", "rejected")},
+                "check": None if not self.last_formation.get("check") else {
+                    k: self.last_formation["check"].get(k) for k in
+                    ("verdict", "reason", "pattern", "suspect", "max_z", "n_pairs")},
+                "peers": self.last_formation.get("peers")},
             "camera_flow": None if self.last_camflow is None else {
                 k: self.last_camflow.get(k) for k in
                 ("status", "reason", "forward_ms", "right_ms", "sigma_ms", "agreeing_trust",
@@ -604,6 +678,8 @@ def run(cfg: BoxConfig, deny_gnss: bool = False, send: bool = True,
     radio = BeaconRadio(cfg.beacon_radio, cfg.beacon_radio_baud) if cfg.beacon_radio else None
     if radio is not None and cfg.breadcrumbs and not cfg.beacon_secret_file:
         raise SystemExit("breadcrumbs need beacon_secret_file: the crumbs sign with it")
+    if cfg.formation and radio is None:
+        raise SystemExit("formation needs beacon_radio: the peers talk and range over it")
     if cfg.sdr and cfg.leo_satellites:
         from upin.box.sdr import RtlSdrSource
         if cfg.sdr != "rtl":

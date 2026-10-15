@@ -37,6 +37,7 @@ python tools/mission_index.py --have flight_controller,gnss_receiver,camera,rang
 | `beacon_radio` | a ranging radio on the box, with a shared secret |
 | `beacons_deployed` | three or more known-position beacons on the beacon band |
 | `crumb_dispenser` | breadcrumb units and a release mechanism |
+| `formation_peers` | two or more drones flying together, each with the box and a ranging radio |
 | `sdr` | an RTL-SDR dongle and a VHF antenna, with fresh orbit elements |
 | `trained_model` | an AI motion predictor model trained on this airframe's flights |
 | `georeferenced_map` | an Indian-source map with charted landmarks |
@@ -110,6 +111,16 @@ Situation `indoor`; fitted: `camera`, `flight_controller`, `rangefinder`, `tags_
 - **Tag landmarks (149)** (yes: tags on the floor) — [docs/TAGS.md](../docs/TAGS.md)
 - **Physically reachable region** (yes) — [docs/HARDWARE.md](../docs/HARDWARE.md)
 
+### Formation of three into spoofing
+
+Situation `spoofed`; fitted: `beacon_radio`, `flight_controller`, `formation_peers`, `gnss_receiver`
+
+- **HonestKalman fusion** (yes) — [docs/KALMAN.md](../docs/KALMAN.md)
+- **The receiver's own fix, checked (box gateway)** (limited: a jump is caught by the reachable region and the filter gate; a slow drag inside the airframe's envelope is not) — [docs/HARDWARE.md](../docs/HARDWARE.md)
+- **Formation cross-check and cooperative fix (153)** (yes: a single spoofer gives every receiver the same place while the ranges show the formation intact; a tailored multi-transmitter spoof passes (stated)) — [docs/FORMATION.md](../docs/FORMATION.md)
+- **GNSS signal-power spoof check (146)** (limited: catches one transmitter with uniform power; an elevation-shaped spoofer passes) — [docs/layers/cn0spoof_a20.md](../docs/layers/cn0spoof_a20.md)
+- **Physically reachable region** (limited: a jump is impossible; a slow drag inside the envelope is not seen) — [docs/HARDWARE.md](../docs/HARDWARE.md)
+
 ## Fallback ladders
 
 When a rung is missing or declines, the next one carries on, at the cost shown.
@@ -127,8 +138,9 @@ When a rung is missing or declines, the next one carries on, at the cost shown.
 2. **Tag landmarks (149)** — sub-metre while a tag is in view
 3. **Known-position beacons, balloons included (151)** — metres to tens of metres while beacons are up
 4. **Breadcrumb beacons (152)** — tens of metres along the trail
-5. **LEO Doppler anchor (150)** — hundreds of metres, once per pass, when still
-6. **HonestKalman fusion** — dead reckoning from the last fix: the circle grows
+5. **Formation cross-check and cooperative fix (153)** — about ten metres while two peers keep trusted GNSS
+6. **LEO Doppler anchor (150)** — hundreds of metres, once per pass, when still
+7. **HonestKalman fusion** — dead reckoning from the last fix: the circle grows
 
 ## Every honest component
 
@@ -150,6 +162,7 @@ When a rung is missing or declines, the next one carries on, at the cost shown.
 | **Landmark chain navigation (144)** `lmkchain_e23` | HEADING, POSITION | `camera`, `flight_controller`, `georeferenced_map` | night or no light: no (needs light); featureless ground or water: no (no landmarks); indoor: no (no charted landmarks) | Simulation: resection from charted landmarks with the solve's covariance as accuracy; breadcrumbs for the return leg. | `not in the box yet: needs the landmark detector and an Indian-source map` | [docs/layers/lmkchain_e23.md](../docs/layers/lmkchain_e23.md) | simulation; not wired into the box |
 | **Known-position beacons, balloons included (151)** `beaconrng_d27` | ALTITUDE, POSITION | `beacon_radio`, `beacons_deployed` | indoor: limited (short-range beacons only) | Simulation: four ground beacons with 10 m ranging: 6 m rms, 97% coverage; four balloons inside a 3 km GNSS jammer: 13 m rms; a beacon-band jammer silences it, stated. | `beacon_radio = "/dev/ttyUSB1"<br>beacon_secret_file = "/etc/upin/beacon.key"` | [docs/BEACONS.md](../docs/BEACONS.md) | simulation; radio and firmware not built |
 | **Breadcrumb beacons (152)** `breadcrumb_d28` | ALTITUDE, POSITION | `beacon_radio`, `crumb_dispenser` | GNSS healthy: limited (drops only while trusted; no fix needed then); GNSS denied for minutes: limited (along the trail; poor past it); indoor: limited (short range) | Simulation: 20 m rms with 22 m stated sigma along a weaving trail, 96% coverage; crumbs on a straight line decline on geometry (stated limit). | `beacon_radio = "/dev/ttyUSB1"<br>beacon_secret_file = "/etc/upin/beacon.key"<br>breadcrumbs = true` | [docs/BREADCRUMBS.md](../docs/BREADCRUMBS.md) | simulation; crumb firmware not built |
+| **Formation cross-check and cooperative fix (153)** `formation_d29` | ALTITUDE, CHECK, POSITION | `beacon_radio`, `formation_peers` | GNSS jammed (no fix): limited (a fix only while two peers keep trusted GNSS; a wide-area jammer takes the whole formation down together); GNSS denied for minutes: limited (as jammed); indoor: limited (short range; same rules); stationary or hovering: limited (a hovering formation keeps its geometry; the fix needs the drone off the line between its peers) | Simulation: a V of three, 40 m back and ±40 m aside, 10 m ranging: no false alarm in 300 s (0.45% of pairs over 3 sigma, as noise predicts); a single spoofer caught on every epoch; a lead without GNSS placed to 12 m rms with a stated 11 m; a tailored spoof passes, stated. | `beacon_radio = "/dev/ttyUSB1"<br>beacon_secret_file = "/etc/upin/beacon.key"<br>formation = true<br>drone_id = "lead"` | [docs/FORMATION.md](../docs/FORMATION.md) | simulation; radio firmware not built |
 | **LEO Doppler anchor (150)** `leodoppler_a21` | POSITION | `sdr` | GNSS spoofed (a fix, but a lie): limited (a faked Doppler curve is possible); GNSS denied for minutes: limited (one coarse fix per pass, an hour or two apart); indoor: no (no sky); moving fast: no (the receiver must be still or state its motion) | Simulation: 250 m error with 190 m stated sigma per pass; a wrong satellite fits perfectly and is refused by the prior; the mirror is reported or declined. | `sdr = "rtl"<br>leo_satellites = "/etc/upin/satellites.json"` | [docs/LEO_DOPPLER.md](../docs/LEO_DOPPLER.md) | simulation; radio untested |
 
 ## Not usable on real hardware yet

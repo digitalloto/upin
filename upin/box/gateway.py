@@ -78,6 +78,7 @@ class GnssEpoch:
     constellation_fixes: Sequence[ConstellationFix] = ()
     power_check: Optional[dict] = None   # verdict of layer cn0spoof_a20, if run
     flow_check: Optional[dict] = None    # optical-flow integrity, from the box
+    formation_check: Optional[dict] = None   # layer formation_d29's verdict on this fix, if run
 
 
 @dataclass
@@ -107,13 +108,19 @@ class Gateway:
 
     def __init__(self, envelope: Envelope,
                  max_degraded_h_acc_m: Optional[float] = None,
-                 power_check_action: str = "warn"):
+                 power_check_action: str = "warn",
+                 formation_check_action: str = "warn"):
         """power_check_action: "warn" shows the signal-power check without
         acting on it (its thresholds are not yet calibrated); "distrust"
-        makes it a hard check."""
+        makes it a hard check. formation_check_action: the same for the
+        formation consistency check (layer 153), "warn" until the ranging
+        radio's sigma is measured."""
         if power_check_action not in ("warn", "distrust"):
             raise ValueError("power_check_action must be 'warn' or 'distrust'")
+        if formation_check_action not in ("warn", "distrust"):
+            raise ValueError("formation_check_action must be 'warn' or 'distrust'")
         self.power_check_action = power_check_action
+        self.formation_check_action = formation_check_action
         self._warnings: List[str] = []
         self.guard = ReachabilityGuard(envelope)
         self.kf = HonestKalmanFusion()
@@ -236,6 +243,27 @@ class Gateway:
                      f"yet calibrated on this receiver)")
         else:
             note("signal power pattern", "PASS", pc["reason"])
+        # Formation consistency (layer 153): the receivers' implied distances
+        # against the ranging radio's measured ones. Runs before the fix
+        # checks so a formation without a fix of its own still reads here.
+        fm = ep.formation_check
+        if fm is None:
+            note("formation consistency", "NOT RUN", "no formation (formation = false)")
+        elif fm["verdict"] == "NOT_RUN":
+            note("formation consistency", "NOT RUN", fm["reason"])
+        elif fm["verdict"] == "FAIL":
+            if self.formation_check_action == "distrust":
+                why.append(f"formation: {fm['reason']}")
+                note("formation consistency", "FAIL", fm["reason"])
+            else:
+                self._warnings.append(f"formation: {fm['reason']}")
+                note("formation consistency", "WARN",
+                     f"{fm['reason']} (warning only: ranging sigma not yet measured on this radio)")
+        elif fm["verdict"] == "WARN":
+            self._warnings.append(f"formation: {fm['reason']}")
+            note("formation consistency", "WARN", fm["reason"])
+        else:
+            note("formation consistency", "PASS", fm["reason"])
         if ep.fix_type < 3:
             note("receiver fix", "FAIL", "no 3-D fix")
             return ["receiver has no 3-D fix"], False

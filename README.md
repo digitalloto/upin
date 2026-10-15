@@ -10,11 +10,11 @@ This table is measured, not claimed. Every layer below was constructed with noth
 
 | Status | Layers | Meaning |
 |---|---:|---|
-| **DECLINES** | 20 | Reports no fix when it has no input, and says what is missing. Honours the no-fabrication contract. |
+| **DECLINES** | 21 | Reports no fix when it has no input, and says what is missing. Honours the no-fabrication contract. |
 | **PLACEHOLDER** | 13 | Returns the same fixed reading whenever nothing is connected. Not random, but not measured either. |
 | **FABRICATES** | 114 | Invents a reading when nothing is connected, and invents a different one each time it is read. |
 
-**20 of 147 layers** currently refuse to invent a position. **147 of 147** have declared what hardware and data they need.
+**21 of 148 layers** currently refuse to invent a position. **148 of 148** have declared what hardware and data they need.
 
 The gap between those numbers and the total is the work tracked in [`FABRICATION_AUDIT.md`](FABRICATION_AUDIT.md), which explains what each fabricating layer does and what it would cost in flight.
 
@@ -49,7 +49,7 @@ What it would take for each layer to work for real, independent of whether it wo
 | Class | Layers | Meaning |
 |---|---:|---|
 | specialist | 36 | Real, buyable hardware that typical drones do not carry. |
-| drone-ready | 32 | Hardware a drone commonly carries or can easily add. |
+| drone-ready | 33 | Hardware a drone commonly carries or can easily add. |
 | platform-specific | 24 | Works only on a particular platform -- ships, submarines, ground vehicles. |
 | needs infrastructure | 22 | Needs beacons, networks or other people's equipment in place first. |
 | laboratory | 20 | Physics demonstrated in laboratories; not yet deployable on a drone. |
@@ -117,7 +117,7 @@ What it would take for each layer to work for real, independent of whether it wo
 | 127 | [Quantum Compass (Cold Atom)](docs/layers/qcompass_c08.md) | `qcompass_c08` | fabricates | laboratory |
 | 128 | [Magnetic Indoor Fingerprint](docs/layers/magindoor_c09.md) | `magindoor_c09` | fabricates | drone-ready |
 
-### Group D — RF & Terrestrial (28 layers, 2 clean)
+### Group D — RF & Terrestrial (29 layers, 3 clean)
 
 | # | Layer | ID | Status | Operating class |
 |---:|---|---|---|---|
@@ -149,6 +149,7 @@ What it would take for each layer to work for real, independent of whether it wo
 | 119 | [VLC/Li-Fi Positioning](docs/layers/vlc_d26.md) | `vlc_d26` | fabricates | needs infrastructure |
 | 151 | [Known-Position Beacon Ranging (balloons, masts, tripods)](docs/layers/beaconrng_d27.md) | `beaconrng_d27` | clean | needs infrastructure |
 | 152 | [Breadcrumb Beacons (self-dropped, position-stamped)](docs/layers/breadcrumb_d28.md) | `breadcrumb_d28` | clean | drone-ready |
+| 153 | [Formation Cross-Check and Cooperative Fix (peers confirm each other)](docs/layers/formation_d29.md) | `formation_d29` | clean | drone-ready |
 
 ### Group E — Optical & Vision (25 layers, 3 clean)
 

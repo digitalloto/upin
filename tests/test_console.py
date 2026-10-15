@@ -106,6 +106,58 @@ def test_sim_drives_the_real_box():
     PASSED.append("sim")
 
 
+def test_formation_controls():
+    """The simulated wingmen go through the real box: the check reads PASS,
+    a single spoofer fails it as 'common spoof', a tailored spoofer passes
+    (the stated limit), the lead's failed receiver gets a formation fix, and
+    switching the formation off leaves the check NOT RUN."""
+    st = ConsoleState("sim", "SIMULATION", True, SimSource.controls)
+    sim = SimSource(st, 13.0827, 80.2707, seed=2)
+    for _ in range(30):
+        sim.step()
+    s = st.get()
+    chk = [c for c in s["checks"] if c["check"] == "formation consistency"][0]
+    assert chk["status"] == "PASS" and s["formation"]["check"]["verdict"] == "PASS", chk
+    assert s["formation"]["status"] == "standby" and len(s["formation"]["peers"]) == 2
+    sim.control("spoof_jump")
+    sim.step()
+    s = st.get()
+    chk = [c for c in s["checks"] if c["check"] == "formation consistency"][0]
+    assert chk["status"] == "FAIL" and "common spoof" in chk["detail"], chk
+    assert any("formation" in r for r in s["reasons"]), s["reasons"]
+    sim.control("tailored_spoofer")
+    for _ in range(3):
+        sim.step()
+    chk = [c for c in st.get()["checks"] if c["check"] == "formation consistency"][0]
+    assert chk["status"] == "PASS", chk                      # the stated limit, shown honestly
+    sim.control("tailored_spoofer")
+    sim.control("spoof_jump")
+    for _ in range(12):
+        sim.step()
+    assert st.get()["mode"] == "TRUSTED"
+    sim.control("deny_lead")
+    got = None
+    for _ in range(20):
+        sim.step()
+        s = st.get()
+        if s["formation"]["status"] == "ok":
+            got = s
+            break
+    assert got is not None, st.get()["formation"]
+    assert got["mode"] == "DEGRADED" and got["fixes"]["formation"]["accepted"]
+    assert got["input"]["fix_type"] == 0 and got["sensors"]["fc_gps"]["fix_type"] == 3
+    sim.control("deny_lead")
+    sim.control("formation")
+    sim.step()
+    chk = [c for c in st.get()["checks"] if c["check"] == "formation consistency"][0]
+    assert chk["status"] == "NOT RUN" and "formation = false" in chk["detail"], chk
+    print(f"[ok] formation in the console: check PASS with two wingmen; a single spoofer -> FAIL "
+          f"'common spoof' and DEGRADED; a tailored spoofer -> PASS (stated limit); the lead's "
+          f"receiver failed -> a formation fix of ±{got['formation']['sigma_m']:.0f} m accepted while "
+          f"the flight controller's own GPS still has a fix; formation off -> NOT RUN")
+    PASSED.append("formation")
+
+
 def test_browser_source():
     st = ConsoleState("browser", "X", False, BrowserSource.controls)
     src = BrowserSource(st)
@@ -191,7 +243,7 @@ def test_server():
 
 if __name__ == "__main__":
     tests = [test_page_has_nothing_made_up, test_missing_stays_missing,
-             test_sim_drives_the_real_box, test_browser_source,
+             test_sim_drives_the_real_box, test_formation_controls, test_browser_source,
              test_board_only_epoch, test_replay_redecides, test_server]
     for t in tests:
         t()

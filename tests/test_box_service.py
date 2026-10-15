@@ -228,10 +228,27 @@ shadow = true
             pass
     finally:
         os.unlink(f.name)
+    with tempfile.NamedTemporaryFile("w", suffix=".toml", delete=False) as f:
+        f.write(text + "\n[formation]\nformation = true\n")
+    try:
+        for extra, missing in (("", "drone_id"), ('drone_id = "lead"\n', "beacon_secret_file")):
+            with open(f.name, "w") as g:
+                g.write(text + "\n[formation]\nformation = true\n" + extra)
+            try:
+                load_config(f.name)
+                raise AssertionError(f"formation accepted without {missing}")
+            except ValueError as exc:
+                assert missing in str(exc), exc
+        with open(f.name, "w") as g:
+            g.write(text + '\n[formation]\nformation = true\ndrone_id = "lead"\n'
+                    'beacon_secret_file = "/etc/upin/beacon.key"\n')
+        assert load_config(f.name).drone_id == "lead"
+    finally:
+        os.unlink(f.name)
     example = load_config("deploy/box.example.toml")
-    assert example.shadow and example.gps_id == 1
+    assert example.shadow and example.gps_id == 1 and not example.formation
     print("[ok] config loads; shadow mode refuses to be GPS 1; misspelt keys "
-          "refused; deploy/box.example.toml is valid")
+          "refused; formation needs a drone_id and a secret; deploy/box.example.toml is valid")
     PASSED.append("config")
 
 

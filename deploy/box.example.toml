@@ -54,6 +54,9 @@ breadcrumbs = false          # layer 152: drop position-stamped crumbs as jammin
 breadcrumb_spacing_m = 300.0
 breadcrumb_max = 6
 breadcrumb_drop_agl_m = 50.0 # ASSUMPTION: fall height when no rangefinder reports it
+formation = false            # layer 153: drones in formation confirm each other's fixes over the beacon radio
+drone_id = ""                # this drone's name in the formation, e.g. "lead"; needed when formation = true
+formation_check_action = "warn"  # "distrust" once the radio's ranging sigma is measured (the check is warn-only until then)
 
 [leo]
 sdr = ""                     # "rtl" for an RTL-SDR dongle (pip install -e ".[sdr]"); "" = off

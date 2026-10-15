@@ -34,6 +34,7 @@ HARDWARE_TAGS: Dict[str, str] = {
     "beacon_radio": "a ranging radio on the box, with a shared secret",
     "beacons_deployed": "three or more known-position beacons on the beacon band",
     "crumb_dispenser": "breadcrumb units and a release mechanism",
+    "formation_peers": "two or more drones flying together, each with the box and a ranging radio",
     "sdr": "an RTL-SDR dongle and a VHF antenna, with fresh orbit elements",
     "trained_model": "an AI motion predictor model trained on this airframe's flights",
     "georeferenced_map": "an Indian-source map with charted landmarks",
@@ -229,6 +230,23 @@ ENTRIES: List[Entry] = [
       "beacon_radio = \"/dev/ttyUSB1\"\nbeacon_secret_file = \"/etc/upin/beacon.key\"\n"
       "breadcrumbs = true", "docs/BREADCRUMBS.md", "simulation; crumb firmware not built",
       falls_back_to="the AI predictor and coasting"),
+    E("formation_d29", "Formation cross-check and cooperative fix (153)",
+      frozenset({"CHECK", "POSITION", "ALTITUDE"}), frozenset({"beacon_radio", "formation_peers"}),
+      _w(gnss_healthy=(YES, "every fix is checked against the measured ranges to the peers"),
+         jammed=(LIMITED, "a fix only while two peers keep trusted GNSS; a wide-area jammer takes "
+                 "the whole formation down together"),
+         spoofed=(YES, "a single spoofer gives every receiver the same place while the ranges show "
+                  "the formation intact; a tailored multi-transmitter spoof passes (stated)"),
+         long_denial=(LIMITED, "as jammed"), indoor=(LIMITED, "short range; same rules"),
+         still=(LIMITED, "a hovering formation keeps its geometry; the fix needs the drone off "
+                "the line between its peers")),
+      "Simulation: a V of three, 40 m back and ±40 m aside, 10 m ranging: no false alarm in 300 s "
+      "(0.45% of pairs over 3 sigma, as noise predicts); a single spoofer caught on every epoch; a "
+      "lead without GNSS placed to 12 m rms with a stated 11 m; a tailored spoof passes, stated.",
+      "beacon_radio = \"/dev/ttyUSB1\"\nbeacon_secret_file = \"/etc/upin/beacon.key\"\n"
+      "formation = true\ndrone_id = \"lead\"", "docs/FORMATION.md",
+      "simulation; radio firmware not built",
+      falls_back_to="beacons or breadcrumbs if deployed, then the AI predictor and coasting"),
     E("leodoppler_a21", "LEO Doppler anchor (150)", frozenset({"POSITION"}),
       frozenset({"sdr"}),
       _w(jammed=(YES, "a different band"), spoofed=(LIMITED, "a faked Doppler curve is possible"),
@@ -256,6 +274,7 @@ LADDERS: Dict[str, List[Tuple[str, str]]] = {
         ("fiducial_e25", "sub-metre while a tag is in view"),
         ("beaconrng_d27", "metres to tens of metres while beacons are up"),
         ("breadcrumb_d28", "tens of metres along the trail"),
+        ("formation_d29", "about ten metres while two peers keep trusted GNSS"),
         ("leodoppler_a21", "hundreds of metres, once per pass, when still"),
         ("box:kalman", "dead reckoning from the last fix: the circle grows"),
     ],
@@ -272,6 +291,8 @@ PROFILES: List[Tuple[str, str, FrozenSet[str]]] = [
     ("Long denial, stationary observation post", "long_denial",
      frozenset({"flight_controller", "gnss_receiver", "sdr", "beacon_radio", "beacons_deployed"})),
     ("Indoor test", "indoor", frozenset({"flight_controller", "camera", "rangefinder", "tags_surveyed"})),
+    ("Formation of three into spoofing", "spoofed",
+     frozenset({"flight_controller", "gnss_receiver", "beacon_radio", "formation_peers"})),
 ]
 
 
