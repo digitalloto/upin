@@ -28,6 +28,7 @@ The gap between those numbers and the total is the work tracked in [`FABRICATION
 | [`docs/CONSOLE.md`](docs/CONSOLE.md) | The UPIN console: a live page showing what the box computes |
 | [`docs/HARDWARE.md`](docs/HARDWARE.md) | The UPIN box: wiring, which computer, ArduPilot setup |
 | [`docs/PI_GUIDE.md`](docs/PI_GUIDE.md) | Step by step, from unboxing a Raspberry Pi to UPIN as GPS 2 |
+| [`docs/FIRST_FLIGHT.md`](docs/FIRST_FLIGHT.md) | The first real data: bench, car, bird, listening only; preflight, receiver setup, the summary |
 | [`docs/LEARNED_IO.md`](docs/LEARNED_IO.md) | The AI motion predictor: learning from every test flight |
 | [`docs/TAGS.md`](docs/TAGS.md) | Tag landmarks: a fix from a printed tag; ground truth for the range |
 | [`docs/CAMERA_FLOW.md`](docs/CAMERA_FLOW.md) | Camera optical flow with weighted RANSAC: laser dots thrown out |

@@ -6,7 +6,9 @@ UBX (u-blox binary) -- the messages the box needs:
   NAV-SAT  (0x01 0x35)  every satellite tracked: constellation, C/N0,
                         elevation, whether used in the fix
   MON-RF   (0x0A 0x38)  RF front end: the receiver's own jamming state,
-                        noise level and AGC per band
+                        noise level and AGC per band (F9, M10)
+  MON-HW   (0x0A 0x09)  the same on the M8 generation, which has no MON-RF:
+                        jamming state, jamming indicator and AGC count
 
 NMEA 0183 -- the fallback any receiver speaks:
   GGA  position, fix quality, satellites, HDOP, altitude
@@ -36,6 +38,7 @@ SYNC = b"\xb5\x62"
 NAV_PVT = (0x01, 0x07)
 NAV_SAT = (0x01, 0x35)
 MON_RF = (0x0A, 0x38)
+MON_HW = (0x0A, 0x09)
 
 GNSS_ID = {0: "gps", 1: "sbas", 2: "galileo", 3: "beidou", 4: "imes",
            5: "qzss", 6: "glonass", 7: "navic"}
@@ -218,7 +221,47 @@ def parse_mon_rf(p: bytes) -> Optional[MonRf]:
     return MonRf(blocks)
 
 
-UbxMessage = Union[NavPvt, NavSat, MonRf]
+@dataclass
+class MonHw:
+    """MON-HW on the M8 generation. Offsets per the M8 interface description
+    (protocol 18): noisePerMS at 16, agcCnt at 18, flags at 22 (bits 2-3 =
+    jammingState), jamInd at 45. **Verify on the receiver bought.**"""
+    noise_per_ms: int
+    agc_count: int
+    jamming_state: str
+    jam_indicator: int
+
+    @property
+    def worst_state(self) -> str:
+        return self.jamming_state
+
+    def as_mon_rf(self) -> "MonRf":
+        """The same facts in MON-RF's shape, so the box treats both alike."""
+        return MonRf([RfBlock(0, self.jamming_state, self.noise_per_ms, self.agc_count,
+                              self.jam_indicator)])
+
+
+def parse_mon_hw(p: bytes) -> Optional[MonHw]:
+    if len(p) < 60:
+        return None
+    noise, agc = struct.unpack_from("<HH", p, 16)
+    flags = p[22]
+    jam_ind = p[45]
+    return MonHw(noise, agc, JAMMING_STATE[(flags >> 2) & 0x03], jam_ind)
+
+
+def encode_mon_hw(jamming_state: str, noise_per_ms: int = 90, agc_count: int = 3000,
+                  jam_indicator: int = 10) -> bytes:
+    """A synthetic MON-HW frame for tests, in the layout parse_mon_hw reads."""
+    code = {v: k for k, v in JAMMING_STATE.items()}[jamming_state]
+    p = bytearray(60)
+    struct.pack_into("<HH", p, 16, noise_per_ms, agc_count)
+    p[22] = (code & 0x03) << 2
+    p[45] = jam_indicator
+    return ubx_frame(*MON_HW, bytes(p))
+
+
+UbxMessage = Union[NavPvt, NavSat, MonRf, MonHw]
 
 
 def decode_ubx(cls: int, mid: int, payload: bytes) -> Optional[UbxMessage]:
@@ -228,6 +271,8 @@ def decode_ubx(cls: int, mid: int, payload: bytes) -> Optional[UbxMessage]:
         return parse_nav_sat(payload)
     if (cls, mid) == MON_RF:
         return parse_mon_rf(payload)
+    if (cls, mid) == MON_HW:
+        return parse_mon_hw(payload)
     return None
 
 

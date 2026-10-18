@@ -1,13 +1,16 @@
 # systemd unit for the UPIN box. Installed by deploy/install.sh.
 [Unit]
-Description=UPIN box: GNSS checks, then GPS_INPUT to the flight controller
+Description=UPIN box, listening only (remove --no-send for shadow mode, PI_GUIDE Step 8, and only then)
 After=network.target
 
 [Service]
 Type=simple
 User=upin
 WorkingDirectory=/opt/upin
-ExecStart=/opt/upin/venv/bin/python -m upin.box.service --config /etc/upin/box.toml
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/upin/venv/bin/python -m upin.box.service --config /etc/upin/box.toml --no-send
+KillSignal=SIGTERM
+TimeoutStopSec=15
 Restart=on-failure
 RestartSec=2
 

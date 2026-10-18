@@ -33,8 +33,9 @@ estimate with an honest accuracy, or no fix at all.
    flight controller already reads its IMU, barometer and compass, and can
    read optical flow and a rangefinder. It streams them as MAVLink messages
    (`ATTITUDE`, `RAW_IMU`, `SCALED_PRESSURE`, `OPTICAL_FLOW`,
-   `DISTANCE_SENSOR`). The reader is roadmap step 2 (`upin/hardware/`) and
-   is not written yet.
+   `DISTANCE_SENSOR`). The reader is `upin/box/fc_reader.py`; it meets a
+   real flight controller for the first time on the bench
+   ([`FIRST_FLIGHT.md`](FIRST_FLIGHT.md)).
 2. **Sensors wired straight to the Pi** (UART, I2C, USB): the GNSS
    receiver, a second receiver, a camera.
 3. **GNSS in the middle**, the box itself: the receiver goes to the Pi.
@@ -160,13 +161,21 @@ One cable to a TELEM port carries both directions.
 
 Names follow ArduPilot 4.5 and later. **Check each one against your firmware's parameter list** before setting it.
 
-| Parameter | Shadow mode (first) | Why |
-|---|---|---|
-| `SERIALn_PROTOCOL` | 2 | MAVLink 2 on the TELEM port wired to the Pi (`n` = that port) |
-| `SERIALn_BAUD` | 921 | 921600 baud; must match `fc_baud` in the box config |
-| `GPS2_TYPE` | 14 | GPS 2 is MAVLink: the box. Older firmware: `GPS_TYPE2` |
-| `GPS_AUTO_SWITCH` | 0 | never switch receivers |
-| `GPS_PRIMARY` | 0 | fly on GPS 1, the flight controller's own |
+| Parameter | Listen-only (first flights) | Shadow mode (later) | Why |
+|---|---|---|---|
+| `SERIALn_PROTOCOL` | 2 | 2 | MAVLink 2 on the TELEM port wired to the Pi (`n` = that port) |
+| `SERIALn_BAUD` | 921 | 921 | 921600 baud; must match `fc_baud` in the box config |
+| `GPS_TYPE` | u-blox driver, if the flight controller's receiver is a u-blox | same | so `GPS_RAW_INT` carries the accuracy the cross-check needs; a log with HAcc 0.00 means it is not |
+| `GPS2_TYPE` | unchanged | 14 | GPS 2 is MAVLink: the box. Older firmware: `GPS_TYPE2` |
+| `GPS_AUTO_SWITCH` | unchanged | 0 | never switch receivers |
+| `GPS_PRIMARY` | unchanged | 0 | fly on GPS 1, the flight controller's own |
+
+**Listen-only** (`--no-send`, the systemd unit's default) changes nothing
+that gives UPIN authority: the box only asks the flight controller for its
+sensor streams (eight `SET_MESSAGE_INTERVAL` requests) and logs. Two
+USB-UART adapters, one per link, are the recommended first wiring: stable
+`/dev/serial/by-id/` names, no GPIO wiring, no logic-level questions. The
+preflight (`tools/preflight.py`) measures both links before every start.
 
 **Shadow mode** means the drone keeps flying on its own GPS. The box runs, logs, and sends GPS 2, which the flight controller shows but does not navigate on. Making UPIN the primary GPS comes later. It changes the flight controller's navigation source, so it is your decision, made after the SITL tests and bench logs.
 
@@ -186,7 +195,8 @@ No prices are listed. Get quotes from Indian distributors.
 | Part | Why |
 |---|---|
 | Pi (above), official power supply, high-endurance card | runs the box, logs every epoch |
-| GNSS receiver with UBX output (NAV-PVT, NAV-SAT, MON-RF) | the parsers are written for UBX; NMEA GGA/RMC works as a fallback without the jamming state |
+| GNSS receiver with UBX output (NAV-PVT, NAV-SAT, MON-RF; an M8's MON-HW is read too) | the parsers are written for UBX; `tools/configure_receiver.py` enables the messages from the Pi and verifies by listening. NMEA-only output is refused: a fix without a stated accuracy is unusable |
+| Two USB-UART adapters (3.3 V, FTDI or CP210x class) | one per link on the first flights: receiver to Pi, flight controller TELEM to Pi; stable names, no GPIO wiring |
 | A second receiver, or one with NavIC (check the datasheet for NavIC L5) | the constellation cross-check |
 | Pixhawk-standard flight controller with ArduPilot, or ArduPilot SITL on a laptop first | the `GPS_INPUT` path |
 | Breadcrumb units (ranging module, microcontroller, coin cell, streamer) and a servo dispenser | breadcrumb beacons (layer 152): dropped as jamming rises, ranged to inside the jam. Firmware not written; see `docs/BREADCRUMBS.md` |

@@ -32,7 +32,7 @@ from upin.box.fc_reader import P0_HPA
 from upin.box.gnss_parser import encode_mon_rf, encode_nav_pvt, encode_nav_sat
 from upin.box.gateway import GnssEpoch
 from upin.box.flight_replay import is_input_log, replay as replay_flight
-from upin.box.replay import epoch_from_json
+from upin.box.replay import epoch_from_json, is_epoch_line
 from upin.box.service import Box, BoxConfig
 from upin.layers.optical.fiducial import TagEntry, TagMap
 from upin.simulation.attacks import camera_frame
@@ -656,7 +656,7 @@ class ReplaySource(Source):
                 return
             box = Box(self.cfg)
             with open(self.path, encoding="utf-8") as f:
-                epochs = [epoch_from_json(l) for l in f if l.strip()]
+                epochs = [epoch_from_json(l) for l in f if is_epoch_line(l)]
             self.state.event(f"replaying {len(epochs)} epochs from {self.path} "
                              f"(GNSS decisions only; FC sensors are not replayed)")
             last_t = None

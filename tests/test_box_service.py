@@ -14,6 +14,7 @@ import math
 import os
 import sys
 import tempfile
+import time
 
 sys.path.insert(0, ".")
 sys.path.insert(0, os.path.dirname(__file__))
@@ -115,6 +116,15 @@ def test_end_to_end_trusted_shadow_and_log():
     lines = [json.loads(l) for l in log.getvalue().splitlines()]
     assert len(lines) == 10 and lines[-1]["fc_gps"]["h_acc_m"] == 3.0
     assert lines[-1]["sent"]["gps_id"] == 1 and lines[-1]["heading_deg"] == 90.0
+    last = lines[-1]
+    assert last["sending"] is None and last["fc_gps"]["satellites"] == 12 and last["fc_gps"]["alt_m"] == 50.0
+    assert {c["check"] for c in last["checks"]} >= {"receiver fix", "cross-check", "physically reachable"}
+    assert "itow_ms" in last["receiver"] and "utc" in last["receiver"]
+    assert box.epochs == 10 and "epochs 10" in box.status_line(10.0, 10.0, 9.0, ".")
+    assert "RECEIVER SILENT" in box.status_line(30.0, 10.0, 30.0, ".")
+    assert "NO HEARTBEAT" in box.status_line(10.0, 10.0, 1.0, ".")
+    done = box.close()
+    assert done == {"saved": [], "recorder": None}
     ep = epoch_from_json(log.getvalue().splitlines()[-1])
     assert ep.fix_type == 3 and len(ep.constellation_fixes) == 2
     print("[ok] UBX bytes + FC messages -> TRUSTED, sent as GPS 2 (gps_id 1); "
@@ -255,8 +265,24 @@ shadow = true
     example = load_config("deploy/box.example.toml")
     assert example.shadow and example.gps_id == 1 and not example.formation
     assert example.wind_dr and not example.airspeed_sensor
+    # one file per run: strftime codes in the paths, expanded once
+    from upin.box.service import expand_path
+    assert "%" in example.log_path and "%" not in expand_path(example.log_path)
+    assert expand_path("/var/log/upin/box.jsonl") == "/var/log/upin/box.jsonl"
+    with tempfile.TemporaryDirectory() as d:
+        b = Box(cfg(input_log_path=os.path.join(d, "in-%Y.jsonl")))
+        assert b.recorder_paths[0].endswith(time.strftime("in-%Y.jsonl")) and b.recorder is not None
+        b.close()
+    # the unit file listens only; --gnss-source parses (the loop itself needs the libraries)
+    assert "--no-send" in open("deploy/upin-box.service").read()
+    from upin.box import service as svc
+    try:
+        svc.main(["--config", "deploy/box.example.toml", "--gnss-source", "fc", "--no-send"])
+    except SystemExit as exc:
+        assert "pyserial" in str(exc) or "heartbeat" in str(exc) or "could not open" in str(exc).lower(), exc
     print("[ok] config loads; shadow mode refuses to be GPS 1; misspelt keys "
-          "refused; formation needs a drone_id and a secret; deploy/box.example.toml is valid")
+          "refused; formation needs a drone_id and a secret; deploy/box.example.toml is valid; "
+          "log paths expand per run; the unit file runs with --no-send")
     PASSED.append("config")
 
 

@@ -35,6 +35,8 @@ def analyse(lines, max_age_s=1.0):
         if not line.strip():
             continue
         rec = json.loads(line)
+        if "run_start" in rec:
+            continue
         fx = (rec.get("fixes") or {}).get("fiducial")
         if not fx or not fx.get("accepted") or abs(rec["t"] - fx["t"]) > max_age_s:
             continue

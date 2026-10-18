@@ -51,6 +51,12 @@ def epoch_to_json(ep: GnssEpoch) -> str:
     return json.dumps(d)
 
 
+def is_epoch_line(line: str) -> bool:
+    """A box log also carries one run_start record per run; this tells the
+    epoch lines from it without parsing twice."""
+    return bool(line.strip()) and '"run_start"' not in line[:40]
+
+
 def epoch_from_json(line: str) -> GnssEpoch:
     """One GnssEpoch, or a line of the box service's log (which carries the
     epoch under "epoch")."""
@@ -79,7 +85,7 @@ def main(argv=None) -> None:
     gw = Gateway(Envelope(a.accel, a.airspeed, a.wind))
     if a.path.endswith(".jsonl"):
         with open(a.path, encoding="utf-8") as f:
-            epochs = [epoch_from_json(l) for l in f if l.strip()]
+            epochs = [epoch_from_json(l) for l in f if is_epoch_line(l)]
     else:
         with open(a.path, "rb") as f:
             epochs = list(epochs_from_ubx(f.read()))

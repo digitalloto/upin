@@ -36,6 +36,10 @@ from __future__ import annotations
 
 import argparse
 import os
+import platform
+import shutil
+import signal
+import threading
 from collections import deque
 import math
 import json
@@ -49,7 +53,7 @@ from upin.box.fc_reader import (Airspeed, Attitude, Baro, FcGps, FcReader, Flow,
 from upin.box.wind_dr import WindDeadReckoning, body_accel_ne
 from upin.core.speed_learner import SpeedLearner
 from upin.box.gateway import TRUSTED, Gateway, GatewayOutput, GnssEpoch
-from upin.box.gnss_parser import MonRf, NavPvt, NavSat, UbxStream, decode_ubx
+from upin.box.gnss_parser import MonHw, MonRf, NavPvt, NavSat, UbxStream, decode_ubx
 from upin.box.mavlink_out import GpsInput, GpsInputSender, build
 from upin.box.replay import epoch_to_json
 from upin.detection.constellation_check import ConstellationFix
@@ -144,6 +148,12 @@ class BoxConfig:
     input_log_path: str = ""           # every input the box received, in order (JSON lines)
     frames_dir: str = ""               # camera frames as <t>.npy
     frame_record_hz: float = 2.0       # ASSUMPTION: enough for the camera layers; raise for exact replay
+
+
+def expand_path(path: str) -> str:
+    """Log and recording paths may carry strftime codes, so every run gets
+    its own file: /var/log/upin/box-%Y%m%d-%H%M%S.jsonl."""
+    return time.strftime(path) if path and "%" in path else path
 
 
 def load_config(path: str) -> BoxConfig:
@@ -261,13 +271,18 @@ class Box:
         self.last_epoch: Optional[GnssEpoch] = None
         self.last_record: Optional[dict] = None
         self.last_processing_ms: Optional[float] = None
+        self.epochs = 0
         # Flight recorder: what the box received, for the offline replay.
         self.recorder: Optional[FlightRecorder] = None
+        self.recorder_paths = (expand_path(cfg.input_log_path), expand_path(cfg.frames_dir))
         if cfg.input_log_path or cfg.frames_dir:
             header = {k: v for k, v in cfg.__dict__.items()
                       if k not in ("input_log_path", "frames_dir", "log_path", "beacon_secret_file")}
-            self.recorder = FlightRecorder(cfg.input_log_path, cfg.frames_dir, cfg.frame_record_hz,
-                                           header=header)
+            self.recorder = FlightRecorder(self.recorder_paths[0], self.recorder_paths[1],
+                                           cfg.frame_record_hz, header=header)
+        self.sending: Optional[bool] = None       # set by the live loop; None in tests and the console
+        self.last_receiver_bytes_t: Optional[float] = None
+        self._fc_counts_prev: dict = {}
 
     # -- flight controller ---------------------------------------------------
 
@@ -544,8 +559,12 @@ class Box:
     def on_receiver_bytes(self, data: bytes, now: float,
                           unix_s: float) -> List[Tuple[GatewayOutput, GpsInput]]:
         results = []
+        if data:
+            self.last_receiver_bytes_t = now
         for cls, mid, payload in self.ubx.feed(data):
             msg = decode_ubx(cls, mid, payload)
+            if isinstance(msg, MonHw):             # the M8 generation's form of MON-RF
+                msg = msg.as_mon_rf()
             if isinstance(msg, MonRf):
                 self._jamming = msg.worst_state
                 self.power.feed_rf(msg.blocks, now)
@@ -624,6 +643,7 @@ class Box:
         if ep.power_check is not None:
             self.power.learn(out.mode == TRUSTED and not self.deny_gnss)
         sent = build(out, unix_s, self.cfg.forward_degraded, gps_id=self.cfg.gps_id)
+        self.epochs += 1
         self.last_epoch = ep
         self.last_record = self._record(ep, out, sent, unix_s, pvt)
         if self.log is not None:
@@ -682,6 +702,44 @@ class Box:
                 v["fed"] = True
         v["curve_samples"] = self.speed_samples_learned
         self.last_wind_dr = v
+
+    def status_line(self, now: float, interval_s: float, last_heartbeat_t: Optional[float] = None,
+                    log_dir: str = ".") -> str:
+        """One line for the terminal every few seconds: is everything alive?"""
+        ep = self.last_epoch
+        if ep is None:
+            rx = "no epoch yet"
+        elif ep.fix_type >= 3:
+            rx = f"fix 3D sats {ep.num_sv} hAcc {ep.h_acc_m:.1f} m"
+        else:
+            rx = f"fix type {ep.fix_type}"
+        st = self.ubx.stats
+        counts = self.fc.counts
+        delta = {k: counts[k] - self._fc_counts_prev.get(k, 0) for k in counts}
+        self._fc_counts_prev = dict(counts)
+        short = {"ATTITUDE": "att", "RAW_IMU": "imu", "SCALED_PRESSURE": "baro", "GPS_RAW_INT": "fcgps",
+                 "DISTANCE_SENSOR": "range", "OPTICAL_FLOW": "flow", "SERVO_OUTPUT_RAW": "servo",
+                 "VFR_HUD": "hud"}
+        fc = " ".join(f"{short.get(k, k.lower()[:5])}:{v / max(interval_s, 1e-6):.0f}Hz"
+                      for k, v in sorted(delta.items()) if v) or "nothing"
+        parts = [f"epochs {self.epochs}", rx, f"ubx {st.frames} frames/{st.bad_checksum} bad",
+                 f"mode {self._last_mode or '-'}", f"fc {fc}"]
+        if self.recorder is not None:
+            r = self.recorder.status()
+            parts.append(f"rec {r['megabytes']:.0f} MB" + (" STOPPED" if r["stopped"] else ""))
+        try:
+            parts.append(f"free {shutil.disk_usage(log_dir).free / 1e6:.0f} MB")
+        except OSError:
+            pass
+        warn = []
+        if self.last_receiver_bytes_t is None and self.epochs == 0:
+            warn.append("RECEIVER: nothing received yet")
+        elif self.last_receiver_bytes_t is not None and now - self.last_receiver_bytes_t > 5.0:
+            warn.append(f"RECEIVER SILENT {now - self.last_receiver_bytes_t:.0f} s")
+        if last_heartbeat_t is not None and now - last_heartbeat_t > 5.0:
+            warn.append(f"NO HEARTBEAT {now - last_heartbeat_t:.0f} s")
+        line = time.strftime("%H:%M:%S") + " | " + " | ".join(parts)
+        return line + (" | " + "; ".join(warn) if warn else "")
 
     def close(self) -> dict:
         """End of flight: save what was learned, close the recorder."""
@@ -746,13 +804,18 @@ class Box:
         return {
             "t": ep.t, "unix": unix_s, "deny_gnss": self.deny_gnss,
             "epoch": json.loads(epoch_to_json(ep)),
+            "sending": self.sending,
             "receiver": None if pvt is None else {
                 "fix_type": pvt.fix_type, "lat": pvt.lat, "lon": pvt.lon,
                 "alt_m": pvt.height_msl_m, "h_acc_m": pvt.h_acc_m,
-                "num_sv": pvt.num_sv, "jamming": self._jamming},
+                "num_sv": pvt.num_sv, "jamming": self._jamming,
+                "itow_ms": pvt.itow_ms,
+                "utc": (f"{pvt.year:04d}-{pvt.month:02d}-{pvt.day:02d} {pvt.hour:02d}:{pvt.minute:02d}:"
+                        f"{pvt.second:02d}") if pvt.year else None},
             "fc_gps": None if g is None else {
-                "fix_type": g.fix_type, "lat": g.lat, "lon": g.lon,
-                "h_acc_m": g.h_acc_m, "age_s": ep.t - g.t},
+                "fix_type": g.fix_type, "lat": g.lat, "lon": g.lon, "alt_m": g.alt_m,
+                "h_acc_m": g.h_acc_m, "satellites": g.satellites, "age_s": ep.t - g.t},
+            "checks": list(self.gateway.last_checks),
             "heading_deg": None if att is None else att.heading_deg,
             "flow": None if flow is None else {
                 "forward_ms": flow.forward_ms, "right_ms": flow.right_ms,
@@ -878,12 +941,32 @@ def run(cfg: BoxConfig, deny_gnss: bool = False, send: bool = True,
         from upin.box.sdr import RtlSdrSource
         if cfg.sdr != "rtl":
             raise SystemExit("sdr must be 'rtl' (RTL-SDR dongle) or empty")
+    log_path = expand_path(cfg.log_path)
+    os.makedirs(os.path.dirname(log_path) or ".", exist_ok=True)
     print(f"UPIN box running: GNSS from {gnss_source}, GPS instance "
           f"{cfg.gps_id + 1}, {'shadow' if cfg.shadow else 'LIVE'}, "
           f"{'GNSS DENIED in software, ' if deny_gnss else ''}"
-          f"{'sending' if send else 'NOT sending'}; log {cfg.log_path}")
-    with open(cfg.log_path, "a", encoding="utf-8") as log:
+          f"{'sending' if send else 'NOT sending'}; log {log_path}")
+    if threading.current_thread() is threading.main_thread():
+        def _term(signum, frame):              # systemctl stop: a clean close, like Ctrl-C
+            raise KeyboardInterrupt
+        signal.signal(signal.SIGTERM, _term)
+    with open(log_path, "a", encoding="utf-8") as log:
+        from upin import __version__
+        log.write(json.dumps({
+            "run_start": time.time(), "log_path": log_path,
+            "config": {k: v for k, v in cfg.__dict__.items() if k != "beacon_secret_file"},
+            "flags": {"send": send, "deny_gnss": deny_gnss, "gnss_source": gnss_source,
+                      "deny_after": None if schedule is None else schedule.after_s,
+                      "deny_for": None if schedule is None else schedule.for_s},
+            "upin_version": __version__, "python": platform.python_version(),
+            "host": platform.node()}) + "\n")
+        log.flush()
         box = Box(cfg, deny_gnss, log)
+        box.sending = send
+        if box.recorder is not None:
+            print(f"recording inputs to {box.recorder_paths[0] or '(off)'}, frames to "
+                  f"{box.recorder_paths[1] or '(off)'}")
         if radio is not None:
             box._radio_out = radio.write_line
         if cfg.sdr and cfg.leo_satellites:
@@ -892,6 +975,9 @@ def run(cfg: BoxConfig, deny_gnss: bool = False, send: bool = True,
         if on_start is not None:
             on_start(box)
         last_mode = None
+        last_status = time.monotonic()
+        last_heartbeat = time.monotonic()
+        STATUS_EVERY_S = 10.0
         try:
             while stop is None or not stop():
                 if rx is not None:
@@ -900,6 +986,10 @@ def run(cfg: BoxConfig, deny_gnss: bool = False, send: bool = True,
                     data = b""
                     time.sleep(0.02)
                 now, unix_s = time.monotonic(), time.time()
+                if now - last_status >= STATUS_EVERY_S:
+                    print(box.status_line(now, now - last_status, last_heartbeat,
+                                          os.path.dirname(log_path) or "."), flush=True)
+                    last_status = now
                 if schedule is not None:
                     was = box.deny_gnss
                     box.deny_gnss = schedule.denied(box._last_mode, now)
@@ -919,6 +1009,8 @@ def run(cfg: BoxConfig, deny_gnss: bool = False, send: bool = True,
                     msg = conn.recv_match(blocking=False)
                     if msg is None:
                         break
+                    if msg.get_type() == "HEARTBEAT":
+                        last_heartbeat = now
                     sample = box.on_fc_message(msg, now)
                     if gnss_source == "fc" and isinstance(sample, FcGps):
                         results.append(box.process(box.epoch_from_fc_gps(sample, now),
@@ -942,6 +1034,13 @@ def run(cfg: BoxConfig, deny_gnss: bool = False, send: bool = True,
                 r = done["recorder"]
                 print(f"recorded {r['counts']} ({r['megabytes']:.0f} MB)"
                       + (f"; {r['stopped']}" if r["stopped"] else ""))
+            for handle in (rx, cam, radio, conn):
+                try:
+                    if handle is not None:
+                        handle.close()
+                except Exception:          # noqa: BLE001 -- closing is best effort
+                    pass
+            print(f"{box.epochs} epochs logged to {log_path}")
 
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description="UPIN box: GNSS checks, then "
@@ -955,12 +1054,17 @@ def main(argv=None) -> None:
                     help="after S seconds of trusted GNSS, deny it in software")
     ap.add_argument("--deny-for", type=float, default=60.0, metavar="S",
                     help="how long --deny-after denies GNSS (default 60 s)")
+    ap.add_argument("--gnss-source", choices=["receiver", "fc"], default="receiver",
+                    help="'fc': board only, the flight controller's own GPS is the input (never sends)")
     a = ap.parse_args(argv)
     if a.deny_gnss and a.deny_after is not None:
         ap.error("use --deny-gnss or --deny-after, not both")
     schedule = DenySchedule(a.deny_after, a.deny_for) if a.deny_after is not None else None
-    run(load_config(a.config), deny_gnss=a.deny_gnss, send=not a.no_send,
-        schedule=schedule)
+    try:
+        run(load_config(a.config), deny_gnss=a.deny_gnss, send=not a.no_send,
+            schedule=schedule, gnss_source=a.gnss_source)
+    except KeyboardInterrupt:
+        print("stopped")
 
 
 if __name__ == "__main__":

@@ -79,9 +79,9 @@ baro_sigma_m = 1.0           # ASSUMPTION: baro altitude change error, minutes s
 fc_gps_max_age_s = 1.0
 
 [recording]                  # docs/RECORDING.md: the whole box re-run on the ground from these
-input_log_path = ""          # every input the box received, in order (JSON lines); "" = off
-frames_dir = ""              # camera frames as <t>.npy; "" = off
+input_log_path = "/var/log/upin/inputs-%Y%m%d-%H%M%S.jsonl"   # every input, in order; "" = off
+frames_dir = ""              # camera frames as <t>.npy, e.g. "/var/log/upin/frames-%Y%m%d-%H%M%S"; "" = off
 frame_record_hz = 2.0        # ASSUMPTION: about 30 MB a minute at 256 px; raise to the camera rate for an exact replay
 
 [log]
-log_path = "/var/log/upin/box.jsonl"
+log_path = "/var/log/upin/box-%Y%m%d-%H%M%S.jsonl"   # strftime codes: one file per run

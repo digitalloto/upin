@@ -126,11 +126,17 @@ Our software reads the receiver's **UBX** messages: NAV-PVT (position),
 NAV-SAT (satellites) and MON-RF (jamming state). Most receivers send only
 plain NMEA text out of the box, so they must be switched on once and saved.
 
-> **Gap:** we have no configuration script yet. The receiver maker's tool
-> (u-center) runs on Windows only. Ask me and I'll write a small script that
-> configures the receiver from the Pi. Until then, configure it once on any
-> Windows PC with u-center: enable NAV-PVT, NAV-SAT and MON-RF on the USB
-> port at 1 Hz, then *save configuration*.
+Enable them from the Pi (no Windows tool needed) and let the script
+verify by listening:
+
+```bash
+/opt/upin/venv/bin/python /opt/upin/tools/configure_receiver.py \
+     --port /dev/serial/by-id/usb-u-blox_... --target usb --hz 5
+```
+
+`--target usb` for a USB cable, `uart1` for a serial lead. It reports what
+arrives afterwards and refuses to claim success otherwise. An M8-generation
+receiver has no MON-RF; the box reads its MON-HW instead, automatically.
 
 Plug the receiver into the Pi by USB, with the antenna **outdoors or at a
 window with sky view**. Then find its name:
@@ -170,19 +176,25 @@ Change these, then save with **Ctrl-O, Enter, Ctrl-X**:
 
 Leave everything marked ASSUMPTION as it is for now.
 
-## Step 7: First run, receiver only, sending nothing
+## Step 7: First run, sending nothing (receiver and flight controller on the bench)
 
-The service needs a flight controller to start. So this step is the
-receiver check: plug the **flight controller into the Pi by USB** (no
-battery, no propellers). Find its name:
+The service needs a flight controller to start. Plug the **flight
+controller into the Pi by USB** (no battery, no propellers). Find its name:
 
 ```bash
 ls /dev/serial/by-id/
 ```
 
 You'll see a second line, usually with `ArduPilot` in it. Put that in
-`fc_connection` in `/etc/upin/box.toml`. Then run the service by hand,
-sending nothing:
+`fc_connection` in `/etc/upin/box.toml`. Run the preflight first; it
+measures both links and says GO or NO-GO with the reasons
+([`FIRST_FLIGHT.md`](FIRST_FLIGHT.md)):
+
+```bash
+sudo -u upin /opt/upin/venv/bin/python /opt/upin/tools/preflight.py --config /etc/upin/box.toml
+```
+
+Then run the service by hand, sending nothing:
 
 ```bash
 sudo -u upin /opt/upin/venv/bin/python -m upin.box.service \
@@ -191,12 +203,15 @@ sudo -u upin /opt/upin/venv/bin/python -m upin.box.service \
 
 **Worked when:**
 - it prints `waiting for flight controller heartbeat ...`, then `UPIN box running ... NOT sending`;
+- every ten seconds a status line shows the fix, the satellites, the flight controller's stream rates and no warning;
 - within a minute or two of sky view it prints `TRUSTED: all checks passed`.
 
-Stop it with **Ctrl-C**. Look at the log:
+Stop it with **Ctrl-C**: it closes cleanly and says what it logged. Each
+run writes its own file. Look at the latest:
 
 ```bash
-tail -n 3 /var/log/upin/box.jsonl
+tail -n 3 /var/log/upin/box-*.jsonl | tail -n 3
+python tools/flight_summary.py /var/log/upin/box-<date>.jsonl
 ```
 
 Each line is one second: the receiver's position and accuracy, the flight
@@ -235,8 +250,10 @@ service and run the console on the Pi:
 
 ```bash
 sudo -u upin /opt/upin/venv/bin/python -m upin.console --source live \
-     --config /etc/upin/box.toml --host 0.0.0.0 --allow-control
+     --config /etc/upin/box.toml --host 0.0.0.0 --allow-control --no-send
 ```
+
+Leave `--no-send` on until Step 8 is done and you decide to send.
 
 On the Mac, open **http://upin-box.local:8080**. It shows:
 - the mode and why;
@@ -276,15 +293,17 @@ Software denial does the job.
 
 ## Step 9b: Record a whole flight, then measure it on the ground
 
-Zero flight risk: fly the normal route in shadow mode with everything
-recording, then re-run the whole box on your Mac with GNSS denied from
-any moment you choose, and read the error against the receiver's own log.
+Zero flight risk: fly the normal route listening only (`--no-send`, the
+systemd unit's default) with everything recording, then re-run the whole
+box on your Mac with GNSS denied from any moment you choose, and read the
+error against the receiver's own log. The whole campaign, bench to bird,
+is in [`FIRST_FLIGHT.md`](FIRST_FLIGHT.md).
 
-In `/etc/upin/box.toml`:
+In `/etc/upin/box.toml` (the example config already records inputs):
 
 ```toml
-input_log_path = "/var/log/upin/inputs.jsonl"
-frames_dir = "/var/log/upin/frames"       # only if a camera is fitted
+input_log_path = "/var/log/upin/inputs-%Y%m%d-%H%M%S.jsonl"
+frames_dir = "/var/log/upin/frames-%Y%m%d-%H%M%S"    # only if a camera is fitted
 ```
 
 Fly. Afterwards, copy `inputs.jsonl` (and the `frames` folder) to the

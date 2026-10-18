@@ -71,8 +71,7 @@ class FlightRecorder:
         line = json.dumps({"seq": self.seq, **rec}, default=str) + "\n"
         self._log.write(line)
         self.bytes += len(line)
-        if self.seq % 50 == 0:
-            self._log.flush()
+        self._log.flush()                  # a crash or a pulled battery keeps everything so far
 
     @staticmethod
     def _fields(msg) -> dict:

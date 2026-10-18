@@ -30,7 +30,7 @@ The console replaces them.
 python -m upin.console --source sim                       # simulated drone, no hardware
 python -m upin.console --source browser                   # this computer's or phone's location
 python -m upin.console --source board  --config box.toml  # your flight controller on USB
-python -m upin.console --source live   --config box.toml  # the full box
+python -m upin.console --source live   --config box.toml --no-send  # the full box, listening only
 python -m upin.console --source replay --config box.toml --log box.jsonl
 python -m upin.console --source replay --config box.toml --log inputs.jsonl --frames frames/
 ```

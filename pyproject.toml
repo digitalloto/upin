@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "upin"
 version = "0.1.0"
 description = "Universal Positioning Intelligence Network - Multi-Layer Sensor Fusion with Real-Time Confidence Scoring"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = {text = "Proprietary"}
 authors = [
     {name = "Abheet Prem Manghnani", email = "savelives@aimcrs.com"},
