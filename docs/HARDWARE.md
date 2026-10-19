@@ -195,7 +195,7 @@ No prices are listed. Get quotes from Indian distributors.
 | Part | Why |
 |---|---|
 | Pi (above), official power supply, high-endurance card | runs the box, logs every epoch |
-| GNSS receiver with UBX output (NAV-PVT, NAV-SAT, MON-RF; an M8's MON-HW is read too) | the parsers are written for UBX; `tools/configure_receiver.py` enables the messages from the Pi and verifies by listening. NMEA-only output is refused: a fix without a stated accuracy is unusable |
+| GNSS receiver: u-blox with UBX output (NAV-PVT, NAV-SAT, MON-RF; an M8's MON-HW is read too), **or any maker's receiver speaking NMEA** (GGA, RMC, GSA, GSV; GST if it has it) | both are read (`receiver_protocol`). UBX gives the receiver's own accuracy and jamming state; `tools/configure_receiver.py` enables its messages from the Pi. NMEA gives position, velocity, satellites and per-satellite signal strength; the accuracy is the receiver's GST if it sends one, else HDOP times `nmea_uere_m`, a labelled assumption; it has no jamming state and no raw pseudoranges, so those checks read NOT RUN. A NavIC-capable NMEA receiver (talker GI) is read as NavIC |
 | Two USB-UART adapters (3.3 V, FTDI or CP210x class) | one per link on the first flights: receiver to Pi, flight controller TELEM to Pi; stable names, no GPIO wiring |
 | A second receiver, or one with NavIC (check the datasheet for NavIC L5) | the constellation cross-check |
 | Pixhawk-standard flight controller with ArduPilot, or ArduPilot SITL on a laptop first | the `GPS_INPUT` path |

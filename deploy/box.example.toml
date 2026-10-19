@@ -12,6 +12,9 @@ max_wind_ms = 15.0
 [ports]
 receiver_port = "/dev/ttyUSB0"   # the new GNSS receiver (USB-UART), or /dev/ttyAMA1
 receiver_baud = 115200           # set the receiver's port to this rate
+receiver_protocol = "auto"       # "ubx" (u-blox binary), "nmea" (any maker: GGA, RMC, GSA, GSV, GST), or "auto"
+nmea_uere_m = 3.0                # ASSUMPTION: an NMEA receiver without GST states no accuracy; the box uses HDOP x this
+nmea_speed_sigma_ms = 0.3        # ASSUMPTION: 1-sigma of an NMEA speed over ground
 fc_connection = "/dev/ttyAMA0"   # UART to the flight controller's TELEM port
 fc_baud = 921600                 # must match SERIALn_BAUD on the flight controller
 

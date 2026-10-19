@@ -130,7 +130,18 @@ def check_receiver(read: Callable[[], bytes], seconds: float = 10.0,
                    clock: Callable[[], float] = time.monotonic) -> Tuple[List[Check], dict]:
     obs = observe(read, seconds, sleep, clock)
     ok, notes = receiver_verdict(obs)
-    out = [Check("receiver", "messages", GO if ok else NOGO, "; ".join(notes))]
+    proto = "NMEA" if not obs["counts"] and (obs.get("nmea") or {}).get("sentences") else "UBX"
+    out = [Check("receiver", "messages", GO if ok else NOGO, f"{proto}: " + "; ".join(notes))]
+    fix = obs["last"].get("NMEA-FIX")
+    if fix is not None and proto == "NMEA":
+        sane = -90 <= fix.lat <= 90 and -180 <= fix.lon <= 180 and 0 <= fix.num_sv <= 100
+        out.append(Check("receiver", "last fix", GO if sane else NOGO,
+                         f"quality {fix.quality}, fix type {fix.fix_type}, {fix.num_sv} satellites, "
+                         f"HDOP {fix.hdop}, {fix.lat:.5f}, {fix.lon:.5f}, UTC {fix.utc}"
+                         + ("" if fix.gst_h_acc_m is None else f", receiver accuracy {fix.gst_h_acc_m:.1f} m")))
+        if sane and fix.fix_type < 3:
+            out.append(Check("receiver", "sky", NOTE, "no 3-D fix yet: antenna outdoors with sky view, "
+                             "then wait a minute"))
     pvt = obs["last"].get("NAV-PVT")
     if pvt is not None:
         sane = (-90 <= pvt.lat <= 90 and -180 <= pvt.lon <= 180 and 0 <= pvt.h_acc_m < 1e5

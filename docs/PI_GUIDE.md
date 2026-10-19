@@ -122,9 +122,13 @@ measurement on the hardware.
 
 ## Step 5: Set up the GNSS receiver
 
-Our software reads the receiver's **UBX** messages: NAV-PVT (position),
-NAV-SAT (satellites) and MON-RF (jamming state). Most receivers send only
-plain NMEA text out of the box, so they must be switched on once and saved.
+Two kinds of receiver work. A **u-blox** receiver is best read in its
+UBX messages: NAV-PVT (position with the receiver's own accuracy), NAV-SAT
+(satellites) and MON-RF (jamming state). **Any other receiver** is read in
+NMEA: GGA, RMC, GSA, GSV, and GST if it has it; make sure those sentences
+are on at 1 to 5 Hz in the receiver's own software and set
+`receiver_protocol = "nmea"` in `box.toml` (`docs/FIRST_FLIGHT.md`). The
+rest of this step is for a u-blox:
 
 Enable them from the Pi (no Windows tool needed) and let the script
 verify by listening:

@@ -53,7 +53,8 @@ from upin.box.fc_reader import (Airspeed, Attitude, Baro, FcGps, FcReader, Flow,
 from upin.box.wind_dr import WindDeadReckoning, body_accel_ne
 from upin.core.speed_learner import SpeedLearner
 from upin.box.gateway import TRUSTED, Gateway, GatewayOutput, GnssEpoch
-from upin.box.gnss_parser import MonHw, MonRf, NavPvt, NavSat, UbxStream, decode_ubx
+from upin.box.gnss_parser import (MonHw, MonRf, NavPvt, NavSat, NmeaEpochBuilder, NmeaFix,
+                                  NmeaStream, UbxStream, decode_ubx)
 from upin.box.mavlink_out import GpsInput, GpsInputSender, build
 from upin.box.replay import epoch_to_json
 from upin.detection.constellation_check import ConstellationFix
@@ -87,6 +88,9 @@ class BoxConfig:
     # ports
     receiver_port: str = "/dev/ttyUSB0"
     receiver_baud: int = 115200
+    receiver_protocol: str = "auto"    # "ubx" (u-blox binary), "nmea" (any receiver), or "auto": both parsers
+    nmea_uere_m: float = 3.0           # ASSUMPTION: horizontal accuracy = HDOP x this when the receiver sends no GST
+    nmea_speed_sigma_ms: float = 0.3   # ASSUMPTION: 1-sigma of an NMEA speed-over-ground
     fc_connection: str = "/dev/ttyAMA0"
     fc_baud: int = 921600
     # output
@@ -177,6 +181,8 @@ def load_config(path: str) -> BoxConfig:
         raise ValueError("formation = true needs beacon_secret_file: peers sign with it")
     if cfg.speed_model and not cfg.airframe_id:
         raise ValueError("speed_model needs airframe_id: the tilt-to-airspeed curve is per airframe")
+    if cfg.receiver_protocol not in ("auto", "ubx", "nmea"):
+        raise ValueError("receiver_protocol must be 'auto', 'ubx' or 'nmea'")
     return cfg
 
 
@@ -265,6 +271,10 @@ class Box:
         self._flow_status: Optional[dict] = None
         self.fc = FcReader()
         self.ubx = UbxStream()
+        self.nmea = NmeaStream()
+        self.nmea_builder = NmeaEpochBuilder()
+        self.receiver_protocol_seen: Optional[str] = None   # "ubx" or "nmea", once bytes parse
+        self.h_acc_source: Optional[str] = None
         self._jamming = "unknown"
         self._baro_offset: Optional[float] = None
         self._last_mode: Optional[str] = None
@@ -561,7 +571,21 @@ class Box:
         results = []
         if data:
             self.last_receiver_bytes_t = now
+        if self.cfg.receiver_protocol in ("auto", "nmea"):
+            for m in self.nmea.feed(data):
+                self.receiver_protocol_seen = "nmea"
+                fix = self.nmea_builder.feed(m)
+                if fix is not None:
+                    sats = self.nmea_builder.satellites()
+                    if sats:
+                        self.power.feed_nav_sat(sats, now)
+                    pvt = self._nav_pvt_from_nmea(fix)
+                    results.append(self.process(self._epoch(pvt, now), unix_s, pvt))
+        if self.cfg.receiver_protocol == "nmea":
+            return results
         for cls, mid, payload in self.ubx.feed(data):
+            self.receiver_protocol_seen = "ubx"
+            self.h_acc_source = "receiver (NAV-PVT hAcc)"
             msg = decode_ubx(cls, mid, payload)
             if isinstance(msg, MonHw):             # the M8 generation's form of MON-RF
                 msg = msg.as_mon_rf()
@@ -573,6 +597,33 @@ class Box:
             elif isinstance(msg, NavPvt):
                 results.append(self.process(self._epoch(msg, now), unix_s, msg))
         return results
+
+    def _nav_pvt_from_nmea(self, f: NmeaFix) -> NavPvt:
+        """The NMEA epoch in NAV-PVT's shape, so the rest of the box is one
+        path. Accuracy: the receiver's GST if it sends one, else HDOP times
+        an assumed range error (nmea_uere_m), and the record says which."""
+        cfg = self.cfg
+        if f.gst_h_acc_m is not None and f.gst_h_acc_m > 0:
+            h_acc, self.h_acc_source = f.gst_h_acc_m, "receiver (GST)"
+        elif f.hdop is not None and f.hdop > 0:
+            h_acc, self.h_acc_source = f.hdop * cfg.nmea_uere_m, f"assumed: HDOP x {cfg.nmea_uere_m:g} m"
+        else:
+            h_acc, self.h_acc_source = float("inf"), "none: no GST and no HDOP"
+        v_acc = (f.gst_v_acc_m if f.gst_v_acc_m else
+                 (f.vdop * cfg.nmea_uere_m if f.vdop else h_acc * 1.5))
+        vel = (f.vel_ne_ms[0], f.vel_ne_ms[1], 0.0) if f.vel_ne_ms is not None else (0.0, 0.0, 0.0)
+        try:
+            hh, mm, ss = int(f.utc[0:2]), int(f.utc[2:4]), float(f.utc[4:] or 0)
+        except ValueError:
+            hh = mm = 0; ss = 0.0
+        itow = int(((hh * 60 + mm) * 60 + ss) * 1000)
+        return NavPvt(itow_ms=itow, fix_type=f.fix_type, gnss_fix_ok=f.fix_type >= 2,
+                      num_sv=f.num_sv, lat=f.lat, lon=f.lon,
+                      height_msl_m=f.alt_msl_m if f.alt_msl_m is not None else 0.0,
+                      h_acc_m=h_acc, v_acc_m=v_acc, vel_ned_ms=vel,
+                      s_acc_ms=cfg.nmea_speed_sigma_ms if f.vel_ne_ms is not None else 10.0,
+                      pdop=f.pdop if f.pdop is not None else 0.0,
+                      year=f.year, month=f.month, day=f.day, hour=hh, minute=mm, second=int(ss))
 
     def epoch_from_fc_gps(self, g: FcGps, now: float) -> GnssEpoch:
         """Board-only mode: the flight controller's own GPS is the input.
@@ -722,7 +773,12 @@ class Box:
                  "VFR_HUD": "hud"}
         fc = " ".join(f"{short.get(k, k.lower()[:5])}:{v / max(interval_s, 1e-6):.0f}Hz"
                       for k, v in sorted(delta.items()) if v) or "nothing"
-        parts = [f"epochs {self.epochs}", rx, f"ubx {st.frames} frames/{st.bad_checksum} bad",
+        if self.receiver_protocol_seen == "nmea":
+            ns = self.nmea.stats
+            link = f"nmea {ns.sentences} sentences/{ns.bad_checksum} bad"
+        else:
+            link = f"ubx {st.frames} frames/{st.bad_checksum} bad"
+        parts = [f"epochs {self.epochs}", rx, link,
                  f"mode {self._last_mode or '-'}", f"fc {fc}"]
         if self.recorder is not None:
             r = self.recorder.status()
@@ -809,6 +865,7 @@ class Box:
                 "fix_type": pvt.fix_type, "lat": pvt.lat, "lon": pvt.lon,
                 "alt_m": pvt.height_msl_m, "h_acc_m": pvt.h_acc_m,
                 "num_sv": pvt.num_sv, "jamming": self._jamming,
+                "protocol": self.receiver_protocol_seen, "h_acc_source": self.h_acc_source,
                 "itow_ms": pvt.itow_ms,
                 "utc": (f"{pvt.year:04d}-{pvt.month:02d}-{pvt.day:02d} {pvt.hour:02d}:{pvt.minute:02d}:"
                         f"{pvt.second:02d}") if pvt.year else None},

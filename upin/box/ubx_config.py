@@ -24,8 +24,8 @@ import struct
 import time
 from typing import Callable, Dict, List, Optional, Tuple
 
-from upin.box.gnss_parser import (MON_HW, MON_RF, NAV_PVT, NAV_SAT, UbxStream, decode_ubx,
-                                  ubx_frame)
+from upin.box.gnss_parser import (MON_HW, MON_RF, NAV_PVT, NAV_SAT, NmeaEpochBuilder, NmeaStream,
+                                  UbxStream, decode_ubx, ubx_frame)
 
 CFG_MSG = (0x06, 0x01)
 CFG_RATE = (0x06, 0x08)
@@ -107,6 +107,8 @@ def observe(read: Callable[[], bytes], seconds: float, sleep: Callable[[float], 
     """Count UBX messages by type for `seconds`, and notice NMEA text.
     read() returns whatever bytes are waiting (possibly none)."""
     stream = UbxStream()
+    nmea = NmeaStream()
+    builder = NmeaEpochBuilder()
     counts: Dict[str, int] = {}
     nmea_lines = 0
     last: Dict[str, object] = {}
@@ -119,6 +121,10 @@ def observe(read: Callable[[], bytes], seconds: float, sleep: Callable[[float], 
             continue
         raw += len(data)
         nmea_lines += data.count(b"$G")
+        for m in nmea.feed(data):
+            f = builder.feed(m)
+            if f is not None:
+                last["NMEA-FIX"] = f
         for cls, mid, payload in stream.feed(data):
             name = {v: k for k, v in WANTED.items()}.get((cls, mid), f"{cls:02X}-{mid:02X}")
             counts[name] = counts.get(name, 0) + 1
@@ -126,13 +132,55 @@ def observe(read: Callable[[], bytes], seconds: float, sleep: Callable[[float], 
             if m is not None:
                 last[name] = m
     span = max(clock() - t0, 1e-6)
+    talkers = sorted({k for k in nmea.stats.kinds})
+    if builder.satellites():
+        last["NMEA-SATS"] = builder.satellites()
     return {"seconds": span, "bytes": raw, "counts": counts,
             "rates_hz": {k: v / span for k, v in counts.items()},
-            "bad_checksum": stream.stats.bad_checksum, "nmea_lines": nmea_lines, "last": last}
+            "bad_checksum": stream.stats.bad_checksum, "nmea_lines": nmea_lines, "last": last,
+            "nmea": {"sentences": nmea.stats.sentences, "bad_checksum": nmea.stats.bad_checksum,
+                     "kinds": dict(nmea.stats.kinds),
+                     "rates_hz": {k: v / span for k, v in nmea.stats.kinds.items()},
+                     "talkers": talkers}}
+
+
+def nmea_verdict(obs: dict) -> Tuple[bool, List[str]]:
+    """An NMEA receiver: GGA and RMC make epochs, GSV feeds the signal-power
+    check, GST gives the receiver's own accuracy; no jamming state exists."""
+    n = obs.get("nmea") or {}
+    rates = n.get("rates_hz", {})
+    notes, ok = [], True
+    for kind, why in (("GGA", "position: required"), ("RMC", "velocity"), ("GSA", "3-D and DOP"),
+                      ("GSV", "per-satellite signal strength for the signal-power check"),
+                      ("GST", "the receiver's own accuracy")):
+        r = rates.get(kind, 0.0)
+        if r > 0:
+            notes.append(f"{kind}: {r:.1f} Hz")
+        elif kind == "GGA":
+            ok = False
+            notes.append("GGA: none received (no position)")
+        elif kind == "GST":
+            notes.append("GST: none: the receiver states no accuracy; the box assumes HDOP x nmea_uere_m "
+                         "(labelled) -- enable GST in the receiver's software if it has it")
+        else:
+            notes.append(f"{kind}: none ({why} unavailable)")
+    sats = obs.get("last", {}).get("NMEA-SATS") or []
+    consts: Dict[str, int] = {}
+    for s in sats:
+        consts[s.constellation] = consts.get(s.constellation, 0) + 1
+    if consts:
+        notes.append("in view: " + ", ".join(f"{k} {v}" for k, v in sorted(consts.items())))
+    notes.append("NMEA carries no jamming state and no raw pseudoranges: those checks read NOT RUN")
+    if n.get("bad_checksum"):
+        notes.append(f"{n['bad_checksum']} sentences with a bad checksum (wrong baud, or a noisy cable)")
+    return ok, notes
 
 
 def verdict(obs: dict, need=("NAV-PVT", "NAV-SAT")) -> Tuple[bool, List[str]]:
-    """Did the receiver deliver what the box needs? With the reasons."""
+    """Did the receiver deliver what the box needs? With the reasons. A
+    receiver speaking NMEA is judged by nmea_verdict."""
+    if not obs["counts"] and (obs.get("nmea") or {}).get("sentences"):
+        return nmea_verdict(obs)
     notes = []
     ok = True
     for name in need:

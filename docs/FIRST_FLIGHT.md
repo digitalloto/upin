@@ -47,8 +47,20 @@ heartbeat, who it is, every stream's rate against what was asked,
 whether its GPS reports an accuracy, which optional streams are absent;
 **the disk**. NOTE lines are facts; NO-GO lines must be fixed.
 
-If the receiver sends only NMEA (most do out of the box), enable UBX from
-the Pi and let the script verify it by listening:
+**Your receiver speaks NMEA, not u-blox binary.** The box reads it as it
+is: GGA (position), RMC (velocity), GSA (3-D and DOP), GSV (every
+satellite's signal strength, NavIC included, for the signal-power check)
+and GST if the receiver can send it (its own accuracy). Make sure those
+sentences are on at 1 to 5 Hz in the receiver's own software; set
+`receiver_protocol = "nmea"` (or leave `auto`). Without GST the receiver
+states no accuracy, so the box assumes HDOP times `nmea_uere_m` (3 m, a
+labelled assumption) and every record says so; if the receiver has a GST
+option, turn it on. NMEA carries no jamming state and no raw
+pseudoranges: those checks read NOT RUN, honestly. The flight controller's
+own GPS is still the second receiver for the cross-check.
+
+For a u-blox receiver that sends only NMEA, UBX can be enabled from the
+Pi and verified by listening (not needed for yours):
 
 ```bash
 sudo -u upin venv/bin/python tools/configure_receiver.py \
