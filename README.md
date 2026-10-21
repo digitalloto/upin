@@ -30,6 +30,7 @@ The gap between those numbers and the total is the work tracked in [`FABRICATION
 | [`docs/PI_GUIDE.md`](docs/PI_GUIDE.md) | Step by step, from unboxing a Raspberry Pi to UPIN as GPS 2 |
 | [`docs/FIRST_FLIGHT.md`](docs/FIRST_FLIGHT.md) | The first real data: bench, car, bird, listening only; preflight, receiver setup, the summary |
 | [`docs/LAYER_REGISTER.md`](docs/LAYER_REGISTER.md) | Every layer, measured, with what it needs and a salvage verdict: works, rebuild, or leave |
+| [`docs/COMPONENT_INDEX.md`](docs/COMPONENT_INDEX.md) | Every working component: what it does, what it needs, where it is, and whether it fits an ESP32, a Pi, or needs more |
 | [`docs/LEARNED_IO.md`](docs/LEARNED_IO.md) | The AI motion predictor: learning from every test flight |
 | [`docs/TAGS.md`](docs/TAGS.md) | Tag landmarks: a fix from a printed tag; ground truth for the range |
 | [`docs/CAMERA_FLOW.md`](docs/CAMERA_FLOW.md) | Camera optical flow with weighted RANSAC: laser dots thrown out |
